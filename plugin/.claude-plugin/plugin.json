@@ -1,0 +1,13 @@
+{
+  "name": "doc-marshal",
+  "version": "0.1.0",
+  "description": "A machine-checked documentation tree for repositories whose primary reader is a coding agent. Validates every note as it is written, injects the docs index preview and shared vocabulary at session start, and ships the update-docs process.",
+  "author": {
+    "name": "Andrew Root"
+  },
+  "repository": "https://github.com/rootdrew27/doc-marshal",
+  "license": "MIT",
+  "keywords": ["documentation", "docs", "linter", "agents"],
+  "skills": ["./skills/update-docs"],
+  "hooks": "./hooks/hooks.json"
+}

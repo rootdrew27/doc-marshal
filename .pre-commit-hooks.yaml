@@ -1,0 +1,28 @@
+# Hooks for the pre-commit framework (https://pre-commit.com). In a consuming repository:
+#
+#   - repo: https://github.com/rootdrew27/doc-marshal
+#     rev: v0.1.0
+#     hooks:
+#       - id: doc-marshal-check
+#       - id: doc-marshal-index
+#
+# `doc-marshal-check` validates the staged notes; errors block the commit. Paths that are not notes
+# under the docs root are skipped silently, so the hook may be handed every markdown file a change
+# touched. `doc-marshal-index` regenerates INDEX.md; when that changes the file the hook fails and
+# you re-add, the way formatters behave. CI holds the invariant that no pushed branch carries a
+# stale index regardless.
+- id: doc-marshal-check
+  name: doc-marshal check
+  description: validate the staged notes against the docs ontology
+  entry: doc-marshal check --skip-non-notes
+  language: python
+  types: [markdown]
+  require_serial: true
+- id: doc-marshal-index
+  name: doc-marshal index
+  description: regenerate the generated docs index
+  entry: doc-marshal index
+  language: python
+  types: [markdown]
+  pass_filenames: false
+  require_serial: true

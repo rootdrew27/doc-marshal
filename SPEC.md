@@ -360,7 +360,6 @@ doc-marshal/
     .claude-plugin/plugin.json
     skills/update-docs/SKILL.md    ~20 lines, deferring to `info --process`
     hooks/hooks.json               PostToolUse validation, SessionStart injection
-    vendor/doc_marshal/             built at release; makes the plugin work uninstalled
   .pre-commit-hooks.yaml
   tests/
 ```
@@ -393,16 +392,26 @@ and heading readers are strict subset readers, and `check_structure` depends on 
 
 `tomli-w` is taken as a **development dependency** for the round-trip test.
 
-**Why pure-Python is load-bearing:** it keeps `PYTHONPATH=<plugin>/vendor python3 -m doc_marshal`
-working, which means installing the plugin is the entire installation -- no pip, no uv, no venv,
-and the plugin works in a repository whose maintainers have never heard of this tool. A single C
-extension ends that.
+**Why pure-Python is load-bearing:** it keeps `python3 -m doc_marshal` working from a bare
+checkout, and keeps the install a single pure wheel with no build step on any platform -- which is
+what lets a pre-commit hook or a `uvx` call in CI resolve it in seconds. A single C extension
+ends that.
 
 ## 10. The Claude Code plugin
 
-**Resolution order:** a repo-pinned `doc-marshal` first, the plugin's vendored copy as fallback. A
-repo that pins gets the agent and CI validating against the same version; a repo that does not
-still works. `doctor` reports which was resolved and flags a mismatch.
+**The plugin is an add-on to the package, not a distribution of it.** It carries no copy of the
+engine. Its hooks resolve the project's own `doc-marshal` -- the project's virtualenv first, then
+PATH -- so the agent validates against exactly the version the repository installed and CI runs.
+With no engine installed the hooks do nothing, except that SessionStart says so once in a project
+that has a docs root, since silence there would look like a clean tree. `doctor` reports what
+each route resolves and flags a mismatch.
+
+*Revised 2026-09-02.* An earlier draft vendored the engine into the plugin so that installing the
+plugin was the entire installation. Dropped: it presented the plugin as the product when the
+package is, and it introduced a second engine version, updated on plugin install and pinned by
+nothing, that `doctor` then existed mostly to police. The audience lost is whoever wanted
+zero-install Claude Code tooling and no CI or pre-commit check, which is not the audience the
+drift detector is for.
 
 **SKILL.md is thin** -- roughly twenty lines: a description good enough for skill matching, then
 an instruction to run `doc-marshal info --process` and follow it. The prototype's 274 lines of
@@ -465,9 +474,9 @@ Rejected: a warnings-in-minors, errors-in-majors rollout ceremony. Pinning alrea
 problem it was designed for, and the ceremony would delay a genuinely important check by a major
 release.
 
-**The one real hazard** is the plugin's vendored copy, which updates on plugin install and is not
-pinned by the repo -- so an agent could validate at 0.6 while CI runs 0.5. The §10 resolution
-order exists for this, and `doctor` reports the mismatch.
+**The one real hazard** would be a second engine version the repository does not pin -- an agent
+validating at 0.6 while CI runs 0.5. The plugin carries no engine of its own (§10), so the only
+versions in play are the ones the repository installs and pins, and `doctor` compares those.
 
 **Tier 3 constants** -- the filename pattern, `SUMMARY_MAX`, the em-dash rule, the index and assets
 directory names, the forbidden names, the excluded directories -- are **not configurable in 0.1**.
@@ -483,7 +492,7 @@ configuration. `standard` is the only ontology and it is hardcoded. Ships:
 
 - the engine, registry-driven, with every check the prototype has
 - the CLI of §6
-- the thin plugin with both hooks and a vendored copy
+- the thin plugin with both hooks, running the repository's own engine
 - `.pre-commit-hooks.yaml`
 - a README carrying the preset's prose
 - MIT license, PyPI release
@@ -500,7 +509,8 @@ convention, and the repository's own docs tree documents the implementation.
 ### Then -- migrate MakeRent
 
 The real integration test. MakeRent needs zero configurability, and running it exercises the
-things paper cannot check: whether vendored-versus-pinned resolution is comprehensible, whether
+things paper cannot check: whether the plugin resolving the repository's own engine is
+comprehensible, whether
 `info`-instead-of-files works for an agent mid-task, and whether a thin SKILL.md still gets matched
 and followed.
 
@@ -566,10 +576,10 @@ Findings from reviewing MakeRent `d664cb1`, to be handled during extraction.
       only the marked one.
 - [ ] **V2** -- the round-trip test passes: the `standard` preset serializes to TOML, loads back,
       and compares equal. *(0.2)*
-- [ ] **V3** -- the plugin validates a note in a repository with no `doc-marshal` installed, via
-      the vendored copy alone.
-- [ ] **V4** -- `doctor` reports a deliberate version mismatch between a repo pin and the plugin's
-      vendored copy.
+- [ ] **V3** -- the plugin's hooks validate a note through the engine in the project's virtualenv;
+      with no engine installed, SessionStart says so once and PostToolUse stays silent.
+- [ ] **V4** -- `doctor` reports a deliberate version mismatch between a repo pin and the installed
+      engine.
 - [ ] **V5** -- MakeRent runs a full `/update-docs` cycle against the extracted tool, with the thin
       SKILL.md, and the agent completes the process without the prose it used to carry.
 - [ ] **V6** -- a fresh session's injected block is under 1000 characters on a 300-note tree.
