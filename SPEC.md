@@ -1,0 +1,577 @@
+# doc-marshal -- design spec
+
+**Status:** agreed, unbuilt. Written 2026-09-02 from a design session held in the MakeRent repo.
+
+**Provenance:** the tooling this project extracts lives at
+`.claude/skills/update-docs/` in MakeRent, at commit `d664cb1`. That kit is the working
+prototype -- every rule below has been exercised against a real 30-note documentation tree.
+This document records what the extraction decided, including the parts that reverse the
+prototype.
+
+This is a *spec* in the sense the ontology uses the word: it describes work before it is built,
+and its Validation section carries items that are not yet closed. It is not a reference. When
+the code exists and disagrees with this file, the code is right and this file is stale.
+
+---
+
+## 1. What this is
+
+A documentation system for repositories whose primary reader is a coding agent.
+
+It has three parts:
+
+1. **An engine** -- a validator, index builder and drift detector for a tree of typed markdown
+   notes. Every rule it enforces is read off a registry rather than hardcoded per check.
+2. **A preset** -- `standard`, an eight-type ontology with an opinionated argument for why each
+   type exists and how to route between them.
+3. **Integrations** -- a Claude Code plugin, a pre-commit hook, and a CLI that CI calls directly.
+
+**The tool is `doc-marshal`** -- the package, the CLI, the module (`doc_marshal`) and the
+repository. **The directory it governs is whatever the project already calls its documentation**,
+defaulting to `docs/` and identified by a `.doc-marshal.toml` marker inside it rather than by its
+name (section 4.1.1).
+
+The distinguishing idea is the **anchor**: every living note declares, in frontmatter, what
+outside itself would falsify it. That makes "which docs did this diff invalidate?" a question
+with a mechanical answer, which is the difference between documentation that rots silently and
+documentation that reports its own staleness.
+
+## 2. Positioning -- engine, not convention
+
+The product is the engine. The eight-type ontology ships as a preset and is a convenience.
+
+This was decided deliberately against the alternative, which was to sell the convention itself
+(the way Conventional Commits or Keep a Changelog are sold) and treat the validator as the thing
+that makes it stick. Engine-as-product buys users the freedom to bring their own ontology and be
+held to it just as strictly. The cost, accepted: the shipped ontology is one option among many
+rather than the point, and the engine competes on capability with general docs linters.
+
+The consequence that does the most work downstream: **anchoring must be an engine capability, not
+a fact about two hardcoded field names.** See §3.3.
+
+## 3. The ontology
+
+### 3.1 The standard preset
+
+Eight types. `serves` is the reader each one is for; the required anchor follows from authorship
+(see §3.3).
+
+| Type | Serves | Required anchor |
+| --- | --- | --- |
+| `reference` | someone looking up a fact this repo decides | `code_refs` |
+| `background` | someone looking up a fact this repo observes | `source` |
+| `runbook` | someone executing under pressure | `code_refs` |
+| `explanation` | someone asking why it works this way | `code_refs` |
+| `decision` | someone about to reopen a settled choice | none |
+| `spec` | someone building or validating unbuilt work | none |
+| `history` | someone about to repeat a dead end | none |
+| `context` | someone choosing what to call a thing | none |
+
+Four types require no anchor, each for a stated reason. `decision` and `history` are append-only
+and anchored by their own content. `spec` describes work that may not exist yet, so requiring a
+resolvable path would make `status: proposed` unwritable. `context` is falsified by the words the
+repo uses, not by a path.
+
+### 3.2 What a type declares
+
+A type is data. Every facet below is enforced by the validator and applied by the scaffolder, and
+no check hardcodes a type name.
+
+| Facet | Meaning |
+| --- | --- |
+| `serves`, `voice`, `mutability` | prose, rendered by `info` |
+| anchor requirements | which declared anchor fields this type must carry |
+| `statuses`, `default_status` | allowed `status` values, empty means the type has none |
+| `folder` | the one folder under the docs root this type lives in |
+| `numbered` | filename carries a unique `NNNN-` prefix |
+| `fixed_name` | the one filename this type may take, exempt from the naming pattern |
+| `root_required` | one instance must exist at the docs root |
+| `additive` | a nested instance may not redefine a key an ancestor defines |
+| `append_only` | never edited after acceptance, so its wording cannot be corrected |
+| `requires_related` | the note ends with a `## Related` section |
+| `supersession` | field names and status recording that this note was replaced |
+| `skeleton` | what the scaffolder writes |
+| `structure` | the body shape other checks parse -- see below |
+
+**`structure`** exists for a type whose body is *data* rather than prose. It declares the exact
+`##` sections in order, the table's columns, which column is the key, which columns other notes
+are scanned against, and caps on rows, cell length and total file size. A type with a `structure`
+is validated for shape as an error rather than a warning, because a renamed column does not
+degrade the checks built on it -- it silently turns them off, and a check that has quietly stopped
+running is worse than one that never existed.
+
+`context` is the only preset type with a `structure` today. Its `Avoid` column is read by every
+other note's vocabulary check.
+
+### 3.3 Anchors
+
+Anchor **fields** are declarable, not fixed. Each declares what it holds and how its entries
+resolve.
+
+| `resolves` | Meaning | On the drift spine |
+| --- | --- | --- |
+| `repo-path` | a path from the repo root, must exist | yes |
+| `docs-path` | a path that must resolve inside the docs root | no |
+| `url` | an `http`/`https` URL, validated for shape | no |
+| `opaque` | validated for presence only | no |
+
+The preset declares two: `code_refs` (`repo-path`) and `source` (`docs-path` or `url`).
+
+**The drift spine** is the set of anchor fields with `resolves = "repo-path"`. `doc-marshal
+affected` matches those, and only those, against a git diff. This generalises the prototype, where
+`affected_docs.py` read the literal string `code_refs` and `check_source` hardcoded the rule that
+`source` must resolve inside the docs root. Both were convention judgments about two specific
+fields baked into engine code; they become instances of a general rule.
+
+**The engine does not require any ontology to have a `repo-path` anchor.** A user may declare
+every field `opaque` and float free of the spine. Decided deliberately: freedom belongs to the
+user, and an ontology with no drift detection is a choice they are entitled to make loudly in one
+config file.
+
+Anchor requirements per type are **minimums, not permitted sets**. Any declared field is legal on
+any type and is validated whenever present.
+
+## 4. Configuration
+
+Everything in this section is designed now and **built in 0.2**. See §14.
+
+### 4.1 The marker file
+
+**`.doc-marshal.toml`, inside the docs root.** It does two jobs: it marks which directory is the
+docs root, and it holds the configuration. An empty file is valid TOML, so 0.1 writes it empty and
+0.2 fills it -- nothing is renamed between releases.
+
+TOML is read with `tomllib`, standard library from 3.11, which is the floor this package sets.
+
+### 4.1.1 The docs root is marked, not guessed
+
+The prototype hunts upward for a directory literally named `agent-docs`, which is safe only because
+that name is unusual. The default directory is now `docs/` -- the name every repository already
+uses -- and `docs/` is occupied in a large share of them by a published site: Sphinx (`conf.py`),
+MkDocs, Docusaurus, Jekyll, mdBook. Discovery by name would walk into one and report several
+hundred errors on files that were never notes.
+
+A marker fixes this at the right level: **discovery does not depend on the directory's name at
+all.** The docs root is the directory containing `.doc-marshal.toml`. A project that prefers
+`notes/` or `agent-docs/` puts the marker there and nothing else changes, and a repository can hold
+a Sphinx `docs/` *and* a marshal tree elsewhere without ambiguity -- the case a name-based default
+could not express.
+
+Rules:
+
+- **Exactly one marker per repository.** Two is an error naming both, since one repo has one docs
+  root.
+- **The marker is not a note.** It is classified alongside the generated index and the agent-memory
+  files -- never validated, never indexed.
+- **Precedence for location:** `--docs-root`, then `$DOC_MARSHAL_DOCS_ROOT`, then the marker. There
+  is no name-based fallback and no guessing.
+- **`doc-marshal init` creates it**, defaulting to `docs/` and taking a path argument for anything
+  else. With no marker, every other command fails with a message naming `init` and listing the
+  directories it considered.
+- `init` **warns** when the target looks like a published site -- it holds `conf.py`, `mkdocs.yml`,
+  `_config.yml`, `docusaurus.config.*` or `book.toml` -- or when it holds markdown without
+  frontmatter. A warning rather than a refusal, because adopting the convention on an existing tree
+  is a legitimate thing to do and the marker makes the intent explicit.
+
+This supersedes the earlier design in which configuration lived in a repo-root `doc-marshal.toml`
+with a `[tool.doc-marshal]` fallback in `pyproject.toml`. One location beats three, and a `docs_root`
+config key is no longer needed -- it existed only to compensate for name-based discovery.
+
+### 4.2 Composition
+
+```toml
+extends = "standard"   # the default when omitted; `extends = []` starts from nothing
+```
+
+Presets are named and shipped in the package. More may be added later (`minimal`) without a new
+config mechanism -- that is the same `extends` key with more data behind it.
+
+Rejected: merge-by-default, which makes the eight types unremovable furniture; and
+replace-by-default, which makes adding one type mean retyping eight skeletons.
+
+### 4.3 Merge semantics
+
+**Per-type shallow merge over the extended preset.** Writing `[types.reference] serves = "..."`
+yields the preset's `reference` with one field replaced -- not a fresh type whose other facets
+revert to defaults. The alternative would mean that adding a `folder` to `decision` silently
+strips its numbering, supersession and skeleton.
+
+**Merge is shallow per table, and nested tables merge the same way.** `[types.context.structure]
+max_rows = 30` overrides one number without restating `columns`, `sections` or the other caps.
+
+### 4.4 Disabling
+
+Disabling is a **value in the type's own table**, not a parallel list:
+
+```toml
+[types.history]
+enabled = false
+```
+
+This follows the eslint (`"off"`), stylelint (`null`) and pyright (`"none"`) model rather than
+ruff's `select`/`ignore` lists. The research behind the choice: ruff needs lists because it has
+thousands of prefix-namespaced rule codes, and it has since **deprecated `extend-ignore`** because
+the replace-versus-extend distinction collapsed in practice. Doc types are a small named entity
+space, where a keyed map is already the natural structure.
+
+Concretely, `enabled = false` beats a `disable = [...]` list on four counts: one place to look for
+whether a type is live; a typo'd `[types.histry]` is a validatable unknown-type error where
+`disable = ["histry"]` is silently a no-op; re-enabling downstream in an `extends` chain is
+`enabled = true` rather than list subtraction; and it needs no new mechanism, being one more facet
+under the merge rule that already exists.
+
+### 4.5 Weakening a built-in
+
+Permitted. `[types.reference] code_refs = false` is legal.
+
+"Always enforced" is a property of the **engine**, not of the preset: there is no severity
+configuration, no warn-only mode, and no inline suppression. Whatever registry results is enforced
+completely. Freezing the preset's internals would defend a much weaker thing while making the
+eight types furniture nobody can move.
+
+### 4.6 The rules table
+
+```toml
+[rules]
+em_dash = false
+filename_pattern = "^[a-z0-9-]+$"
+summary_max = 300
+forbidden_names = []
+exclude = ["docs/legacy/**"]
+```
+
+Rule-level configuration exists, expressed as **values**, with disabling as a legal value -- the
+same shape as §4.4, so there is one idea to learn rather than two.
+
+`exclude` is the incremental-adoption mechanism: it quarantines *files* visibly rather than
+weakening a *rule* everywhere. Partial adoption already half-works, because `check` accepts a file
+list and pre-commit passes only staged files; `exclude` extends that to `--all` in CI.
+
+### 4.7 What is not configurable, ever
+
+**No inline suppression.** No `<!-- doc-marshal-disable -->` in a note, no per-line ignores. This
+is the line, and it is the only prohibition the design defends absolutely. A hundred scattered
+suppressions are unauditable; everything in a config file shows up in review and can be printed
+back as the effective ruleset by `doc-marshal info`.
+
+**Tier 1 invariants**, regardless of configuration: frontmatter parses; `type` names a live type;
+declared anchors are present and resolve according to their kind; links resolve, including heading
+anchors; a type's declared facets hold; the index is generated rather than written.
+
+## 5. Prose lives in the package
+
+The convention's prose -- the rules, the argument for each type, the routing guidance -- ships
+**inside the package** and is obtained by calling the CLI. It is never copied into a user's
+repository.
+
+This dissolves rather than solves several problems at once: no emitted copy means no staleness
+check, no ownership boundary between the tool's file and the user's edits, and no question about
+whether a conventions file inside the docs root is itself a note that must pass validation.
+Output is filtered to *enabled* types, so it is more accurate than any stored file, and it always
+matches the installed version.
+
+It also deletes an enforcement point. The prototype's `build_types.py` exists solely to keep
+stored tables in agreement with the registry, and is checked in CI and in the commit hook.
+Rendering on demand makes that entire staleness class impossible.
+
+**Markdown is primary**, with `--format json` available for third parties building on the engine.
+
+Two consequences:
+
+- **User-declared types supply their own prose.** `serves`/`voice`/`mutability` inline; a
+  `description_file` key for anything longer, because multi-paragraph markdown inside a TOML
+  string is miserable to author and to diff.
+- **Humans need it on the web.** A reviewer on a pull request cannot run the CLI, and the
+  conventions are the sales pitch. The canonical human rendering lives in the repository README
+  and the project's docs site. `init` writes one small pointer file into the target repo -- a
+  pointer, not a copy, so it cannot drift.
+
+## 6. CLI surface
+
+One command, `doc-marshal`, replacing the prototype's five script paths. That single name is what
+makes the prose portable: reference files, hooks, CI steps and agent-memory files stop naming
+installation paths.
+
+| Command | Purpose |
+| --- | --- |
+| `check [paths...]` / `check --all` | validate the named notes, or sweep the tree |
+| `index` | regenerate `INDEX.md`; `--check` reports staleness without writing |
+| `affected` | notes whose `repo-path` anchors name code a change touched; `--range`, `--paths`, `--format github` |
+| `new <type> <path>` | scaffold a note the validator will accept |
+| `info` | the compact effective registry -- enabled types, one line each, with anchors |
+| `info <type>` | one type in full: argument, skeleton, facets, statuses |
+| `info --conventions` | the preset preamble -- the rules that are not per-type |
+| `info --process` | the update-docs process, staged |
+| `init [path] [--claude-code]` | mark a directory as the docs root and write the integration files; defaults to `docs/` |
+| `doctor` | report the resolved engine version and flag a plugin/repo mismatch |
+| `session-context` | what a fresh session is given -- see §7 |
+
+`build_types` has no successor: its rendering moves inside `info`.
+
+## 7. Session injection
+
+A `SessionStart` hook injects three blocks:
+
+1. **The index preview** -- folder names with note counts, and nothing else, ending with a pointer
+   to `doc-marshal index` for the full list. **Uniform reduction at every size, including the top
+   level.**
+2. **The docs root's `CONTEXT.md`, verbatim.** The terms and the aliases they rule out are the
+   content; a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a
+   nested one governs its subtree and is read on arriving there.
+3. **The compact `info` block** -- the enabled types and their anchors, roughly eight lines.
+
+The reasoning for (1): `INDEX.md` in the prototype is injected in full and uncapped. It measured
+**7592 characters at 30 notes** and grows linearly with the tree forever, while the `context` type
+caps *itself* at 6000 characters with the explicit argument that it "is emitted into every session."
+The argument that justifies the smaller cap applies with more force to the file that had none.
+
+Rejected: capping by byte count, which makes the injected content depend on how verbose other
+people's summaries are, so adding one long summary could silently truncate a different note out of
+the index. Rejected: a note-count threshold with degradation, which introduces two renderings and
+a cliff. Rejected: exempting top-level notes, which reintroduces the inconsistency that the
+uniform rule removes.
+
+The cost, accepted: a session that needs to route to a document spends one tool call. That is paid
+only by sessions that touch documentation, where the previous design charged every session for a
+full index including the majority that never open a doc.
+
+## 8. Package layout
+
+```
+doc-marshal/
+  pyproject.toml                   zero runtime deps; console_script: doc-marshal
+  LICENSE                          MIT
+  README.md                        the standard preset's prose -- the sales pitch
+  SPEC.md                          this file
+  src/doc_marshal/
+    __main__.py                    python -m doc_marshal
+    cli.py                         subcommand dispatch
+    ontology.py                    DocType, Structure, Supersession; the standard preset
+    settings.py                    the constants of Tier 3, behind one object (see §13)
+    config.py                      TOML loader, merged over a preset          [0.2]
+    paths.py                       docs-root discovery, path classification, frontmatter
+    check.py index.py affected.py new.py info.py init.py doctor.py
+    session.py                     what a fresh session is given
+    prose/
+      conventions.md               rendered by `info --conventions`
+      doc-types.md                 rendered by `info` and `info <type>`
+      process.md                   rendered by `info --process`
+  plugin/
+    .claude-plugin/plugin.json
+    skills/update-docs/SKILL.md    ~20 lines, deferring to `info --process`
+    hooks/hooks.json               PostToolUse validation, SessionStart injection
+    vendor/doc_marshal/             built at release; makes the plugin work uninstalled
+  .pre-commit-hooks.yaml
+  tests/
+```
+
+`DocType` is the **single internal representation**. The preset constructs it in Python -- keeping
+the dataclass docstrings, type checking, and cross-references like `Structure(max_cell=SUMMARY_MAX)`
+that TOML would flatten into a duplicated literal. The config loader is an alternate constructor
+for the same objects.
+
+**The round-trip test is the forcing function**: serialize the built-in registry to TOML, load it
+back, assert equality. If the schema cannot express the shipped preset, the schema is too weak,
+and that is discovered on day one rather than in a user's bug report. The same serializer backs
+`info --dump-toml`, which is how a user sees a worked example without reading Python.
+
+## 9. Dependency policy
+
+Runtime dependencies are permitted, and must pass three tests:
+
+1. **Pure Python.** No compiled extensions.
+2. **It must not replace a strictness boundary.**
+3. **It earns a decision record.**
+
+**Nothing passes today.** The obvious candidate was replacing the hand-rolled frontmatter parser
+with PyYAML, and it fails test 2: the prototype's `parse_frontmatter` deliberately reads a
+*subset* -- scalars and dash lists -- and raises on anything richer, so a block the convention does
+not sanction fails loudly rather than validating as empty. PyYAML accepts nested maps, flow style,
+anchors, and the Norway problem where a bare `no` becomes `False`. The strictness is the
+convention, enforced at parse time. The same argument rules out a real markdown parser: the table
+and heading readers are strict subset readers, and `check_structure` depends on that.
+
+`tomli-w` is taken as a **development dependency** for the round-trip test.
+
+**Why pure-Python is load-bearing:** it keeps `PYTHONPATH=<plugin>/vendor python3 -m doc_marshal`
+working, which means installing the plugin is the entire installation -- no pip, no uv, no venv,
+and the plugin works in a repository whose maintainers have never heard of this tool. A single C
+extension ends that.
+
+## 10. The Claude Code plugin
+
+**Resolution order:** a repo-pinned `doc-marshal` first, the plugin's vendored copy as fallback. A
+repo that pins gets the agent and CI validating against the same version; a repo that does not
+still works. `doctor` reports which was resolved and flags a mismatch.
+
+**SKILL.md is thin** -- roughly twenty lines: a description good enough for skill matching, then
+an instruction to run `doc-marshal info --process` and follow it. The prototype's 274 lines of
+process prose move into the package, where they are versioned with the engine and shared with
+every other agent.
+
+**The plugin's real value is the two hooks**, which no other harness provides: PostToolUse
+validation of each note as it is written, and SessionStart injection. The extra Bash round-trip
+before the agent knows the process is the price of the process matching the installed engine.
+
+## 11. Agent compatibility
+
+Claude Code is the priority; the design stays vendor-neutral.
+
+- `doc-marshal init` writes **`AGENTS.md`** by default -- the neutral surface, which Claude Code
+  also reads.
+- `doc-marshal init --claude-code` writes **`CLAUDE.md`** instead, and additionally writes the
+  `.claude/settings.json` permission entries for `Bash(doc-marshal:*)` so the agent is not prompted
+  on every validator call.
+- The flag generalises later to `--agent claude-code|codex|cursor`.
+
+Either way the file is a pointer to `doc-marshal info --process`, so a Codex or Cursor user gets
+the same process by the same route with no plugin at all. Non-Claude agents get no write-time
+validation; pre-commit catches their errors, later.
+
+## 12. Enforcement points
+
+| When | What runs | Effect |
+| --- | --- | --- |
+| every `Write`/`Edit` to a note | `check <that file>` via the plugin's PostToolUse hook | reports into the session; never blocks |
+| every `git commit` | `check` on staged notes, `index`, via the pre-commit framework | errors block; regenerated files fail the hook for re-adding |
+| every pull request | `check --all`, `index --check` | errors fail the build; a stale index warns |
+| every pull request | `affected --format github` | annotates anchored notes; never fails |
+
+**The pre-commit framework replaces the prototype's 218-line native hook**, which regenerated
+`INDEX.md` and staged it into the same commit. The framework will not stage; a hook that modifies
+files fails and you re-add. Accepted, because that is exactly how `black`, `ruff-format` and
+`prettier` behave, so a public user meets a failure mode they have seen a hundred times rather than
+a bespoke one -- and silently adding files to someone's commit is the more surprising of the two
+behaviours. The invariant that matters, that no *pushed* branch carries a stale index, is held by
+CI regardless. `git config core.hooksPath` is retired: no contributor ever runs it.
+
+Neither pull-request job takes a `paths:` filter. Half of what they check is whether anchors still
+resolve, and those break in the change that renames or deletes the code -- which by definition
+touches no documentation.
+
+CI calls `uvx doc-marshal check --all` directly. **No composite GitHub Action in 0.1**: it is sugar
+over a three-line step, and a repository with no users does not need a marketplace listing.
+
+## 13. Stability contract
+
+SemVer, plus pinning -- and pinning is free at every enforcement point: pre-commit by `rev:`, CI
+by `uvx doc-marshal==0.5.*`.
+
+**Minor releases may add checks.** The README says so plainly. A user who pinned does not see a
+new check until they choose to bump, and upgrade-requires-fixes is a normal process when the
+upgrade was a choice.
+
+Rejected: a warnings-in-minors, errors-in-majors rollout ceremony. Pinning already solves the
+problem it was designed for, and the ceremony would delay a genuinely important check by a major
+release.
+
+**The one real hazard** is the plugin's vendored copy, which updates on plugin install and is not
+pinned by the repo -- so an agent could validate at 0.6 while CI runs 0.5. The §10 resolution
+order exists for this, and `doctor` reports the mismatch.
+
+**Tier 3 constants** -- the filename pattern, `SUMMARY_MAX`, the em-dash rule, the index and assets
+directory names, the forbidden names, the excluded directories -- are **not configurable in 0.1**.
+They are routed through one settings object anyway, so exposing them in 0.2 is a schema addition
+rather than a refactor through six modules.
+
+## 14. Release plan
+
+### 0.1 -- the extraction
+
+No configuration. `init` writes an empty `.doc-marshal.toml` marker, which is location rather than
+configuration. `standard` is the only ontology and it is hardcoded. Ships:
+
+- the engine, registry-driven, with every check the prototype has
+- the CLI of §6
+- the thin plugin with both hooks and a vendored copy
+- `.pre-commit-hooks.yaml`
+- a README carrying the preset's prose
+- MIT license, PyPI release
+
+Fresh repository, **no history transfer**. A subtree split would capture only one of four source
+directories -- the hooks, the commit hook and the workflows live elsewhere and are being dropped or
+rewritten -- and the files that came across would be restructured into `src/`, giving renames on
+top of a partial history. The initial commit records extraction from MakeRent `d664cb1`; the
+reasoning stays readable in MakeRent's history, and most of it is in the docstrings regardless.
+
+**Not dogfooded initially.** When it is, the split is: the package's prose documents the
+convention, and the repository's own docs tree documents the implementation.
+
+### Then -- migrate MakeRent
+
+The real integration test. MakeRent needs zero configurability, and running it exercises the
+things paper cannot check: whether vendored-versus-pinned resolution is comprehensible, whether
+`info`-instead-of-files works for an agent mid-task, and whether a thin SKILL.md still gets matched
+and followed.
+
+### 0.2 -- configuration
+
+The loader of §4, gated by the round-trip test. Brings with it `[rules]`, `exclude`, Tier 3, and
+the `[types.context.structure]` overrides for `max_rows` and `max_chars`.
+
+## 15. Decision log
+
+Each row is a decision taken in the design session, with the alternative it beat.
+
+| # | Decision | Instead of |
+| --- | --- | --- |
+| 1 | The engine is the product; the ontology is a preset | selling the convention, with the validator as enforcement |
+| 2 | Anchor fields are declarable, with a `resolves` kind | two hardcoded field names with hardcoded resolution asymmetry |
+| 3 | `extends`, with the preset built in Python and TOML as an alternate constructor | shipping the preset as TOML for a forcing function -- a round-trip test buys that more cheaply |
+| 4a | Per-type shallow merge, nested tables included | replace semantics, which silently strips unmentioned facets |
+| 4b | `enabled = false` inside the type's table | a parallel `disable = [...]` list, per the ruff/eslint research |
+| 4c | Weakening a built-in is permitted | freezing the preset, which makes its types immovable furniture |
+| 5 | `[rules]` values with disabling as a value; `exclude` globs | no rule configuration at all -- the position collapsed, since `em_dash = false` is disabling a rule |
+| 5b | **No inline suppression.** The one absolute prohibition | per-line ignores, which are unauditable at scale |
+| 6 | Prose lives in the package, fetched by CLI | emitting it into the repo, with a staleness check and an ownership boundary |
+| 7 | Markdown-primary output; compact `info` injected at SessionStart | JSON-primary, which would force arguments into fields |
+| 8 | Dependency policy of three tests; nothing qualifies yet | zero-deps as dogma, or taking PyYAML because deps are allowed |
+| 9 | `doc-marshal` for repo, package, module and CLI | `agent-docs` for everything -- PyPI rejects it as too similar to the existing `agentdocs` |
+| 10 | Vendor-neutral `AGENTS.md`, `--claude-code` for `CLAUDE.md` plus permissions | Claude-only, abandoning most of the public audience |
+| 11 | pre-commit framework | the native hook, whose auto-staging is not worth the per-clone install step |
+| 12 | SemVer and pinning; minors may add checks | a warnings-then-errors rollout ceremony |
+| 13 | 0.1 is the extraction; config is 0.2 | building the configurable engine first |
+| 14 | Commit-then-extract, fresh repo | `git subtree split`, which captures one of four source directories |
+| 15 | Index preview reduced to folder names and counts | full injection (uncapped), a byte cap, or a note-count threshold with degradation |
+| 16 | Uniform reduction, top level included | exempting top-level notes, reintroducing two renderings |
+| 17 | No dogfooding initially; MIT | dogfooding from `git init` |
+| 18 | The docs root is any directory the project chooses, defaulting to `docs/` | a fixed `agent-docs/`, which after the rename was orphaned branding a project never chose |
+| 19 | The root is found by a `.doc-marshal.toml` **marker inside it**, never by name | a name-based hunt, which with a `docs/` default walks into Sphinx and MkDocs trees; and a repo-root `docs_root` config key, which the marker makes unnecessary |
+| 20 | The marker **is** the config file, empty in 0.1 | a bare sentinel plus a separate repo-root config, which is two files and a rename between releases |
+
+## 16. Carried in from the prototype review
+
+Findings from reviewing MakeRent `d664cb1`, to be handled during extraction.
+
+- **`init` must scaffold `CONTEXT.md`** as well as the marker. The `context` type is
+  `root_required`, so `check --all` errors without it, and 0.1 has no config escape. `init` is the
+  command that makes a repository legible to the tool, not a convenience.
+- **`max_rows = 20` and `max_chars = 6000` are hard errors in 0.1.** The README states plainly
+  that the vocabulary is deliberately small. 0.2 makes them overridable per §4.3.
+- **`session_context.py`'s `REGENERATE`** is an f-string with no placeholders, and hardcodes the
+  skill path. Both disappear when it becomes `doc-marshal index`.
+- **`check_structure` re-reads the file from disk** to measure size, though the caller already read
+  it. Thread the text through; whole-file measurement is correct, since the note is emitted with
+  its frontmatter.
+- **`check_vocabulary`'s `\b{alias}\b`** misbehaves for an alias with a leading or trailing
+  non-word character (`.env`, `C++`) -- and a vocabulary is exactly where those appear.
+
+## 17. Validation
+
+- [ ] **V1** -- `doc-marshal check --all` reproduces the prototype's output on MakeRent's tree,
+      note for note, with the marker placed in its existing `agent-docs/` directory.
+- [ ] **V1b** -- `doc-marshal init` warns on a `docs/` directory holding `conf.py` or `mkdocs.yml`,
+      and says what it found; and every command fails legibly when no marker exists.
+- [ ] **V1c** -- a repository holding both a Sphinx `docs/` and a marked tree elsewhere validates
+      only the marked one.
+- [ ] **V2** -- the round-trip test passes: the `standard` preset serializes to TOML, loads back,
+      and compares equal. *(0.2)*
+- [ ] **V3** -- the plugin validates a note in a repository with no `doc-marshal` installed, via
+      the vendored copy alone.
+- [ ] **V4** -- `doctor` reports a deliberate version mismatch between a repo pin and the plugin's
+      vendored copy.
+- [ ] **V5** -- MakeRent runs a full `/update-docs` cycle against the extracted tool, with the thin
+      SKILL.md, and the agent completes the process without the prose it used to carry.
+- [ ] **V6** -- a fresh session's injected block is under 1000 characters on a 300-note tree.
+- [ ] **V7** -- `pre-commit run --all-files` blocks a commit carrying an invalid note, and the
+      index regeneration fails for re-adding rather than silently staging.
