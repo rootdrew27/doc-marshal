@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "doc-marshal",
+  "description": "The doc-marshal Claude Code plugin: validate each note as it is written, inject the docs index preview and vocabulary at session start, and ship the update-docs process.",
+  "owner": {
+    "name": "Andrew Root"
+  },
+  "plugins": [
+    {
+      "name": "doc-marshal",
+      "description": "Hooks and the update-docs skill for a doc-marshal documentation tree. Requires the doc-marshal package installed in the project.",
+      "source": "./plugin",
+      "category": "productivity"
+    }
+  ]
+}

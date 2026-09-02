@@ -7,7 +7,10 @@
   },
   "repository": "https://github.com/rootdrew27/doc-marshal",
   "license": "MIT",
-  "keywords": ["documentation", "docs", "linter", "agents"],
-  "skills": ["./skills/update-docs"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": [
+    "documentation",
+    "docs",
+    "linter",
+    "agents"
+  ]
 }
