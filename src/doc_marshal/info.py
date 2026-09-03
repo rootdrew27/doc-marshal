@@ -54,7 +54,9 @@ def render_types_table(registry: Registry) -> str:
 def describe_requires(spec: DocType, code: bool = False) -> str:
     """A type's anchor minimum in words: which fields, of which at least one, from which status."""
     if not spec.requires:
-        return "append-only" if spec.append_only else ("none" if code else "no anchor")
+        if code:
+            return "none"
+        return "append-only" if spec.append_only else "no anchor"
     names = [f"`{a}`" if code else a for a in spec.requires]
     text = names[0] if len(names) == 1 else "any of " + ", ".join(names)
     if spec.requires_from:

@@ -62,7 +62,7 @@ mixed note. Route by what the reader needs.
 | --- | --- | --- | --- | --- |
 | `reference` | someone looking up a fact -- decided by this repo, or observed from outside it | flat, enumerative, cites its source | living -- rewritten in place as the code or the world changes | any of `code_refs`, `source` |
 | `runbook` | someone running a procedure | imperative, literal, copy-pasteable | living -- rewritten in place | `code_refs` |
-| `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | append-only |
+| `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | none |
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | living at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
 | `context` | someone choosing what to call a thing | flat, definitional, opinionated | living -- rewritten as the domain sharpens | none |
 
