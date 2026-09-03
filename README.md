@@ -7,13 +7,14 @@ Documentation rots because nothing connects a document to the thing that would f
 code or sources it describes -- its **anchor** -- so "which docs did this change invalidate?" is a
 question with an answer a script can give.
 
-It ships an opinionated eight-type ontology, the `standard` preset. But the engine is the product:
+It ships an opinionated five-type ontology, the `standard` preset. But the engine is the product:
 every rule it enforces is read off a registry rather than hardcoded per check, and an ontology you
 declare yourself (from 0.2) is held to exactly the same standard.
 
 ```bash
 pip install doc-marshal        # or: uv tool install doc-marshal
 doc-marshal init               # marks docs/ as the docs root; writes CONTEXT.md, INDEX.md, AGENTS.md
+doc-marshal init --claude-code # CLAUDE.md instead, imported from the root CLAUDE.md so every session sees it
 doc-marshal new reference docs/ledger/schema.md --summary "Fields of the ledger record." --code-ref src/ledger/schema.py
 doc-marshal check --all        # validate every note against the ontology
 doc-marshal affected           # notes whose anchors name code this branch touched
@@ -52,25 +53,25 @@ protocol, a measurement -- anchors to its `source`. The engine calls the repo-pa
 
 ## The standard preset
 
-Eight types. One type per document: a change that needs a procedure and its rationale is two notes
-linked to each other, not one mixed note. Route by what the reader needs.
+Five types. A type names the reader it serves, and nothing else. One type per document: a change
+that needs a procedure and the behaviour it implements is two notes linked to each other, not one
+mixed note. Route by what the reader needs.
 
 <!-- This table is the output of `doc-marshal info --types`; regenerate it rather than editing it. -->
-| Type | Serves | Voice | Mutability | Required anchor |
+| Type | Serves | Voice | Mutability | Anchor minimum |
 | --- | --- | --- | --- | --- |
-| `reference` | someone looking up a fact this repo decides | flat, enumerative, no narrative | living -- rewritten in place to match code | `code_refs` |
-| `background` | someone looking up a fact this repo observes | flat, enumerative, cites its source | living -- rewritten when the world changes | `source` |
-| `runbook` | someone executing under pressure | imperative, literal, copy-pasteable | living -- rewritten in place | `code_refs` |
-| `explanation` | someone asking why it works this way | prose, connective | living -- rewritten as understanding changes | `code_refs` |
-| `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | none |
-| `spec` | someone building or validating unbuilt work | plan-shaped, with pending items | living until done, then converted | none |
-| `history` | someone about to repeat a dead end | verbose prose, dated entries | append-only -- earlier entries never rewritten | none |
+| `reference` | someone looking up a fact -- decided by this repo, or observed from outside it | flat, enumerative, cites its source | living -- rewritten in place as the code or the world changes | any of `code_refs`, `source` |
+| `runbook` | someone running a procedure | imperative, literal, copy-pasteable | living -- rewritten in place | `code_refs` |
+| `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | append-only |
+| `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | living at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
 | `context` | someone choosing what to call a thing | flat, definitional, opinionated | living -- rewritten as the domain sharpens | none |
 
-Four types require no anchor, each for a stated reason. `decision` and `history` are append-only and
-anchored by their own content. `spec` describes work that may not exist yet, so requiring a
-resolvable path would make `status: proposed` unwritable. `context` is falsified by the words the
-repo uses, not by a path.
+The anchor minimum is *any of* the fields listed: a `reference` about a fact this repo decides
+carries `code_refs`, one about a fact it observes carries `source`, and one about a vendor protocol
+we implement carries both. A `spec` carries `status` (`proposed`, `in-progress`, `done`) and is
+anchored once it is `done`; it is living at every status, and the validator warns when a `done`
+spec is edited by a change that touched none of its code. `decision` is append-only and anchored by
+its own content. `context` is falsified by the words the repo uses, not by a path.
 
 Two of them do more than hold prose:
 
@@ -88,6 +89,18 @@ naming, links, indexes, attachments, prose -- are `doc-marshal info --convention
 inside the package and are never copied into your repository, so they cannot drift from the
 version that enforces them.
 
+## Reading the conventions without the CLI
+
+A reviewer on a pull request cannot run `doc-marshal info`, so this repository keeps one rendering
+of the standard preset, generated from the same source at the same version and committed back by
+CI whenever main moves:
+
+- [rendered/conventions.md](rendered/conventions.md) -- every rule that is not per-type
+- [rendered/doc-types.md](rendered/doc-types.md) -- the five types, in full
+- [rendered/process.md](rendered/process.md) -- the update-docs process, staged
+
+They are derived, never edited: the prose lives in `src/doc_marshal/prose/`.
+
 ## What is enforced
 
 Every rule is either an error or a warning, and there is no severity configuration, no warn-only
@@ -100,8 +113,8 @@ required anchors are present and every anchor entry resolves by its kind; a type
 heading anchors; no wikilinks, no absolute links; a `context` note's exact shape and caps; no
 `README.md` in the tree.
 
-Warnings: a missing or reasonless `## Related` section, an `updated` date not bumped on a note the
-change edited, a literal em dash, a word the vocabulary rules out, and a misplaced attachment.
+Warnings: an `updated` date not bumped on a note the change edited, a `done` spec edited while none
+of its code was, a literal em dash, a word the vocabulary rules out, and a misplaced attachment.
 
 Minor releases may add checks. Pin the version at every enforcement point and bump when you choose.
 
@@ -111,14 +124,14 @@ Minor releases may add checks. Pin the version at every enforcement point and bu
 | --- | --- | --- |
 | every write to a note | `doc-marshal check <that file>`, via the Claude Code plugin | reports into the session; never blocks |
 | every `git commit` | `check` on staged notes, then `index`, via pre-commit | errors block; a regenerated index fails the hook for re-adding |
-| every pull request | `check --all`, `index --check` | errors fail the build; a stale index warns |
+| every pull request | `check --all --format github`, `index --check` | errors fail the build, each on the file it names; a stale index warns |
 | every pull request | `affected --format github` | annotates anchored notes; never fails |
 
 Pre-commit, in `.pre-commit-config.yaml`:
 
 ```yaml
 - repo: https://github.com/rootdrew27/doc-marshal
-  rev: v0.1.0
+  rev: v0.2.0
   hooks:
     - id: doc-marshal-check
     - id: doc-marshal-index
@@ -130,10 +143,10 @@ the code, which by definition touches no documentation.
 ```yaml
 - uses: actions/checkout@v4
   with: { fetch-depth: 0 }
-- run: uvx doc-marshal==0.1.* check --all --range "${{ github.event.pull_request.base.sha }}..HEAD"
-- run: uvx doc-marshal==0.1.* index --check
+- run: uvx doc-marshal==0.2.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
+- run: uvx doc-marshal==0.2.* index --check
   continue-on-error: true
-- run: uvx doc-marshal==0.1.* affected --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
+- run: uvx doc-marshal==0.2.* affected --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
 ```
 
 ### The Claude Code plugin
@@ -149,9 +162,12 @@ validates against the same version CI and pre-commit run. With no engine install
 nothing, except that the session-start hook says so once in a project that has a docs root.
 `doc-marshal doctor` reports what each route resolves and flags a mismatch.
 
-`doc-marshal init --claude-code` writes `CLAUDE.md` instead of `AGENTS.md` and allows
-`doc-marshal`, `uv run doc-marshal` and `.venv/bin/doc-marshal` in `.claude/settings.json`. Either file is a pointer to the process, so a
-Codex or Cursor user gets the same process by the same route with no plugin at all.
+`doc-marshal init --claude-code` writes `CLAUDE.md` instead of `AGENTS.md`, imports it from the
+repository's root `CLAUDE.md` with one `@docs/CLAUDE.md` line so every session sees it, and allows
+`doc-marshal`, `uv run doc-marshal` and `.venv/bin/doc-marshal` in `.claude/settings.json`.
+`doc-marshal doctor` reports a docs-root `CLAUDE.md` the root does not import. Either file says
+what the tree, its commands and its two special files are for, so a Codex or Cursor user gets the
+same process by the same route with no plugin at all.
 
 ## The docs root is marked, not guessed
 
