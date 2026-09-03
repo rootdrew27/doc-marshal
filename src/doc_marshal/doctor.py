@@ -107,6 +107,7 @@ def main(argv: list[str]) -> int:
     print(f"running:   doc-marshal {__version__} from {running_from()}")
     print(f"python:    {sys.version.split()[0]} at {sys.executable}")
 
+    docs_root: Path | None = None
     try:
         docs_root = find_docs_root(args.docs_root)
         repo_root = find_repo_root(docs_root)
@@ -114,6 +115,25 @@ def main(argv: list[str]) -> int:
     except DocMarshalError as exc:
         repo_root = git_toplevel(Path.cwd()) or Path.cwd()
         print(f"docs root: none -- {exc.args[0].splitlines()[0]}")
+
+    # A docs-root CLAUDE.md is what `init --claude-code` writes, and it reaches a session only
+    # through the import line in the root CLAUDE.md. A nested memory file with no import is loaded
+    # only once a session reads under the docs root, so the pointer exists and nobody sees it.
+    if docs_root is not None and (docs_root / "CLAUDE.md").is_file():
+        label = rel_to(docs_root, repo_root).as_posix()
+        line = f"@{label}/CLAUDE.md"
+        root_file = repo_root / "CLAUDE.md"
+        imported = root_file.is_file() and any(
+            existing.strip() == line for existing in root_file.read_text(encoding="utf-8").splitlines()
+        )
+        if imported:
+            print(f"root file: CLAUDE.md imports {label}/CLAUDE.md (every session sees the pointer)")
+        else:
+            print(f"root file: CLAUDE.md does not import {label}/CLAUDE.md")
+            problems.append(
+                f"{label}/CLAUDE.md exists but the root CLAUDE.md does not import it -- add the line "
+                f"`{line}` (doc-marshal init --claude-code writes it)"
+            )
 
     venv_entry = in_venv(repo_root)
     if venv_entry is None:

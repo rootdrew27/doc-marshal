@@ -2,15 +2,22 @@
 
     doc-marshal init                    # docs/
     doc-marshal init agent-docs         # any other directory
-    doc-marshal init --claude-code      # CLAUDE.md instead of AGENTS.md, plus the permission entry
+    doc-marshal init --claude-code      # CLAUDE.md instead of AGENTS.md, imported from the root
 
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
 - the marker, `.doc-marshal.toml`, empty -- location rather than configuration in 0.1;
 - the root `context` note, because that type is `root_required` and `check --all` errors without it;
 - the generated index, so the tree validates from its first minute;
-- one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs root. A
-  pointer to `doc-marshal info`, never a copy of the rules, so it cannot drift.
+- one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs root. It
+  says what the tree, its commands and its two special files are for -- a pointer to
+  `doc-marshal info`, never a copy of the rules, so it cannot drift.
+
+With `--claude-code` it also puts the pointer in every session: one `@<docs root>/CLAUDE.md`
+import line in the repository's root `CLAUDE.md`, which Claude Code reads at start. A nested
+memory file on its own is loaded only once a session reads under that directory, so without the
+line a session that never opens the docs never learns they exist. Other harnesses have no import
+syntax, so plain `init` prints the reference line for the root `AGENTS.md` and writes nothing there.
 
 It warns, rather than refusing, when the target looks like a published site or holds markdown
 without frontmatter: adopting the convention on an existing tree is a legitimate thing to do, and
@@ -72,36 +79,56 @@ def frontmatterless(target: Path, settings: Settings) -> list[Path]:
     return hits
 
 
-def pointer_text(docs_label: str, claude_code: bool) -> str:
-    plugin = (
-        "\nWith the doc-marshal Claude Code plugin installed, every note you write is validated as "
-        "you write it and this tree's index and vocabulary are injected at session start.\n"
-        if claude_code
-        else ""
+def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str:
+    """The pointer file: what the tree, its commands and its two special files are for.
+
+    Descriptive on purpose. With `--claude-code` this is imported into every session, so it says
+    what exists and what each thing is for, and leaves how to use them to `doc-marshal info`,
+    which is versioned with the engine. No heading: as an import it is a fragment of the root
+    file, not a document.
+    """
+    context = next(
+        (spec.fixed_name for spec in registry.enabled.values() if spec.root_required and spec.fixed_name),
+        None,
     )
-    return f"""# {docs_label}
+    index = settings.index_name
+    lines = [
+        f"`{docs_label}/` is a doc-marshal docs tree: typed markdown notes whose primary reader is a coding",
+        "agent. The rules ship in the tool, not in this file.",
+        "",
+        "```bash",
+        "doc-marshal info                 # the note types and their anchors, one line each",
+        "doc-marshal info <type>          # one type in full: what it serves, how it reads, its skeleton",
+        "doc-marshal info --conventions   # every rule for this tree",
+        "doc-marshal info --process       # how a finished code change is reflected in these docs",
+        "doc-marshal check <path>         # validates a note against the rules; --all sweeps the tree",
+        "doc-marshal new <type> <path>    # scaffolds a note the validator accepts",
+        "doc-marshal affected             # the notes anchored to code a change touched",
+        f"doc-marshal index                # regenerates {index}",
+        "```",
+        "",
+        f"- `{index}` -- generated routing surface: one line per note with its type and summary.",
+    ]
+    if context:
+        lines.append(f"- `{context}` -- the shared vocabulary for docs and code, and the aliases it rules out.")
+    return "\n".join(lines) + "\n"
 
-This directory is a doc-marshal docs root: a tree of typed markdown notes whose primary reader is a
-coding agent, validated by `doc-marshal check`. The rules are not copied here -- they ship in the
-tool, so they always match the installed version:
 
-```bash
-doc-marshal info                 # the note types and their anchors, one line each
-doc-marshal info <type>          # one type in full: what it serves, how it reads, its skeleton
-doc-marshal info --conventions   # every rule for this tree
-doc-marshal info --process       # how to reflect a finished code change in these docs
-```
-
-Working here:
-
-- **Finding a doc**: `INDEX.md` is the routing surface, one generated line per note with its type
-  and summary. Read it rather than listing the tree. Never edit it; `doc-marshal index` regenerates it.
-- **Naming a thing**: `CONTEXT.md` is the shared vocabulary. Write in its terms, in docs and in code.
-- **Writing a note**: `doc-marshal new <type> <path> --summary "..."` scaffolds one the validator
-  accepts. Then `doc-marshal check <path>`.
-- **After a code change**: `doc-marshal affected` lists the notes anchored to what changed. Follow
-  `doc-marshal info --process` to update them.
-{plugin}"""
+def merge_import(root_file: Path, line: str) -> bool:
+    """Put `line` in the repository's root memory file: create the file with it, append it after
+    a blank line, or leave the file alone when the line is already there. True when it wrote."""
+    if not root_file.exists():
+        root_file.write_text(f"{line}\n", encoding="utf-8")
+        return True
+    text = root_file.read_text(encoding="utf-8")
+    if any(existing.strip() == line for existing in text.splitlines()):
+        return False
+    if text and not text.endswith("\n"):
+        text += "\n"
+    if text and not text.endswith("\n\n"):
+        text += "\n"
+    root_file.write_text(f"{text}{line}\n", encoding="utf-8")
+    return True
 
 
 def merge_permission(settings_path: Path) -> bool:
@@ -156,7 +183,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--claude-code",
         action="store_true",
-        help="write CLAUDE.md instead of AGENTS.md, and allow `doc-marshal` in .claude/settings.json",
+        help="write CLAUDE.md instead of AGENTS.md, import it from the root CLAUDE.md, and allow "
+        "`doc-marshal` in .claude/settings.json",
     )
     args = parser.parse_args(argv)
     settings = SETTINGS
@@ -219,8 +247,11 @@ def main(argv: list[str]) -> int:
     pointer_name = "CLAUDE.md" if args.claude_code else "AGENTS.md"
     pointer = target / pointer_name
     if not pointer.exists():
-        pointer.write_text(pointer_text(label, args.claude_code), encoding="utf-8")
+        pointer.write_text(pointer_text(label, settings, registry), encoding="utf-8")
         written.append(f"{label}/{pointer_name}  (a pointer to `doc-marshal info`, not a copy of the rules)")
+    import_line = f"@{label}/{pointer_name}"
+    if args.claude_code and merge_import(repo_root / pointer_name, import_line):
+        written.append(f"{pointer_name}  (imports {label}/{pointer_name} into every session: `{import_line}`)")
 
     state = index_state(target, registry)
     index = target / settings.index_name
@@ -246,12 +277,20 @@ def main(argv: list[str]) -> int:
     else:
         print(f"{label}/ is already initialised -- nothing to write")
 
+    reference = (
+        ""
+        if args.claude_code
+        else f"""
+  Tell agents the tree exists -- one line in the root {pointer_name}:
+    Documentation is a doc-marshal docs tree; {label}/{pointer_name} says what it is for.
+"""
+    )
     print(
         f"""
 next:
   doc-marshal check --all            # validates {label}/ ({__version__})
   doc-marshal info --process         # how docs are updated after a code change
-
+{reference}
   Pre-commit, in .pre-commit-config.yaml:
     - repo: https://github.com/rootdrew27/doc-marshal
       rev: v{__version__}
@@ -260,7 +299,7 @@ next:
         - id: doc-marshal-index
 
   CI, on every pull request (no paths: filter -- anchors break in the change that renames the code):
-    uvx doc-marshal=={__version__} check --all
+    uvx doc-marshal=={__version__} check --all --format github
     uvx doc-marshal=={__version__} index --check
     uvx doc-marshal=={__version__} affected --range "${{{{ github.event.pull_request.base.sha }}}}..HEAD" --format github
 """
