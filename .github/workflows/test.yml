@@ -27,28 +27,6 @@ jobs:
       - name: The CLI runs end to end on a fresh repository
         env:
           PLUGIN: ${{ github.workspace }}/plugin
-        run: |
-          set -eux
-          doc-marshal --version
-          doc-marshal info --types > /dev/null
-          doc-marshal info --process > /dev/null
-          repo=$(mktemp -d)
-          cd "$repo"
-          git init -q . && git config user.email ci@example.com && git config user.name ci
-          doc-marshal init
-          mkdir -p src && echo "x = 1" > src/db.py
-          doc-marshal new decision use-postgres --code-ref src/db.py --summary "Postgres over SQLite, for concurrent writers."
-          doc-marshal check --all
-          doc-marshal index && doc-marshal index --check
-          git add -A && git commit -qm init
-          echo "y = 2" >> src/db.py
-          doc-marshal affected --range HEAD | grep -q use-postgres
-          doc-marshal doctor
-          # The plugin's hooks resolve the installed engine and report on a broken note.
-          printf -- '---\ntype: decision\nstatus: bogus\nsummary: bad\n---\n# Bad\n' > docs/bad.md
-          export CLAUDE_PROJECT_DIR="$repo" CLAUDE_PLUGIN_ROOT="$PLUGIN"
-          python3 "$PLUGIN/hooks/session-start.py" | grep -q '"SessionStart"'
-          echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | python3 "$PLUGIN/hooks/post-tool-use.py" | grep -q "ERROR: docs/bad.md"
-          # With no engine installed, SessionStart says so once and PostToolUse stays silent.
-          test -n "$(PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py")"
-          test -z "$(echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/post-tool-use.py")"
+        run: bash scripts/smoke.sh
+      - name: rendered/ matches the prose and the registry
+        run: python scripts/render_prose.py --check
