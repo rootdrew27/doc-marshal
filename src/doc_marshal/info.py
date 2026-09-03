@@ -11,7 +11,7 @@ accurate than any stored file, and it always matches the installed version.
     doc-marshal info --conventions    # the rules that are not per-type
     doc-marshal info --process        # the update-docs process, staged
     doc-marshal info --format json    # the registry as data, for third parties
-    doc-marshal info --dump-toml      # the registry as the 0.2 configuration schema
+    doc-marshal info --dump-toml      # the registry as the 0.3 configuration schema
 """
 
 from __future__ import annotations
@@ -40,15 +40,28 @@ def prose(name: str) -> str:
 def render_types_table(registry: Registry) -> str:
     """The ontology table: one row per enabled type, in the registry's canonical order."""
     rows = [
-        "| Type | Serves | Voice | Mutability | Required anchor |",
+        "| Type | Serves | Voice | Mutability | Anchor minimum |",
         "| --- | --- | --- | --- | --- |",
     ]
     rows += [
         f"| `{spec.name}` | {spec.serves} | {spec.voice} | {spec.mutability} | "
-        f"{' and '.join(f'`{a}`' for a in spec.requires) or 'none'} |"
+        f"{describe_requires(spec, code=True)} |"
         for spec in registry.enabled.values()
     ]
     return "\n".join(rows)
+
+
+def describe_requires(spec: DocType, code: bool = False) -> str:
+    """A type's anchor minimum in words: which fields, of which at least one, from which status."""
+    if not spec.requires:
+        if code:
+            return "none"
+        return "append-only" if spec.append_only else "no anchor"
+    names = [f"`{a}`" if code else a for a in spec.requires]
+    text = names[0] if len(names) == 1 else "any of " + ", ".join(names)
+    if spec.requires_from:
+        text += f" once `{spec.requires_from}`" if code else f" once {spec.requires_from}"
+    return text
 
 
 def render_anchor_table(registry: Registry) -> str:
@@ -69,7 +82,7 @@ def _placement(spec: DocType) -> str:
     """The mechanical facts of a type that fit on one line."""
     parts: list[str] = []
     if spec.requires:
-        parts.append("requires " + " and ".join(spec.requires))
+        parts.append("requires " + describe_requires(spec))
     if spec.fixed_name:
         parts.append(spec.fixed_name + (", one at the docs root" if spec.root_required else ""))
     if spec.folder:
@@ -105,8 +118,7 @@ def render_compact(registry: Registry, version: bool = True) -> str:
     lines.append(f"Anchors: {anchors or 'none declared'}.")
     lines.append(
         f"Every note: frontmatter with type, updated (YYYY-MM-DD) and summary (one line, max "
-        f"{settings.summary_max} chars); ends with ## Related unless the type opts out; "
-        f"{settings.index_name} is generated."
+        f"{settings.summary_max} chars); {settings.index_name} is generated."
     )
     return "\n".join(lines)
 
@@ -124,8 +136,7 @@ def render_session_types(registry: Registry) -> str:
         "editing docs):"
     ]
     for spec in types.values():
-        anchors = " and ".join(spec.requires) or ("append-only" if spec.append_only else "no anchor")
-        lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {anchors}")
+        lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {describe_requires(spec)}")
     return "\n".join(lines)
 
 
@@ -157,7 +168,7 @@ def render_type(registry: Registry, name: str) -> str:
         ("serves", spec.serves),
         ("voice", spec.voice),
         ("mutability", spec.mutability),
-        ("requires", " and ".join(spec.requires) or "no anchor"),
+        ("requires", describe_requires(spec)),
     ]
     if spec.statuses:
         default = f" (default {spec.default_status})" if spec.default_status else ""
@@ -175,7 +186,6 @@ def render_type(registry: Registry, name: str) -> str:
     if spec.supersession:
         s = spec.supersession
         facts.append(("supersession", f"`{s.forward}` / `{s.back}` name the other note; status `{s.status}` requires `{s.back}`"))
-    facts.append(("## Related", "required" if spec.requires_related else "not used"))
     if spec.structure:
         st = spec.structure
         facts.append(("sections", ", ".join(f"## {s}" for s in st.sections) + " -- exactly, in order"))
@@ -243,7 +253,6 @@ def render_json(registry: Registry) -> str:
         "assets_dirname": registry.settings.assets_dirname,
         "filename_pattern": registry.settings.filename_pattern,
         "summary_max": registry.settings.summary_max,
-        "em_dash": registry.settings.em_dash,
         "excluded_dirs": sorted(registry.settings.excluded_dirs),
         "memory_names": sorted(registry.settings.memory_names),
         "forbidden_names": registry.settings.forbidden_names,
@@ -274,7 +283,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
     parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.2 configuration schema")
+    parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.3 configuration schema")
     parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
     args = parser.parse_args(argv)
 

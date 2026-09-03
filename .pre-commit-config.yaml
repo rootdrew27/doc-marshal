@@ -1,0 +1,12 @@
+# Keeps rendered/ -- the standard preset's conventions, types and process as `doc-marshal info`
+# renders them -- in step with the prose and the registry they come from. CI regenerates and
+# commits it on push to main as the backstop (.github/workflows/render.yml).
+repos:
+  - repo: local
+    hooks:
+      - id: render-prose
+        name: render prose into rendered/
+        entry: uv run python scripts/render_prose.py
+        language: system
+        pass_filenames: false
+        files: ^(src/doc_marshal/(prose/.*|ontology\.py|info\.py|settings\.py|__init__\.py)|scripts/render_prose\.py)$

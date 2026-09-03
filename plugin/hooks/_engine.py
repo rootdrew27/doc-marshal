@@ -26,7 +26,7 @@ _MAX_DEPTH = 4
 
 MISSING_ENGINE = (
     f"doc-marshal: this project has a docs root ({MARKER}) but no `doc-marshal` was found in "
-    f"{' or '.join(f'{d}/bin' for d in VENV_DIRS)} or on PATH, so notes are not being validated as "
+    f"{' or '.join(f'{d}/bin' for d in VENV_DIRS)} (Scripts/ on Windows) or on PATH, so notes are not being validated as "
     "they are written. Install it into the project (`pip install doc-marshal` or "
     "`uv add --dev doc-marshal`); the hooks pick it up on the next session."
 )
@@ -35,9 +35,12 @@ MISSING_ENGINE = (
 def command() -> list[str] | None:
     """The argv prefix that runs the engine, or None when none is installed."""
     for venv in VENV_DIRS:
-        candidate = PROJECT / venv / "bin" / "doc-marshal"
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return [str(candidate)]
+        for candidate in (
+            PROJECT / venv / "bin" / "doc-marshal",
+            PROJECT / venv / "Scripts" / "doc-marshal.exe",  # a Windows virtualenv
+        ):
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return [str(candidate)]
     on_path = shutil.which("doc-marshal")
     if on_path:
         return [on_path]

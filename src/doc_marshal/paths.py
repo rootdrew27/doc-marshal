@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 from collections.abc import Iterable
+from datetime import date
 from pathlib import Path
 
 from .settings import SETTINGS, Settings
@@ -77,6 +78,37 @@ def is_checkable(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> 
 def rel_to(path: Path, root: Path) -> Path:
     """`path` relative to `root`, or unchanged when it lies outside -- for readable messages."""
     return path.relative_to(root) if path.is_relative_to(root) else path
+
+
+_LISTINGS: dict[Path, frozenset[str]] = {}
+
+
+def exists_exact(root: Path, target: Path) -> bool:
+    """Whether `target`, a resolved path, exists under `root` spelled exactly as given.
+
+    `Path.exists()` is the filesystem's opinion, and on a case-insensitive one (APFS, NTFS) it
+    accepts `Src/Ledger.py` for `src/ledger.py`. A note that passes there fails on Linux CI, which
+    is the one disagreement between a local run and CI this tool exists to remove. So each
+    component is looked up in a real directory listing instead, and the listings are cached for
+    the life of the process -- every command is one short-lived process, so nothing invalidates.
+
+    A path outside `root`, or `root` itself, does not exist for this purpose: nothing in the
+    repository can anchor to or link at something the repository does not contain.
+    """
+    if target == root or not target.is_relative_to(root):
+        return False
+    current = root
+    for part in target.relative_to(root).parts:
+        names = _LISTINGS.get(current)
+        if names is None:
+            try:
+                names = _LISTINGS[current] = frozenset(os.listdir(current))
+            except OSError:
+                return False
+        if part not in names:
+            return False
+        current = current / part
+    return True
 
 
 # --- frontmatter --------------------------------------------------------------------------------
@@ -460,3 +492,22 @@ def edited_notes(
     if paths is None:
         return None
     return {(repo_root / p).resolve() for p in paths}
+
+
+def change_start(repo_root: Path, rev_range: str | None = None) -> date | None:
+    """The day the change began: today for the working tree, else the author date of the range's
+    earliest commit. None when git cannot say.
+
+    This is the bar an edited note's `updated` is held to. Comparing against today instead would
+    fail every note dated the day it was edited once its pull request is a day old -- and author
+    dates rather than committer dates, so a rebase before merge does not move the bar either.
+    """
+    if not rev_range:
+        return date.today()
+    lines = _git_lines(repo_root, "log", "--format=%as", "--reverse", rev_range)
+    if not lines:
+        return None
+    try:
+        return date.fromisoformat(lines[0].strip())
+    except ValueError:
+        return None

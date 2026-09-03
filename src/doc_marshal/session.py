@@ -5,7 +5,9 @@ Three blocks, in the order they should be read (SPEC.md section 7):
 1. The index preview -- folder names with note counts, and nothing else, ending with a pointer to
    the full index. Uniform reduction at every size, top level included: the full index grows
    linearly with the tree forever, and every session paid for it whether or not it opened a doc.
-2. The docs root's context note, verbatim. The terms and the aliases they rule out are the
+2. The docs root's nomenclature note, as its content rather than its file: the table as one line
+   per term, then the prose sections as written. Frontmatter and HTML comments are for the
+   validator and the author, not the session. The terms and the aliases they rule out are the
    content; a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a
    nested one governs its subtree and is read on arriving there.
 3. The compact `info` block -- the enabled types and their anchors.
@@ -17,14 +19,18 @@ plugin's job; it only has to run this command and speak the hook's JSON.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
+from .check import EMPTY_CELLS, SECTION_RE, parse_table
 from .config import load_registry
 from .index import index_state, render_preview
 from .info import render_session_types
-from .ontology import Registry
-from .paths import DocMarshalError, find_docs_root, find_repo_root, rel_to
+from .ontology import DocType, Registry
+from .paths import DocMarshalError, find_docs_root, find_repo_root, read_note, rel_to
+
+COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 REGENERATE = "doc-marshal index"
 
@@ -62,8 +68,60 @@ def index_block(docs_root: Path, registry: Registry, label: str) -> str:
     return "\n".join(lines)
 
 
-def context_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]:
-    """The docs root's fixed-name, root-required notes, verbatim."""
+def _sections(body: str) -> dict[str, str]:
+    """A note's `##` sections, name to content, in document order. Text before the first is dropped."""
+    found: dict[str, str] = {}
+    current: str | None = None
+    for line in body.splitlines():
+        match = SECTION_RE.match(line)
+        if match:
+            current = match.group(1).strip()
+            found[current] = ""
+        elif current is not None:
+            found[current] += line + "\n"
+    return found
+
+
+def render_nomenclature(path: Path, spec: DocType) -> str:
+    """A nomenclature note as a session should read it.
+
+    The table becomes one line per term -- the term, its definition, the aliases it rules out --
+    read through the same parser the validator uses, so a reformatted table cannot leak in as
+    text. The other sections follow as written. HTML comments are stripped throughout, and the
+    frontmatter and title are not emitted at all: the block's own sentence says what this is.
+    Falls back to the body verbatim when the table is not the shape the registry expects, because
+    a malformed table is `check`'s finding and must not hide the vocabulary.
+    """
+    structure = spec.structure
+    meta, body, text, error = read_note(path)
+    source = COMMENT_RE.sub("", body if error is None else text).strip()
+    if structure is None:
+        return source
+    sections = _sections(source)
+    header, rows = parse_table(source, structure)
+    if tuple(header) != structure.columns:
+        return source
+    index = {name: position for position, name in enumerate(header)}
+    scanned = [c for c in structure.scanned_columns if c in index]
+    lines: list[str] = [f"**{structure.table_in}**", ""]
+    for row in rows:
+        if len(row) != len(header):
+            continue
+        term = row[index[structure.key_column]].strip()
+        definition = row[index[structure.body_column]].strip().rstrip(".")
+        avoid = ", ".join(
+            row[index[c]].strip() for c in scanned if row[index[c]].strip().lower() not in EMPTY_CELLS
+        )
+        lines.append(f"- **{term}** -- {definition}." + (f" Avoid: {avoid}." if avoid else ""))
+    for name, content in sections.items():
+        if name == structure.table_in or not content.strip():
+            continue
+        lines += ["", f"**{name}**", "", content.strip()]
+    return "\n".join(lines)
+
+
+def nomenclature_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]:
+    """The docs root's fixed-name, root-required notes, rendered for reading."""
     blocks: list[str] = []
     for spec in registry.enabled.values():
         if not spec.root_required or spec.fixed_name is None:
@@ -78,7 +136,7 @@ def context_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]
         blocks.append(
             f"The project's shared vocabulary follows, from {label}/{spec.fixed_name}. Use these terms "
             "in documentation and in code, and avoid the aliases they rule out. A directory with its "
-            f"own {spec.fixed_name} adds terms for its subtree.\n\n" + path.read_text(encoding="utf-8").rstrip()
+            f"own {spec.fixed_name} adds terms for its subtree.\n\n" + render_nomenclature(path, spec)
         )
     return blocks
 
@@ -88,7 +146,7 @@ def session_context(docs_root: Path, registry: Registry) -> str:
     label = rel_to(docs_root, find_repo_root(docs_root)).as_posix()
     blocks = [
         index_block(docs_root, registry, label),
-        *context_blocks(docs_root, registry, label),
+        *nomenclature_blocks(docs_root, registry, label),
         render_session_types(registry),
     ]
     return "\n\n".join(block for block in blocks if block)

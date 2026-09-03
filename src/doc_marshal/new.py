@@ -8,7 +8,7 @@ command applies them.
     doc-marshal new reference docs/ledger/schema.md \\
         --summary "Fields of the ledger record." --code-ref src/ledger/schema.py
     doc-marshal new decision own-revenue-model --summary "Why the agent picks its own business."
-    doc-marshal new context docs/payments --summary "Vocabulary of the payments subsystem."
+    doc-marshal new nomenclature docs/payments --summary "Vocabulary of the payments subsystem."
 
 For a numbered type, pass a bare slug: the number, the folder and the `NNNN -- ` title prefix are
 all derived. For a fixed-name type, a directory is enough. Anything the type requires and you did
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from .config import load_registry
 from .ontology import DocType, Registry
-from .paths import DocMarshalError, find_docs_root, find_repo_root, rel_to
+from .paths import DocMarshalError, exists_exact, find_docs_root, find_repo_root, rel_to
 from .settings import NUMBER_PREFIX_RE, Settings
 
 
@@ -49,17 +49,10 @@ def next_number(folder: Path) -> str:
 
 
 def render_note(title: str, meta: list[str], spec: DocType, today: str | None = None) -> str:
-    """A complete note: frontmatter lines, H1, the type's skeleton, and `## Related` if required."""
+    """A complete note: frontmatter lines, H1 and the type's skeleton."""
     today = today or date.today().isoformat()
     skeleton = [line.replace("{today}", today) for line in spec.skeleton]
     lines = ["---", *meta, "---", "", f"# {title}", "", *skeleton]
-    if spec.requires_related:
-        lines += [
-            "",
-            "## Related",
-            "",
-            "<!-- One relative link per line, each with a clause saying why you would go there. -->",
-        ]
     return "\n".join([*lines, ""])
 
 
@@ -80,10 +73,21 @@ def frontmatter_lines(
     return meta
 
 
+def flag_for(field: str) -> str:
+    """The singular flag an anchor field is given on the command line: `code_refs` is `--code-ref`,
+    since each occurrence names one entry."""
+    return "--" + field.replace("_", "-").removesuffix("s")
+
+
 def resolve_target(
     spec: DocType, given: str, docs_root: Path, repo_root: Path, title: str | None
 ) -> tuple[Path, str]:
-    """Where the note goes and what its H1 says, from the type's placement rules."""
+    """Where the note goes and what its H1 says, from the type's placement rules.
+
+    A relative path is read from the current directory, the way every other tool reads one; the
+    numbered types take a slug instead and place it themselves. Guessing between the current
+    directory and the repo root was tried and put notes in the wrong place silently.
+    """
     if spec.numbered:
         slug = Path(given).stem
         folder = docs_root / spec.folder if spec.folder else docs_root
@@ -93,15 +97,13 @@ def resolve_target(
         # The filename belongs to the type, so a directory is enough to say where it goes -- and
         # naming the file anyway is accepted rather than rejected on a technicality.
         path = Path(given)
-        if not path.is_absolute():
-            path = repo_root / path
         if path.name != spec.fixed_name:
             path = path / spec.fixed_name
         target = path.resolve()
-        return target, title or f"{title_from_slug(target.parent.name)} context"
+        return target, title or f"{title_from_slug(target.parent.name)} nomenclature"
     path = Path(given)
-    if not path.is_absolute():
-        path = (repo_root / path) if (repo_root / path).parent.exists() else Path.cwd() / path
+    if path.suffix != ".md":
+        path = path.with_name(path.name + ".md")
     target = path.resolve()
     return target, title or title_from_slug(target.stem)
 
@@ -137,7 +139,9 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("type", choices=list(types))
     parser.add_argument(
-        "path", help="path to the new note; a bare slug for a numbered type; a directory for a fixed-name type"
+        "path",
+        help="path to the new note, from the current directory; a bare slug for a numbered type; "
+        "a directory for a fixed-name type",
     )
     parser.add_argument(
         "--summary",
@@ -146,7 +150,7 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--title", help="H1 text (default: derived from the filename)")
     for name, anchor in registry.anchor_fields.items():
-        flag = "--" + name.replace("_", "-").rstrip("s")
+        flag = flag_for(name)
         parser.add_argument(
             flag, action="append", default=[], dest=f"anchor_{name}", metavar="ENTRY",
             help=f"{name}: {anchor.contents} (repeatable)",
@@ -179,26 +183,30 @@ def main(argv: list[str]) -> int:
             f"already exists -- edit it rather than replacing it: {rel_to(target, repo_root)}"
         )
 
-    anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
-    for name, anchor in registry.anchor_fields.items():
-        if spec.requires_anchor(name) and not anchors[name]:
-            flag = "--" + name.replace("_", "-").rstrip("s")
-            raise DocMarshalError(
-                f"type '{spec.name}' requires at least one {flag} ({anchor.contents})"
-            )
-        if anchor.on_spine:
-            for ref in anchors[name]:
-                if not (repo_root / ref).exists():
-                    raise DocMarshalError(
-                        f"{name} path does not exist (paths start at the repo root): {ref}"
-                    )
-
     status = args.status or spec.default_status
     if spec.statuses:
         if status not in spec.statuses:
             raise DocMarshalError(f"a {spec.name} requires --status, one of {list(spec.statuses)}")
     elif args.status:
         raise DocMarshalError(f"type '{spec.name}' has no 'status' field")
+
+    anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
+    if spec.anchors_required(status) and not any(anchors[name] for name in spec.requires):
+        flags = " or ".join(flag_for(name) for name in spec.requires)
+        since = f" once its status is '{spec.requires_from}'" if spec.requires_from else ""
+        raise DocMarshalError(f"type '{spec.name}' requires at least one {flags}{since}")
+    for name, anchor in registry.anchor_fields.items():
+        if anchor.on_spine:
+            for ref in anchors[name]:
+                resolved = (repo_root / ref).resolve()
+                if resolved == repo_root or not resolved.is_relative_to(repo_root):
+                    raise DocMarshalError(
+                        f"{name} must name a path inside the repository, not the root itself: {ref!r}"
+                    )
+                if not exists_exact(repo_root, resolved):
+                    raise DocMarshalError(
+                        f"{name} path does not exist (spelled exactly, from the repo root): {ref}"
+                    )
 
     meta = frontmatter_lines(args.type, args.summary, today, status, anchors)
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -23,14 +23,18 @@ from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from .affected import matches
 from .config import load_registry
 from .ontology import AnchorField, DocType, Registry, Structure
 from .paths import (
     FORBIDDEN,
     DocMarshalError,
     Meta,
+    change_start,
+    changed_paths,
     classify,
     edited_notes,
+    exists_exact,
     find_docs_root,
     find_repo_root,
     is_checkable,
@@ -43,13 +47,7 @@ from .settings import Settings
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
-# A `## Related` entry: a bulleted link, and whatever follows it on the line. The convention wants
-# a reason after the link, so the second group being empty is the whole check.
-RELATED_ITEM_RE = re.compile(r"^\s*[-*]\s*!?\[[^\]]*\]\([^)\s]+\)\s*(.*)$")
 INLINE_CODE_RE = re.compile(r"`[^`]*`")
-# The convention writes the em dash as ` -- `, which survives every editor and diff tool. A literal
-# one is a warning, not an error: quoted material may legitimately carry the character.
-EM_DASH = "—"
 WIKILINK_RE = re.compile(r"\[\[[^\]]+\]\]")
 HEADING_RE = re.compile(r"^#{1,6}\s+(.*)$")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
@@ -69,18 +67,29 @@ class Report:
     root: Path | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    findings: list[tuple[str, Path, str]] = field(default_factory=list)  # (level, path, message)
 
     def error(self, path: Path, msg: str) -> None:
         self.errors.append(f"{self.display(path)}: {msg}")
+        self.findings.append(("error", self.display(path), msg))
 
     def warn(self, path: Path, msg: str) -> None:
         self.warnings.append(f"{self.display(path)}: {msg}")
+        self.findings.append(("warning", self.display(path), msg))
 
     def display(self, path: Path) -> Path:
         return rel_to(path, self.root) if self.root else path
 
     def lines(self) -> list[str]:
         return [f"{WARN_PREFIX}{w}" for w in self.warnings] + [f"{ERROR_PREFIX}{e}" for e in self.errors]
+
+    def annotations(self) -> list[str]:
+        """The findings as GitHub Actions workflow commands, so a pull request shows each one on
+        the file it names. Same order as `lines`; the message is otherwise unchanged."""
+        return [
+            f"::{level} file={path.as_posix()}::{msg.replace('%', '%25').replace(chr(10), '%0A')}"
+            for level, path, msg in self.findings
+        ]
 
 
 def _outside_fences(text: str) -> Iterator[str]:
@@ -125,15 +134,23 @@ def body_without_code(text: str) -> str:
 
 
 def check_freshness(
-    path: Path, updated: object, edited: set[Path] | None, settings: Settings, report: Report
+    path: Path,
+    updated: object,
+    edited: set[Path] | None,
+    since: date | None,
+    settings: Settings,
+    report: Report,
 ) -> None:
     """`updated` names a real past date, and an edited note has had it bumped.
 
     The format check lives in `check_frontmatter`; this runs only once the field parses. A date in
     the future is an error -- nothing can have been edited then -- with a day of slack so a writer
-    ahead of CI's UTC clock is not failed for it. Editing a note without bumping the date is the
-    drift this whole convention exists to catch, but it is a warning: not every edit is
-    substantive, and only a human can tell which was.
+    ahead of CI's UTC clock is not failed for it.
+
+    An edited note's date must be no earlier than `since`, the day the change began: today for a
+    working-tree run, the earliest commit's day for a range. That makes the rule purely mechanical
+    -- a note dated the day it was edited stays valid however long its pull request takes -- and
+    so it is an error. Silent when git could not say what was edited or when.
     """
     if not isinstance(updated, str) or not DATE_RE.match(updated):
         return
@@ -145,61 +162,21 @@ def check_freshness(
     today = date.today()
     if stamp > today + timedelta(days=settings.future_slack_days):
         report.error(path, f"'updated' is in the future: {updated}")
-    elif edited is not None and path in edited and stamp != today:
-        report.warn(
-            path,
-            f"edited by this change but 'updated' still reads {updated} "
-            f"-- bump it to {today} if the edit was substantive",
-        )
-
-
-def check_related(path: Path, spec: DocType | None, prose: str, report: Report) -> None:
-    """Every note ends with `## Related`, and every link in it says why you would follow it.
-
-    A bare list of links is an index of the neighbourhood, which the generated index already is.
-    The reason clause is the entire value of the section, so its absence is worth reporting even
-    though no script can judge whether a given clause is a good one. A type may opt out.
-    """
-    if spec is not None and not spec.requires_related:
         return
-    lines = prose.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.strip() == "## Related"), None)
-    if start is None:
-        report.warn(path, "no '## Related' section -- connectivity is a convention on every note")
+    if edited is None or since is None or path not in edited or stamp >= since:
         return
-    for line in lines[start + 1 :]:
-        if HEADING_RE.match(line):
-            break
-        match = RELATED_ITEM_RE.match(line)
-        if match and not match.group(1).strip():
-            report.warn(
-                path,
-                f"'## Related' link with no reason -- say why you would go there: {line.strip()}",
-            )
-
-
-def check_prose(path: Path, prose: str, settings: Settings, report: Report) -> None:
-    """The prose conventions a script can see. Everything else is a review obligation."""
-    if not settings.em_dash:
-        return
-    hits = [
-        number
-        for number, line in enumerate(prose.splitlines(), start=1)
-        if EM_DASH in INLINE_CODE_RE.sub("", line)
-    ]
-    if hits:
-        report.warn(
-            path,
-            f"literal em dash on line(s) {', '.join(map(str, hits[:5]))}"
-            f"{' and more' if len(hits) > 5 else ''} -- the convention writes it as ' -- '",
-        )
+    window = f" (the change began on {since})" if since != today else ""
+    report.error(
+        path, f"edited by this change but 'updated' still reads {updated} -- bump it to {today}{window}"
+    )
 
 
 def audit_assets(docs_root: Path, settings: Settings) -> list[tuple[Path, str]]:
     """Departures from the attachment-directory convention, as (path, message) pairs.
 
-    Reported as warnings, never errors: `assets/` is not validated against. They exist so a
-    misplaced file is visible rather than silently unchecked.
+    Errors, like every rule about shape: a markdown file under `assets/` is never validated or
+    indexed, and a nested `assets/` is not exempt, so either is a file the tree has quietly
+    stopped governing. Only a sweep reports them -- they are facts about the tree, not a note.
     """
     findings: list[tuple[Path, str]] = []
     assets = docs_root / settings.assets_dirname
@@ -241,7 +218,11 @@ def check_naming(path: Path, docs_root: Path, registry: Registry, report: Report
 
 
 def check_links(path: Path, body: str, repo_root: Path, report: Report) -> None:
-    """Every link is a resolving relative path; wikilinks are not a link style here."""
+    """Every link is a resolving relative path; wikilinks are not a link style here.
+
+    A target is resolved with exact spelling and must stay inside the repository: a link that
+    leaves it is broken for every clone but this one.
+    """
     for raw in WIKILINK_RE.findall(body):
         report.error(path, f"wikilink -- use a relative markdown link instead: {raw}")
 
@@ -263,7 +244,7 @@ def check_links(path: Path, body: str, repo_root: Path, report: Report) -> None:
             report.error(path, f"absolute link path (use a relative one): {ref}")
             continue
         resolved = (path.parent / ref).resolve()
-        if not resolved.exists():
+        if not exists_exact(repo_root, resolved):
             report.error(path, f"broken link: {target}")
             continue
         if anchor and resolved.suffix == ".md":
@@ -300,6 +281,12 @@ def resolve_entry(
     absolute -- one path convention for every field. A `docs-path` that resolves outside the docs
     root is rejected on purpose: code belongs in a `repo-path` field, and accepting it here would
     let a note satisfy its anchor while staying off the drift spine.
+
+    A path must name something strictly inside the repository. `.` and its spellings resolve to
+    the root, which exists, and a note "anchored" to the whole repository is anchored to nothing
+    -- every change would touch it. A directory inside the repository is fine: a spec about a
+    package anchors to the package. Existence is checked with exact spelling (`exists_exact`), so
+    a case-insensitive filesystem cannot pass a path that CI will fail.
     """
     kinds = anchor.resolves
     name = anchor.name
@@ -314,12 +301,14 @@ def resolve_entry(
     if Path(entry).is_absolute():
         return f"{name} must be repo-relative, not absolute: {entry}"
     resolved = (repo_root / entry).resolve()
-    if "repo-path" in kinds and resolved.exists():
+    if resolved == repo_root or not resolved.is_relative_to(repo_root):
+        return f"{name} must name a path inside the repository, not the root itself: {entry!r}"
+    if "repo-path" in kinds and exists_exact(repo_root, resolved):
         return None
-    if "docs-path" in kinds and resolved.is_relative_to(docs_root) and resolved.exists():
+    if "docs-path" in kinds and resolved.is_relative_to(docs_root) and exists_exact(repo_root, resolved):
         return None
     if "repo-path" in kinds:
-        return f"{name} path does not exist: {entry}"
+        return f"{name} path does not exist (spelled exactly, from the repo root): {entry}"
     if not resolved.is_relative_to(docs_root):
         docs_prefix = rel_to(docs_root, repo_root)
         spine = " or ".join(registry.spine) or "a repo-path field"
@@ -328,7 +317,7 @@ def resolve_entry(
             f"{name} must be {url_part}a path under {docs_prefix}/ -- written from the repo root, "
             f"and code paths belong in {spine} instead: {entry}"
         )
-    return f"{name} path does not exist (paths start at the repo root): {entry}"
+    return f"{name} path does not exist (spelled exactly, from the repo root): {entry}"
 
 
 def check_anchor(
@@ -377,11 +366,16 @@ def check_frontmatter(
     elif len(summary) > settings.summary_max:
         report.error(path, f"'summary' must be one short line (max {settings.summary_max} chars)")
 
-    # Which anchors a type must carry is registry data; each field's own validation follows from
+    # Which anchors a type must carry is registry data: at least one of `requires`, and only from
+    # the status `requires_from` names when it names one. Each field's own validation follows from
     # its `resolves` kinds and runs whenever the field is present, required or not.
+    if spec is not None and spec.anchors_required(meta.get("status")):
+        if not any(meta.get(name) for name in spec.requires):
+            names = " or ".join(f"'{n}'" for n in spec.requires)
+            since = f" once status is '{spec.requires_from}'" if spec.requires_from else ""
+            what = "; ".join(f"{n}: {registry.anchor_fields[n].contents}" for n in spec.requires)
+            report.error(path, f"type '{spec.name}' requires {names}{since} -- {what}")
     for name, anchor in registry.anchor_fields.items():
-        if spec is not None and spec.requires_anchor(name) and not meta.get(name):
-            report.error(path, f"type '{spec.name}' requires '{name}' -- {anchor.contents}")
         if meta.get(name) is not None:
             check_anchor(path, anchor, meta[name], docs_root, repo_root, registry, report)
 
@@ -398,12 +392,49 @@ def check_frontmatter(
         rule = spec.supersession
         for key in (rule.forward, rule.back):
             other = meta.get(key)
-            if isinstance(other, str) and not (path.parent / other).exists():
+            if isinstance(other, str) and not exists_exact(repo_root, (path.parent / other).resolve()):
                 report.error(path, f"'{key}' names a {spec.name} that does not exist: {other}")
         if status == rule.status and rule.back not in meta:
             report.error(path, f"status is '{rule.status}' but no '{rule.back}' is named")
 
     return spec
+
+
+def check_lead(
+    path: Path,
+    spec: DocType,
+    meta: Meta,
+    registry: Registry,
+    edited: set[Path] | None,
+    changed: set[str] | None,
+    report: Report,
+) -> None:
+    """A note anchored from a status onward was edited while none of the code it anchors to was.
+
+    Such a note describes what is built, so an edit to it with no edit to the code means either a
+    correction or the doc moving ahead of the code. Only the author knows which, and the second
+    means the status is no longer true: the registry says which status precedes the anchored one,
+    and the warning names it. Silent when git cannot say what changed.
+    """
+    if spec.requires_from is None or meta.get("status") != spec.requires_from:
+        return
+    if edited is None or changed is None or path not in edited:
+        return
+    refs = [
+        str(ref)
+        for name in registry.spine
+        for ref in (meta.get(name) or [])
+        if isinstance(ref, str)
+    ]
+    if not refs or any(matches(ref, changed) for ref in refs):
+        return
+    index = spec.statuses.index(spec.requires_from)
+    before = f"'{spec.statuses[index - 1]}'" if index > 0 else "an earlier status"
+    report.warn(
+        path,
+        f"edited while none of its code was ({', '.join(refs)}) -- if the doc now leads the code, "
+        f"set status to {before} until the code catches up",
+    )
 
 
 def check_location(
@@ -416,7 +447,7 @@ def check_location(
     if spec.numbered and not registry.settings.numbered_name_re.match(path.stem):
         report.error(path, f"a '{spec.name}' filename must be NNNN-kebab-slug.md")
 
-    # A claimed filename binds in both directions. One way alone leaves a hole: a `context` note
+    # A claimed filename binds in both directions. One way alone leaves a hole: a `nomenclature` note
     # under another name is unfindable by the checks that glob for it, and any other type wearing
     # the name would be picked up by them and parsed as something it is not.
     if spec.fixed_name is not None and path.name != spec.fixed_name:
@@ -483,6 +514,20 @@ def parse_table(prose: str, structure: Structure) -> tuple[list[str], list[list[
     return header, rows
 
 
+def table_chars(text: str, structure: Structure) -> int:
+    """The characters the table's rows take -- header, separator and body, newlines included."""
+    total = 0
+    inside = False
+    for line in text.splitlines():
+        match = SECTION_RE.match(line)
+        if match:
+            inside = match.group(1).strip() == structure.table_in
+            continue
+        if inside and TABLE_ROW_RE.match(line):
+            total += len(line) + 1
+    return total
+
+
 def check_structure(path: Path, spec: DocType, prose: str, text: str, report: Report) -> None:
     """A type whose body is data is validated for shape, not just for prose.
 
@@ -490,8 +535,8 @@ def check_structure(path: Path, spec: DocType, prose: str, text: str, report: Re
     renamed column or a dropped section does not degrade them, it silently turns them off, and a
     check that has quietly stopped running is worse than one that never existed.
 
-    `text` is the whole file as read by the caller: the size cap is on the note as emitted,
-    frontmatter included.
+    `text` is the whole file as read by the caller. `max_chars` is measured on it with the table's
+    rows taken out: the rows are `max_rows`' business, and the prose around them is this cap's.
     """
     structure = spec.structure
     if structure is None:
@@ -506,12 +551,13 @@ def check_structure(path: Path, spec: DocType, prose: str, text: str, report: Re
             f"{', '.join('## ' + s for s in found) or 'none'}",
         )
 
-    size = len(text)
-    if size > structure.max_chars:
+    outside = len(text) - table_chars(text, structure)
+    if outside > structure.max_chars:
         report.error(
             path,
-            f"{size} chars -- a '{spec.name}' note is emitted into every session and is capped at "
-            f"{structure.max_chars}; cut terms or tighten definitions",
+            f"{outside} chars outside the '{structure.table_in}' table -- a '{spec.name}' note is "
+            f"emitted into every session; the prose around its table is capped at "
+            f"{structure.max_chars} (the table at {structure.max_rows} rows)",
         )
 
     header, rows = parse_table(prose, structure)
@@ -589,8 +635,8 @@ class Vocabulary:
     """The terms in force under each directory that holds a structured, fixed-name note.
 
     Resolution is by containment rather than by exact directory, so a note deep in the tree
-    inherits every context note above it. `additive` is what makes merging them safe: no two
-    context notes in one chain may define the same term, so the merge cannot depend on order.
+    inherits every nomenclature note above it. `additive` is what makes merging them safe: no two
+    nomenclature notes in one chain may define the same term, so the merge cannot depend on order.
     """
 
     by_dir: dict[Path, dict[str, list[str]]] = field(default_factory=dict)
@@ -610,7 +656,7 @@ class Vocabulary:
 def build_vocabulary(
     docs_root: Path, registry: Registry, report: Report, in_scope: set[Path] | None
 ) -> Vocabulary:
-    """Collect every context note's terms, reporting collisions down each chain.
+    """Collect every nomenclature note's terms, reporting collisions down each chain.
 
     A nested note redefining an ancestor's term is an error: the point of the file is that one word
     has one meaning, and a repo where the meaning depends on which directory you are reading from
@@ -694,6 +740,8 @@ def check_doc(
     registry: Registry,
     report: Report,
     edited: set[Path] | None,
+    changed: set[str] | None,
+    since: date | None,
     vocabulary: Vocabulary,
 ) -> None:
     meta, body, text, error = read_note(path)
@@ -708,13 +756,12 @@ def check_doc(
         spec = check_frontmatter(path, meta, docs_root, repo_root, registry, report)
         if spec is not None:
             check_location(path, spec, docs_root, registry, report)
-        check_freshness(path, meta.get("updated"), edited, registry.settings, report)
+            check_lead(path, spec, meta, registry, edited, changed, report)
+        check_freshness(path, meta.get("updated"), edited, since, registry.settings, report)
 
     prose = body_without_code(body)
     if spec is not None:
         check_structure(path, spec, prose, text, report)
-    check_related(path, spec, prose, report)
-    check_prose(path, prose, registry.settings, report)
     check_vocabulary(path, spec, prose, vocabulary, report)
     check_links(path, prose, repo_root, report)
 
@@ -788,11 +835,16 @@ def run(
     # default, or an explicit range where there is no working tree to read. None when git cannot
     # say -- "cannot tell" is not "nothing edited", and the check stays quiet.
     edited = edited_notes(repo_root, rev_range, docs_root)
+    # What the same change touched outside the docs, for the notes whose status claims to match
+    # the code, and the day it began, which an edited note's `updated` is held to. Both read only
+    # when some note was edited, so a clean tree costs no extra git call.
+    changed = changed_paths(repo_root, rev_range) if edited else None
+    since = change_start(repo_root, rev_range) if edited else None
 
     report = Report(root=repo_root)
     in_scope = None if sweep else set(targets)
     # Built once, from the whole tree rather than from the run's targets: a note being checked
-    # inherits the vocabulary of every context note above it, most of which this run never names.
+    # inherits the vocabulary of every nomenclature note above it, most of which this run never names.
     vocabulary = build_vocabulary(docs_root, registry, report, in_scope)
     checked = 0
     for path in targets:
@@ -807,6 +859,16 @@ def run(
             report.error(path, f"outside the docs root ({docs_root}) -- wrong --docs-root?")
             continue
         if not is_checkable(path, docs_root, settings):
+            # Named on the command line but nothing the validator governs. A hook handed every
+            # file a change touched asks to skip these; anyone else naming one is told, because
+            # a run that checked nothing and reported clean is the worst answer it could give.
+            if skip_non_notes:
+                continue
+            report.error(
+                path,
+                f"not a note ({classify(path, docs_root, settings)}) -- generated, agent-memory, "
+                "tooling and attachment files are never validated",
+            )
             continue
         if classify(path, docs_root, settings) == FORBIDDEN:
             report.error(
@@ -816,7 +878,7 @@ def run(
             )
             checked += 1
             continue
-        check_doc(path, docs_root, repo_root, registry, report, edited, vocabulary)
+        check_doc(path, docs_root, repo_root, registry, report, edited, changed, since, vocabulary)
         checked += 1
 
     check_required_notes(docs_root, repo_root, registry, report, in_scope)
@@ -824,7 +886,7 @@ def run(
 
     if sweep:
         for path, message in audit_assets(docs_root, settings):
-            report.warn(path, message)
+            report.error(path, message)
     return report, checked
 
 
@@ -847,6 +909,12 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="silently skip paths that are not notes under the docs root, and exit 0 when there is "
         "no docs root at all -- for hooks handed every file a change touched",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("text", "github"),
+        default="text",
+        help="github: one workflow command per finding, so a pull request shows it on the file",
     )
     parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
     args = parser.parse_args(argv)
@@ -872,7 +940,7 @@ def main(argv: list[str]) -> int:
         skip_non_notes=args.skip_non_notes,
     )
 
-    for line in report.lines():
+    for line in report.annotations() if args.format == "github" else report.lines():
         print(line)
     if checked or not args.skip_non_notes:
         print(

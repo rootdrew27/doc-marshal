@@ -3,7 +3,7 @@
 `DocType` is the single internal representation. The validator enforces from it, the scaffolder
 writes from it, and `info` renders it -- no check hardcodes a type name. The preset is constructed
 in Python so its docstrings, type checking and cross-references (`Structure(max_cell=summary_max)`)
-survive; `from_dict` is the alternate constructor the 0.2 config loader builds on, and `to_toml` is
+survive; `from_dict` is the alternate constructor the 0.3 config loader builds on, and `to_toml` is
 the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
 function: if the schema cannot express the shipped preset, the schema is too weak.
 
@@ -20,6 +20,11 @@ from .settings import SETTINGS, Settings
 # How an anchor field's entries resolve. Only `repo-path` is on the drift spine.
 RESOLVES = ("repo-path", "docs-path", "url", "opaque")
 SPINE = "repo-path"
+
+# The shared lifecycle a living note may carry: written before the thing exists, being built or
+# reconciled, or matching what is built. A type opts in by naming it as its `statuses`; a type with
+# its own vocabulary (a decision is accepted or superseded, never "done") declares that instead.
+LIFECYCLE = ("proposed", "in-progress", "done")
 
 
 @dataclass(frozen=True)
@@ -58,8 +63,10 @@ class Structure:
     table silently turns every check built on it into a no-op. Stating the shape in the registry
     keeps the rule with the rest of the type, and means a second parsed type needs no new code.
 
-    `max_chars` bounds the whole file, frontmatter included, because the note is emitted with it.
-    It exists for a type injected into every session, where size is a cost paid forever.
+    Two independent caps. `max_rows` bounds the table; `max_chars` bounds everything outside the
+    table's rows -- frontmatter, headings, the prose sections -- so each bounds one thing and
+    neither is met by squeezing the other. Both exist for a type injected into every session,
+    where size is a cost paid forever, and the session's cost is the two together.
     """
 
     sections: tuple[str, ...]  # the exact set of `##` headings, in this order
@@ -99,7 +106,8 @@ class DocType:
     voice: str
     mutability: str
     enabled: bool = True  # `enabled = false` in config removes the type from the live registry
-    requires: tuple[str, ...] = ()  # anchor fields this type must carry -- minimums, not a permitted set
+    requires: tuple[str, ...] = ()  # anchor fields of which a note must carry at least one -- a minimum, not a permitted set
+    requires_from: str | None = None  # the `status` from which `requires` is enforced; None means always
     statuses: tuple[str, ...] = ()  # allowed `status` values; empty means the type has no status
     default_status: str | None = None  # what `new` writes when --status is omitted
     folder: str | None = None  # the one folder under the docs root this type lives in
@@ -110,12 +118,17 @@ class DocType:
     root_required: bool = False  # one instance must exist at the docs root
     additive: bool = False  # a nested instance may not redefine a key an ancestor defines
     append_only: bool = False  # never edited after acceptance, so its wording cannot be corrected
-    requires_related: bool = True  # the note ends with `## Related`
     structure: Structure | None = None  # the body shape other checks parse -- see `Structure`
     description: str = ""  # longer prose for a user-declared type; the preset's lives in prose/
 
     def requires_anchor(self, name: str) -> bool:
         return name in self.requires
+
+    def anchors_required(self, status: object) -> bool:
+        """Whether `requires` binds a note in the given status. A type that anchors only from a
+        certain status -- a spec, which names no code until the code exists -- is unanchored
+        before it, and always anchored when it has no such threshold."""
+        return bool(self.requires) and (self.requires_from is None or status == self.requires_from)
 
 
 # Facet names an anchor field may not take, because a type's TOML table spells anchor requirements
@@ -154,6 +167,8 @@ class Registry:
                     raise ValueError(f"type {spec.name!r}: structure.table_in is not one of its sections")
             if spec.default_status is not None and spec.default_status not in spec.statuses:
                 raise ValueError(f"type {spec.name!r}: default_status is not one of its statuses")
+            if spec.requires_from is not None and spec.requires_from not in spec.statuses:
+                raise ValueError(f"type {spec.name!r}: requires_from is not one of its statuses")
 
     @property
     def enabled(self) -> dict[str, DocType]:
@@ -184,17 +199,20 @@ class Registry:
 
 
 def standard(settings: Settings = SETTINGS) -> Registry:
-    """The `standard` preset: eight types, two anchor fields.
+    """The `standard` preset: five types, two anchor fields.
 
-    Which anchor a type *requires* follows from authorship -- a doc about facts this repo decides
-    anchors to repo paths, a doc about facts it merely observes anchors to the datasheet, vendor page,
-    measurement, or note it was drawn from. These are minimums, not permitted sets: any declared
-    field is legal on any type and is validated whenever present.
+    A type names the reader it serves, and nothing else: look a fact up, run a procedure, read a
+    feature's behaviour as a whole, reopen a settled choice, choose what to call a thing. Whether a
+    fact was decided here or observed from outside is a property of the fact, so `reference` accepts
+    either anchor and requires at least one. Whether the thing described exists yet is a lifecycle,
+    so `spec` carries `status` and is anchored only once it is `done`.
 
-    Four types require no anchor. `decision` and `history` are append-only and anchored by their own
-    content. `spec` describes work that may not exist yet, so requiring a resolvable path would make
-    `status: proposed` unwritable. A `context` note is falsified by the words the repo uses, not by
-    a path, and anchoring it to code would flag a vocabulary on every unrelated change.
+    `requires` lists the anchor fields of which a note must carry at least one. These are minimums,
+    not permitted sets: any declared field is legal on any type and is validated whenever present.
+
+    Two types require no anchor. `decision` is append-only and anchored by its own content. A
+    `nomenclature` note is falsified by the words the repo uses, not by a path, and anchoring it to code
+    would flag a vocabulary on every unrelated change.
 
     Order is canonical: it is the order `info` lists the types in, from the most common to the least.
     """
@@ -209,50 +227,24 @@ def standard(settings: Settings = SETTINGS) -> Registry:
     types = (
         DocType(
             name="reference",
-            serves="someone looking up a fact this repo decides",
-            voice="flat, enumerative, no narrative",
-            mutability="living -- rewritten in place to match code",
-            requires=("code_refs",),
-            skeleton=(
-                "<!-- Tables and definition lists. Present tense. No procedures, no rationale. -->",
-            ),
-        ),
-        DocType(
-            name="background",
-            serves="someone looking up a fact this repo observes",
+            serves="someone looking up a fact -- decided by this repo, or observed from outside it",
             voice="flat, enumerative, cites its source",
-            mutability="living -- rewritten when the world changes",
-            requires=("source",),
+            mutability="living -- rewritten in place as the code or the world changes",
+            requires=("code_refs", "source"),
             skeleton=(
-                "<!-- Cite what backs every non-obvious claim, and distinguish specified from measured. -->",
+                "<!-- Tables and definition lists. Present tense. No procedures. Cite the source of",
+                "     any fact from outside the repo, and distinguish specified from measured. -->",
             ),
         ),
         DocType(
             name="runbook",
-            serves="someone executing under pressure",
+            serves="someone running a procedure",
             voice="imperative, literal, copy-pasteable",
             mutability="living -- rewritten in place",
             requires=("code_refs",),
             skeleton=(
-                "<!-- Imperative. Literal, copy-pasteable commands. Cheapest and least destructive first. -->",
-                "",
-                "## What the system already tried",
-                "",
-                "## Procedure",
-                "",
-                "## Escalate when",
-                "",
-                '<!-- Time- or condition-based, never "if it still seems wrong". -->',
-            ),
-        ),
-        DocType(
-            name="explanation",
-            serves="someone asking why it works this way",
-            voice="prose, connective",
-            mutability="living -- rewritten as understanding changes",
-            requires=("code_refs",),
-            skeleton=(
-                "<!-- Name the invariant and what violates it. Rejected approaches belong in the argument. -->",
+                "<!-- Imperative. Literal, copy-pasteable commands. Name the condition before the",
+                "     action where the path branches. Cheapest and least destructive step first. -->",
             ),
         ),
         DocType(
@@ -286,12 +278,21 @@ def standard(settings: Settings = SETTINGS) -> Registry:
         ),
         DocType(
             name="spec",
-            serves="someone building or validating unbuilt work",
-            voice="plan-shaped, with pending items",
-            mutability="living until done, then converted",
-            statuses=("proposed", "building", "shipped-unvalidated", "done"),
+            serves="someone reading, building or validating a feature's behaviour as a whole",
+            voice="declarative, whole-feature, links to the references that justify it",
+            mutability="living at every status -- in-progress whenever the doc leads the code",
+            statuses=LIFECYCLE,
+            default_status="proposed",
+            requires=("code_refs",),
+            requires_from="done",
             skeleton=(
-                "## Plan",
+                "## Overview",
+                "",
+                "<!-- The feature in a paragraph: what it is for, and where it starts and stops. -->",
+                "",
+                "## Behavior",
+                "",
+                "<!-- What it does, as statements. Link each fact to the reference note that holds it. -->",
                 "",
                 "## Validation",
                 "",
@@ -301,45 +302,32 @@ def standard(settings: Settings = SETTINGS) -> Registry:
             ),
         ),
         DocType(
-            name="history",
-            serves="someone about to repeat a dead end",
-            voice="verbose prose, dated entries",
-            mutability="append-only -- earlier entries never rewritten",
-            append_only=True,
-            skeleton=(
-                "## {today} -- <what happened>",
-                "",
-                "<!-- Appended, never rewritten. Numbers, the symptom as observed, the wrong hypothesis. -->",
-            ),
-        ),
-        DocType(
-            name="context",
+            name="nomenclature",
             serves="someone choosing what to call a thing",
             voice="flat, definitional, opinionated",
             mutability="living -- rewritten as the domain sharpens",
-            fixed_name="CONTEXT.md",
+            fixed_name="NOMENCLATURE.md",
             root_required=True,
             additive=True,
-            requires_related=False,
             structure=Structure(
                 sections=("Terminology", "Relationships", "Ambiguities"),
                 table_in="Terminology",
-                columns=("Term", "Definition", "Avoid", "Historical"),
+                columns=("Term", "Definition", "Avoid"),
                 key_column="Term",
                 body_column="Definition",
                 scanned_columns=("Avoid",),
-                max_rows=20,
+                max_rows=35,
                 max_cell=settings.summary_max,
-                max_chars=6000,
+                max_chars=3000,
             ),
             skeleton=(
-                "<!-- One line on what this context covers. Terms specific to it, never general",
+                "<!-- One line on what this nomenclature covers. Terms specific to it, never general",
                 "     programming concepts. Be opinionated: one word per concept. -->",
                 "",
                 "## Terminology",
                 "",
-                "| Term | Definition | Avoid | Historical |",
-                "| --- | --- | --- | --- |",
+                "| Term | Definition | Avoid |",
+                "| --- | --- | --- |",
                 "",
                 "## Relationships",
                 "",
@@ -361,7 +349,7 @@ STANDARD = standard()
 
 # --- serialization ------------------------------------------------------------------------------
 #
-# The TOML shape 0.2's `.doc-marshal.toml` takes. Written now so the round-trip test can run on day
+# The TOML shape 0.3's `.doc-marshal.toml` takes. Written now so the round-trip test can run on day
 # one, and so `info --dump-toml` shows a user the worked example of the schema they will configure.
 
 
@@ -391,7 +379,8 @@ def to_dict(registry: Registry) -> dict[str, Any]:
         table["root_required"] = spec.root_required
         table["additive"] = spec.additive
         table["append_only"] = spec.append_only
-        table["requires_related"] = spec.requires_related
+        if spec.requires_from is not None:
+            table["requires_from"] = spec.requires_from
         if spec.description:
             table["description"] = spec.description
         table["skeleton"] = list(spec.skeleton)
@@ -419,7 +408,7 @@ def to_dict(registry: Registry) -> dict[str, Any]:
 
 
 def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings = SETTINGS) -> Registry:
-    """Construct a registry from plain data -- the inverse of `to_dict`, and the constructor the 0.2
+    """Construct a registry from plain data -- the inverse of `to_dict`, and the constructor the 0.3
     loader calls once it has merged a config over its preset. Strict: an unknown key is an error,
     since a typo that validated as nothing would be exactly the silent failure this tool exists to
     remove."""
@@ -435,10 +424,10 @@ def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings =
         for key in ("serves", "voice", "mutability", "description"):
             if key in table:
                 kwargs[key] = str(table[key])
-        for key in ("enabled", "numbered", "root_required", "additive", "append_only", "requires_related"):
+        for key in ("enabled", "numbered", "root_required", "additive", "append_only"):
             if key in table:
                 kwargs[key] = bool(table[key])
-        for key in ("default_status", "folder", "fixed_name"):
+        for key in ("default_status", "folder", "fixed_name", "requires_from"):
             if key in table:
                 kwargs[key] = table[key]
         for key in ("statuses", "skeleton"):
@@ -471,7 +460,7 @@ def to_toml(registry: Registry) -> str:
     data = to_dict(registry)
     lines: list[str] = [
         "# The effective doc-marshal registry, as configuration. `doc-marshal info --dump-toml`.",
-        "# Configuration is read from 0.2; this is the schema it will take.",
+        "# Configuration is read from 0.3; this is the schema it will take.",
         "",
         f"extends = {_toml_value(data['extends'])}",
     ]
