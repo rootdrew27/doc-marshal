@@ -1,6 +1,6 @@
 # doc-marshal
 
-A machine-checked documentation tree for repositories whose primary reader is a coding agent.
+A machine-checked documentation tree enforcement package.
 
 Documentation rots because nothing connects a document to the thing that would falsify it.
 `doc-marshal` makes that connection mechanical: every living note declares, in frontmatter, the
@@ -165,7 +165,7 @@ From 0.2 the marker holds the configuration: `extends = "standard"`, per-type ov
 
 ## Design
 
-[SPEC.md](SPEC.md) records the design and every decision behind it, including the ones that
+[SPEC.md](https://github.com/rootdrew27/doc-marshal/blob/main/SPEC.md) records the design and every decision behind it, including the ones that
 reverse the prototype this was extracted from. When the code and that file disagree, the code is
 right.
 
