@@ -43,8 +43,9 @@ The docs root **may** have one `{{assets_dirname}}/` directory. It is optional, 
 - The exemption is **positional**: only the `{{assets_dirname}}/` directory at the docs root. A nested one
   elsewhere is not the convention and is not exempt.
 
-Two departures are reported as **warnings** (never errors, because this directory is not validated
-against): a markdown file inside `{{assets_dirname}}/`, and an `{{assets_dirname}}/` directory anywhere but the docs root.
+Two departures are **errors**, reported by a sweep (`doc-marshal check --all`) since they are facts
+about the tree rather than about a note: a markdown file inside `{{assets_dirname}}/`, which is never
+validated or indexed, and an `{{assets_dirname}}/` directory anywhere but the docs root.
 
 ## 3. Naming
 
@@ -69,7 +70,7 @@ always required:
 | Field | Rule |
 | --- | --- |
 | `type` | one of the enabled types -- `doc-marshal info` lists them |
-| `updated` | ISO date (`YYYY-MM-DD`) of the last substantive edit. Never a future date, and bumped whenever you substantively edit the note -- the validator warns when a note you have edited still carries an older one |
+| `updated` | ISO date (`YYYY-MM-DD`) of the last edit. Never a future date, and bumped whenever you edit the note: a note the change touched whose date is earlier than the day the change began is an error |
 | `summary` | one line, max {{summary_max}} characters, stating what the doc is for |
 
 `summary` is the only prose the generated index shows, so a note without a good one is effectively
@@ -88,7 +89,10 @@ validator enforces from, so it states the requirement rather than describing it.
 {{anchor_table}}
 
 - **Every path in frontmatter is written from the repo root** -- never from the docs root and never
-  absolute. One rule for every field. Paths must resolve.
+  absolute. One rule for every field. Paths must resolve, with **exact spelling**: a
+  case-insensitive filesystem does not make `Src/` a match for `src/`, because CI's will not. And a
+  path names something **strictly inside** the repository: `.` is not an anchor, since a note the
+  whole repository falsifies is anchored to nothing. A directory inside it is fine.
 - The table gives each type's **minimum, not its permitted set.** Any declared field is allowed on
   **any** type and is validated whenever present.
 - A type may be anchored only **from a status onward**; `doc-marshal info <type>` says so where it
@@ -203,10 +207,9 @@ The body is data as much as prose -- other checks parse it -- so its shape is fi
 departure is an error. `doc-marshal info nomenclature` states the exact sections, columns and caps.
 
 - **`Definition`** says what the term *is*, in one line. Not what it does.
-- **`Avoid`** lists the aliases ruled out, comma-separated. These are scanned.
-- **`Historical`** lists words that once meant this term. These are **never** scanned: they exist
-  so a reader meeting an old word in an old note can resolve it. A rename moves words from `Avoid`
-  to `Historical` rather than deleting them.
+- **`Avoid`** lists the aliases ruled out, comma-separated. These are scanned. A renamed term's
+  old word goes here too; the `decision` that renamed it is the history, and append-only notes
+  are never scanned, so old decisions keep their old words unflagged.
 - Say "no aliases" with a dash. A blank cell reads as an unfinished row.
 
 Only terms **specific to this project** earn a row. General programming concepts do not, however
@@ -216,9 +219,11 @@ and rule out the rest.
 ### Size
 
 A nomenclature note at the docs root is **emitted into every session**, so its size is a cost paid on
-every run rather than only when someone opens it. The caps on rows, definition length and file size
-are errors. When the file is full, a term that has stopped earning its place comes out before a new
-one goes in.
+every run rather than only when someone opens it. Two caps, each an error and each bounding one
+thing: the table's **rows**, and the **characters outside the table** -- frontmatter, headings and
+the prose sections. Neither is met by squeezing the other, and the session pays for both. A
+definition's length is capped as well. When the table is full, a term that has stopped earning its
+place comes out before a new one goes in.
 
 ### Enforcement
 
@@ -235,8 +240,6 @@ cannot see intent, so a false positive must not block a commit. Two exemptions, 
 
 - Sentence case in headings. The H1 is the human title, so it reads as prose even though the
   filename is kebab-case.
-- ` -- ` (double hyphen) as the em dash. Match existing usage if a doc differs; ` -- ` is the
-  default because it survives every editor and diff tool.
 - Imperative mood in instructions.
 - Describe values by role, and name the file that owns them, rather than embedding the number:
   "once per `worker.poll_interval` (see the config template that declares it)", not "every 30
@@ -255,18 +258,17 @@ run as proof that a note follows the convention.
 **Machine-checked** (`doc-marshal check`): §1's non-notes and the README ban, §2's attachment
 departures, §3's naming, §4's required fields, anchor minimums, resolution by kind, date sanity and
 per-type `status`, §6's link style and resolution including heading anchors, §7's naming and number
-uniqueness, §8's placement, sections,
-columns, caps and additive-only rule, and the one rule in §9 a script can see -- the literal em dash.
+uniqueness, §8's placement, sections, columns, caps and additive-only rule.
 
-**Convention only, checked by a human or a reviewing agent**: the rest of §9, §8's conformance in
+**Convention only, checked by a human or a reviewing agent**: §9, §8's conformance in
 code, §6's "inline on first mention" and its ban on trailing neighbour lists, and §5's ban on
 hand-written listings inside agent-memory files. A rule being unenforceable does not make it
 optional -- it makes it a review obligation.
 
-Of what the validator reports, errors fail the run and warnings never do. Warnings are an
-`updated` date not bumped on a note you have edited, a note anchored from its status onward that
-was edited while none of its code was (§4), a literal em dash, §8's alias scan, and the attachment
-departures in §2; every other machine-checked rule is an error. There is no inline suppression and no severity configuration: whatever the registry says is
+Of what the validator reports, errors fail the run and warnings never do. Everything a script can
+judge on shape alone is an error. The two warnings are the rules that judge meaning: a note
+anchored from its status onward that was edited while none of its code was (§4), and §8's alias
+scan. There is no inline suppression and no severity configuration: whatever the registry says is
 enforced completely, and everything configurable lives in `{{marker_name}}` where review can see it.
 
 ### Where enforcement runs

@@ -9,7 +9,7 @@ question with an answer a script can give.
 
 It ships an opinionated five-type ontology, the `standard` preset. But the engine is the product:
 every rule it enforces is read off a registry rather than hardcoded per check, and an ontology you
-declare yourself (from 0.2) is held to exactly the same standard.
+declare yourself (from 0.3) is held to exactly the same standard.
 
 ```bash
 pip install doc-marshal        # or: uv tool install doc-marshal
@@ -24,6 +24,10 @@ doc-marshal info               # the effective ruleset, for a human or an agent
 
 Zero runtime dependencies. Python 3.11 or later. Standard library only, so it also runs from a
 checkout: `python3 -m doc_marshal`.
+
+**Supported: Claude Code on macOS and Linux.** That is the combination the plugin's hooks, the
+root import line and the smoke test exercise. The CLI, pre-commit and CI paths run anywhere Python
+does, so Windows and other agents get those and nothing tested beyond them.
 
 ## The idea
 
@@ -81,8 +85,8 @@ Two of them do more than hold prose:
 - **`nomenclature`** is the shared vocabulary: one `NOMENCLATURE.md` at the docs root, injected into every
   session, with a fixed table of terms, definitions and the aliases each rules out. Every other
   note is scanned against the `Avoid` column. A nested `NOMENCLATURE.md` adds terms for its subtree and
-  may never redefine an ancestor's. The vocabulary is deliberately small -- thirty-five terms, six
-  thousand characters -- because every session pays for it.
+  may never redefine an ancestor's. The vocabulary is deliberately small -- thirty-five terms, and
+  three thousand characters of prose around them -- because every session pays for it.
 
 The full argument for each type is `doc-marshal info <type>`; the rules that are not per-type --
 naming, links, indexes, attachments, prose -- are `doc-marshal info --conventions`. They ship
@@ -108,13 +112,15 @@ mode, and **no inline suppression** -- that is the one absolute prohibition. A h
 suppressions are unauditable; everything configurable lives in one file that review can see.
 
 Errors: frontmatter parses and carries `type`, `updated` and `summary`; `type` names a live type;
-required anchors are present and every anchor entry resolves by its kind; a type's placement holds
-(folder, numbering, fixed filename); `status` is one the type allows; links resolve, including
-heading anchors; no wikilinks, no absolute links; a `nomenclature` note's exact shape and caps; no
-`README.md` in the tree.
+required anchors are present and every anchor entry resolves by its kind, spelled exactly, to
+something strictly inside the repository; an edited note's `updated` is no earlier than the day the
+change began; a type's placement holds (folder, numbering, fixed filename); `status` is one the
+type allows; links resolve, including heading anchors; no wikilinks, no absolute links; a
+`nomenclature` note's exact shape and caps; no `README.md` in the tree; no misplaced attachment.
+Everything a script can judge on shape alone is an error.
 
-Warnings: an `updated` date not bumped on a note the change edited, a `done` spec edited while none
-of its code was, a literal em dash, a word the vocabulary rules out, and a misplaced attachment.
+Warnings, the two rules that judge meaning: a `done` spec edited while none of its code was, and a
+word the vocabulary rules out.
 
 Minor releases may add checks. Pin the version at every enforcement point and bump when you choose.
 
@@ -153,8 +159,8 @@ the code, which by definition touches no documentation.
 
 The `plugin/` directory is a Claude Code plugin. Its value is two hooks no other harness provides:
 **PostToolUse** validation of each note the moment it is written, and **SessionStart** injection of
-the index preview (folder names and counts, nothing more), the root `NOMENCLATURE.md` verbatim, and the
-enabled types. It also carries a thin `update-docs` skill that defers to `doc-marshal info --process`.
+the index preview (folder names and counts, nothing more), the root `NOMENCLATURE.md` as one line per
+term plus its prose sections, and the enabled types. It also carries a thin `update-docs` skill that defers to `doc-marshal info --process`.
 
 The plugin is an add-on to the package, not a second way to install it. Its hooks run the
 `doc-marshal` the project already has -- the project's virtualenv first, then PATH -- so the agent
@@ -176,8 +182,10 @@ That marker is how every command finds the docs root -- never by name. A reposit
 Sphinx `docs/` and a marshal tree elsewhere without ambiguity, and `init` warns when the target
 looks like a published site. Two markers in one repository is an error.
 
-From 0.2 the marker holds the configuration: `extends = "standard"`, per-type overrides,
+From 0.3 the marker holds the configuration: `extends = "standard"`, per-type overrides,
 `enabled = false`, `[rules]`, `exclude`. `doc-marshal info --dump-toml` shows the schema today.
+Until then it holds no keys: `init` writes it with a comment saying so, and a marker carrying any
+key fails every command with exit 2. There is no escape hatch before the loader exists.
 
 ## Design
 

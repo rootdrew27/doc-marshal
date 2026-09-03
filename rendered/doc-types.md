@@ -194,9 +194,8 @@ out. `doc-marshal info --conventions` §8 states the rules; this is how the type
   rather than fixed it.
 - **Define what a term *is*, not what it does**, in one line. "A request for payment sent to a
   customer after delivery" -- not two sentences on when invoices are generated.
-- `Historical` is for words that *used* to mean the term. They are never flagged; they exist so a
-  reader meeting an old word in an append-only note can resolve it. A rename moves words from
-  `Avoid` to `Historical`, and records itself as a `decision`.
+- A rename puts the old word in `Avoid` and records itself as a `decision`; that is the history.
+  Append-only notes are never scanned, so a decision written in the old word is not flagged.
 - `## Ambiguities` holds **live** concerns only -- a term two people still use differently, a name
   known to be overloaded. A resolved one is deleted, or becomes the `decision` that resolved it.
   This is not an archive; the size cap makes that concrete.

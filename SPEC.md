@@ -342,14 +342,17 @@ A `SessionStart` hook injects three blocks:
 1. **The index preview** -- folder names with note counts, and nothing else, ending with a pointer
    to `doc-marshal index` for the full list. **Uniform reduction at every size, including the top
    level.**
-2. **The docs root's `NOMENCLATURE.md`, verbatim.** The terms and the aliases they rule out are the
-   content; a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a
-   nested one governs its subtree and is read on arriving there.
+2. **The docs root's `NOMENCLATURE.md`, as content.** One line per term from the parsed table --
+   the term, its definition, the aliases it rules out -- then the prose sections as written, with
+   frontmatter and HTML comments stripped. The terms and the aliases they rule out are the content;
+   a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a nested one
+   governs its subtree and is read on arriving there. *(Revised 2026-09-03: was verbatim.)*
 3. **The compact `info` block** -- the enabled types and their anchors, one line per type.
 
 The reasoning for (1): `INDEX.md` in the prototype is injected in full and uncapped. It measured
 **7592 characters at 30 notes** and grows linearly with the tree forever, while the `nomenclature` type
-caps *itself* at 6000 characters with the explicit argument that it "is emitted into every session."
+capped *itself* at 6000 characters with the explicit argument that it "is emitted into every session"
+(now 35 rows plus 3000 characters of prose, §16).
 The argument that justifies the smaller cap applies with more force to the file that had none.
 
 Rejected: capping by byte count, which makes the injected content depend on how verbose other
@@ -466,6 +469,10 @@ Claude Code is the priority; the design stays vendor-neutral.
   Other harnesses have no import syntax, so plain `init` prints the reference line for the root
   `AGENTS.md` and writes nothing there. *(Revised 2026-09-03.)*
 - The flag generalises later to `--agent claude-code|codex|cursor`.
+- **Supported: Claude Code on macOS and Linux.** That is what the hooks, the import line and the
+  smoke test exercise. The CLI, pre-commit and CI paths run anywhere Python does; the hook engine
+  lookup and `doctor` probe a Windows virtualenv's `Scripts/` as well as `bin/`, but nothing on
+  Windows or in another harness is tested, and consumers are told so. *(2026-09-03.)*
 
 Either way the file is descriptive: what the tree, its commands and its two special files are
 for, and nothing about how to use them -- that is `doc-marshal info`, versioned with the engine.
@@ -513,10 +520,10 @@ release.
 validating at 0.6 while CI runs 0.5. The plugin carries no engine of its own (§10), so the only
 versions in play are the ones the repository installs and pins, and `doctor` compares those.
 
-**Tier 3 constants** -- the filename pattern, `SUMMARY_MAX`, the em-dash rule, the index and assets
-directory names, the forbidden names, the excluded directories -- are **not configurable in 0.1**.
-They are routed through one settings object anyway, so exposing them in 0.2 is a schema addition
-rather than a refactor through six modules.
+**Tier 3 constants** -- the filename pattern, `SUMMARY_MAX`, the index and assets directory names,
+the forbidden names, the excluded directories -- are **not configurable until 0.3**. They are
+routed through one settings object anyway, so exposing them then is a schema addition rather than
+a refactor through six modules.
 
 ## 14. Release plan
 
@@ -547,8 +554,9 @@ The real integration test is an existing project's documentation tree, used info
 development and never checked in here as a fixture. Such a tree needs zero configurability, and
 running it exercises the things paper cannot check: whether the plugin resolving the repository's
 own engine is comprehensible, whether `info`-instead-of-files works for an agent mid-task, and
-whether a thin SKILL.md still gets matched and followed. The test suite in `tests/` is built on
-synthetic trees so the repository stays self-contained.
+whether a thin SKILL.md still gets matched and followed. A test suite in `tests/`, when it lands,
+is built on synthetic trees so the repository stays self-contained; 0.2 ships without one, on the
+smoke script alone, by the consumer's choice (decision 38).
 
 ### 0.2 -- the five-type preset
 
@@ -556,6 +564,12 @@ The revision of §3.1: five types, any-of anchor minimums with `requires_from`, 
 lifecycle on `spec`, no `## Related` section. With it, the descriptive pointer and the root
 `CLAUDE.md` import of §11, `check --format github`, and `rendered/` of §5. A breaking change to
 what trees validate, so a minor bump rather than a patch; MakeRent migrates after the release.
+
+Also in 0.2, from MakeRent's review of 0.1 (decisions 29-38): every shape rule an error, exact-spelling
+path resolution, anchors strictly inside the repository, `new` reading paths from the current
+directory, no em dash rule, the nomenclature note without its `Historical` column and under two
+caps, the session receiving that note's content rather than its file, and the marker stating its
+own blast radius.
 
 ### 0.3 -- configuration
 
@@ -599,6 +613,16 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 26 | The pointer file is descriptive -- what exists and what it is for | a pointer that instructs, duplicating `info --process` in a file the engine cannot regenerate |
 | 27 | The preset revision is 0.2; configuration moves to 0.3 | shipping a change that breaks existing trees under 0.1.x |
 | 28 | The vocabulary type is `nomenclature`, at `NOMENCLATURE.md` | `context` / `CONTEXT.md`, which reads as general context storage and collides with the word everywhere else it is used |
+| 29 | Every rule a script judges on shape alone is an error: freshness against the change's own window, misplaced attachments, a non-note named on the command line | warnings, which the consumer found read as optional |
+| 30 | Freshness is held to the day the change began -- today for the working tree, the earliest author date of a `--range` | comparing against today, which failed every note dated the day it was edited once its pull request aged |
+| 31 | Paths resolve by exact spelling against real directory listings, and an anchor names something strictly inside the repository | `Path.exists()`, which on APFS passes what Linux CI fails and which accepted `.` |
+| 32 | `new` reads a path from the current directory | guessing between the repo root and the current directory, which placed notes silently |
+| 33 | No em dash rule | a warning on the literal character and a ` -- ` convention |
+| 34 | Nomenclature has no `Historical` column; a renamed term's old word goes in `Avoid` and the `decision` is the history | an unscanned column recording history in the one file every session pays for |
+| 35 | Two nomenclature caps: rows for the table, 3000 characters for everything outside it | one whole-file cap, which 35 rows alone nearly filled |
+| 36 | The session receives the nomenclature note's content -- one line per term, then its prose sections -- not its file | verbatim injection, frontmatter and comments included |
+| 37 | The marker states its own blast radius; no configuration escape hatch before 0.3 | an empty file, and a refusal message naming the wrong release |
+| 38 | Claude Code on macOS and Linux is the supported platform; Windows and other harnesses get the CLI and nothing tested beyond it. No test suite in 0.2 | claiming a neutrality the tests do not back; pytest on synthetic trees, deferred by the consumer |
 
 ## 16. Carried in from the prototype review
 
@@ -608,12 +632,14 @@ Findings from reviewing the prototype, to be handled during extraction.
   `root_required`, so `check --all` errors without it, and 0.1 has no config escape. `init` is the
   command that makes a repository legible to the tool, not a convenience.
 - **`max_rows = 35` and `max_chars = 6000` are hard errors in 0.1.** The README states plainly
-  that the vocabulary is deliberately small. 0.2 makes them overridable per §4.3.
+  that the vocabulary is deliberately small. 0.3 makes them overridable per §4.3. *(0.2: the
+  character cap is 3000 and measures the file outside the table's rows -- decision 35.)*
 - **`session_context.py`'s `REGENERATE`** is an f-string with no placeholders, and hardcodes the
   skill path. Both disappear when it becomes `doc-marshal index`.
 - **`check_structure` re-reads the file from disk** to measure size, though the caller already read
   it. Thread the text through; whole-file measurement is correct, since the note is emitted with
-  its frontmatter.
+  its frontmatter. *(0.2: the table's rows are excluded from the measurement and the session no
+  longer receives the frontmatter -- decisions 35 and 36.)*
 - **`check_vocabulary`'s `\b{alias}\b`** misbehaves for an alias with a leading or trailing
   non-word character (`.env`, `C++`) -- and a vocabulary is exactly where those appear.
 
@@ -622,7 +648,8 @@ Findings from reviewing the prototype, to be handled during extraction.
 - [x] **V1** -- `doc-marshal check --all` reproduces the prototype's output on the prototype's own
       tree, note for note, with the marker placed in its existing `agent-docs/` directory. *(0.1;
       against the five-type preset the same tree fails on exactly its migration set -- six
-      `background` notes, four spec statuses and the `CONTEXT.md` rename -- and nothing else.)*
+      `background` notes, four spec statuses, the `CONTEXT.md` rename and its `Historical`
+      column -- and nothing else.)*
 - [x] **V1b** -- `doc-marshal init` warns on a `docs/` directory holding `conf.py` or `mkdocs.yml`,
       and says what it found; and every command fails legibly when no marker exists.
 - [x] **V1c** -- a repository holding both a Sphinx `docs/` and a marked tree elsewhere validates
