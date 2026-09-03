@@ -1,0 +1,31 @@
+# rendered/ holds the standard preset's prose as `doc-marshal info` renders it, for readers who
+# cannot run the CLI. The pre-commit hook regenerates it locally; this job is the backstop that
+# regenerates and commits it whenever main moves, so the copy is derived rather than maintained.
+name: render
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run python scripts/render_prose.py
+      - name: Commit the rendering if it changed
+        run: |
+          if git diff --quiet -- rendered; then
+            echo "rendered/ is current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rendered
+          git commit -m "rendered: regenerate from the prose and registry [skip ci]"
+          git push
