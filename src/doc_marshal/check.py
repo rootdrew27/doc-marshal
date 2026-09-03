@@ -23,12 +23,14 @@ from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from .affected import matches
 from .config import load_registry
 from .ontology import AnchorField, DocType, Registry, Structure
 from .paths import (
     FORBIDDEN,
     DocMarshalError,
     Meta,
+    changed_paths,
     classify,
     edited_notes,
     find_docs_root,
@@ -43,9 +45,6 @@ from .settings import Settings
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
-# A `## Related` entry: a bulleted link, and whatever follows it on the line. The convention wants
-# a reason after the link, so the second group being empty is the whole check.
-RELATED_ITEM_RE = re.compile(r"^\s*[-*]\s*!?\[[^\]]*\]\([^)\s]+\)\s*(.*)$")
 INLINE_CODE_RE = re.compile(r"`[^`]*`")
 # The convention writes the em dash as ` -- `, which survives every editor and diff tool. A literal
 # one is a warning, not an error: quoted material may legitimately carry the character.
@@ -69,18 +68,29 @@ class Report:
     root: Path | None = None
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    findings: list[tuple[str, Path, str]] = field(default_factory=list)  # (level, path, message)
 
     def error(self, path: Path, msg: str) -> None:
         self.errors.append(f"{self.display(path)}: {msg}")
+        self.findings.append(("error", self.display(path), msg))
 
     def warn(self, path: Path, msg: str) -> None:
         self.warnings.append(f"{self.display(path)}: {msg}")
+        self.findings.append(("warning", self.display(path), msg))
 
     def display(self, path: Path) -> Path:
         return rel_to(path, self.root) if self.root else path
 
     def lines(self) -> list[str]:
         return [f"{WARN_PREFIX}{w}" for w in self.warnings] + [f"{ERROR_PREFIX}{e}" for e in self.errors]
+
+    def annotations(self) -> list[str]:
+        """The findings as GitHub Actions workflow commands, so a pull request shows each one on
+        the file it names. Same order as `lines`; the message is otherwise unchanged."""
+        return [
+            f"::{level} file={path.as_posix()}::{msg.replace('%', '%25').replace(chr(10), '%0A')}"
+            for level, path, msg in self.findings
+        ]
 
 
 def _outside_fences(text: str) -> Iterator[str]:
@@ -151,31 +161,6 @@ def check_freshness(
             f"edited by this change but 'updated' still reads {updated} "
             f"-- bump it to {today} if the edit was substantive",
         )
-
-
-def check_related(path: Path, spec: DocType | None, prose: str, report: Report) -> None:
-    """Every note ends with `## Related`, and every link in it says why you would follow it.
-
-    A bare list of links is an index of the neighbourhood, which the generated index already is.
-    The reason clause is the entire value of the section, so its absence is worth reporting even
-    though no script can judge whether a given clause is a good one. A type may opt out.
-    """
-    if spec is not None and not spec.requires_related:
-        return
-    lines = prose.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.strip() == "## Related"), None)
-    if start is None:
-        report.warn(path, "no '## Related' section -- connectivity is a convention on every note")
-        return
-    for line in lines[start + 1 :]:
-        if HEADING_RE.match(line):
-            break
-        match = RELATED_ITEM_RE.match(line)
-        if match and not match.group(1).strip():
-            report.warn(
-                path,
-                f"'## Related' link with no reason -- say why you would go there: {line.strip()}",
-            )
 
 
 def check_prose(path: Path, prose: str, settings: Settings, report: Report) -> None:
@@ -377,11 +362,16 @@ def check_frontmatter(
     elif len(summary) > settings.summary_max:
         report.error(path, f"'summary' must be one short line (max {settings.summary_max} chars)")
 
-    # Which anchors a type must carry is registry data; each field's own validation follows from
+    # Which anchors a type must carry is registry data: at least one of `requires`, and only from
+    # the status `requires_from` names when it names one. Each field's own validation follows from
     # its `resolves` kinds and runs whenever the field is present, required or not.
+    if spec is not None and spec.anchors_required(meta.get("status")):
+        if not any(meta.get(name) for name in spec.requires):
+            names = " or ".join(f"'{n}'" for n in spec.requires)
+            since = f" once status is '{spec.requires_from}'" if spec.requires_from else ""
+            what = "; ".join(f"{n}: {registry.anchor_fields[n].contents}" for n in spec.requires)
+            report.error(path, f"type '{spec.name}' requires {names}{since} -- {what}")
     for name, anchor in registry.anchor_fields.items():
-        if spec is not None and spec.requires_anchor(name) and not meta.get(name):
-            report.error(path, f"type '{spec.name}' requires '{name}' -- {anchor.contents}")
         if meta.get(name) is not None:
             check_anchor(path, anchor, meta[name], docs_root, repo_root, registry, report)
 
@@ -404,6 +394,43 @@ def check_frontmatter(
             report.error(path, f"status is '{rule.status}' but no '{rule.back}' is named")
 
     return spec
+
+
+def check_lead(
+    path: Path,
+    spec: DocType,
+    meta: Meta,
+    registry: Registry,
+    edited: set[Path] | None,
+    changed: set[str] | None,
+    report: Report,
+) -> None:
+    """A note anchored from a status onward was edited while none of the code it anchors to was.
+
+    Such a note describes what is built, so an edit to it with no edit to the code means either a
+    correction or the doc moving ahead of the code. Only the author knows which, and the second
+    means the status is no longer true: the registry says which status precedes the anchored one,
+    and the warning names it. Silent when git cannot say what changed.
+    """
+    if spec.requires_from is None or meta.get("status") != spec.requires_from:
+        return
+    if edited is None or changed is None or path not in edited:
+        return
+    refs = [
+        str(ref)
+        for name in registry.spine
+        for ref in (meta.get(name) or [])
+        if isinstance(ref, str)
+    ]
+    if not refs or any(matches(ref, changed) for ref in refs):
+        return
+    index = spec.statuses.index(spec.requires_from)
+    before = f"'{spec.statuses[index - 1]}'" if index > 0 else "an earlier status"
+    report.warn(
+        path,
+        f"edited while none of its code was ({', '.join(refs)}) -- if the doc now leads the code, "
+        f"set status to {before} until the code catches up",
+    )
 
 
 def check_location(
@@ -694,6 +721,7 @@ def check_doc(
     registry: Registry,
     report: Report,
     edited: set[Path] | None,
+    changed: set[str] | None,
     vocabulary: Vocabulary,
 ) -> None:
     meta, body, text, error = read_note(path)
@@ -708,12 +736,12 @@ def check_doc(
         spec = check_frontmatter(path, meta, docs_root, repo_root, registry, report)
         if spec is not None:
             check_location(path, spec, docs_root, registry, report)
+            check_lead(path, spec, meta, registry, edited, changed, report)
         check_freshness(path, meta.get("updated"), edited, registry.settings, report)
 
     prose = body_without_code(body)
     if spec is not None:
         check_structure(path, spec, prose, text, report)
-    check_related(path, spec, prose, report)
     check_prose(path, prose, registry.settings, report)
     check_vocabulary(path, spec, prose, vocabulary, report)
     check_links(path, prose, repo_root, report)
@@ -788,6 +816,9 @@ def run(
     # default, or an explicit range where there is no working tree to read. None when git cannot
     # say -- "cannot tell" is not "nothing edited", and the check stays quiet.
     edited = edited_notes(repo_root, rev_range, docs_root)
+    # What the same change touched outside the docs, for the notes whose status claims to match
+    # the code. Read only when some note was edited, so a clean tree costs no extra git call.
+    changed = changed_paths(repo_root, rev_range) if edited else None
 
     report = Report(root=repo_root)
     in_scope = None if sweep else set(targets)
@@ -816,7 +847,7 @@ def run(
             )
             checked += 1
             continue
-        check_doc(path, docs_root, repo_root, registry, report, edited, vocabulary)
+        check_doc(path, docs_root, repo_root, registry, report, edited, changed, vocabulary)
         checked += 1
 
     check_required_notes(docs_root, repo_root, registry, report, in_scope)
@@ -848,6 +879,12 @@ def main(argv: list[str]) -> int:
         help="silently skip paths that are not notes under the docs root, and exit 0 when there is "
         "no docs root at all -- for hooks handed every file a change touched",
     )
+    parser.add_argument(
+        "--format",
+        choices=("text", "github"),
+        default="text",
+        help="github: one workflow command per finding, so a pull request shows it on the file",
+    )
     parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
     args = parser.parse_args(argv)
 
@@ -872,7 +909,7 @@ def main(argv: list[str]) -> int:
         skip_non_notes=args.skip_non_notes,
     )
 
-    for line in report.lines():
+    for line in report.annotations() if args.format == "github" else report.lines():
         print(line)
     if checked or not args.skip_non_notes:
         print(

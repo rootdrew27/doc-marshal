@@ -49,17 +49,10 @@ def next_number(folder: Path) -> str:
 
 
 def render_note(title: str, meta: list[str], spec: DocType, today: str | None = None) -> str:
-    """A complete note: frontmatter lines, H1, the type's skeleton, and `## Related` if required."""
+    """A complete note: frontmatter lines, H1 and the type's skeleton."""
     today = today or date.today().isoformat()
     skeleton = [line.replace("{today}", today) for line in spec.skeleton]
     lines = ["---", *meta, "---", "", f"# {title}", "", *skeleton]
-    if spec.requires_related:
-        lines += [
-            "",
-            "## Related",
-            "",
-            "<!-- One relative link per line, each with a clause saying why you would go there. -->",
-        ]
     return "\n".join([*lines, ""])
 
 
@@ -100,6 +93,8 @@ def resolve_target(
         target = path.resolve()
         return target, title or f"{title_from_slug(target.parent.name)} context"
     path = Path(given)
+    if path.suffix != ".md":
+        path = path.with_name(path.name + ".md")
     if not path.is_absolute():
         path = (repo_root / path) if (repo_root / path).parent.exists() else Path.cwd() / path
     target = path.resolve()
@@ -179,26 +174,25 @@ def main(argv: list[str]) -> int:
             f"already exists -- edit it rather than replacing it: {rel_to(target, repo_root)}"
         )
 
-    anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
-    for name, anchor in registry.anchor_fields.items():
-        if spec.requires_anchor(name) and not anchors[name]:
-            flag = "--" + name.replace("_", "-").rstrip("s")
-            raise DocMarshalError(
-                f"type '{spec.name}' requires at least one {flag} ({anchor.contents})"
-            )
-        if anchor.on_spine:
-            for ref in anchors[name]:
-                if not (repo_root / ref).exists():
-                    raise DocMarshalError(
-                        f"{name} path does not exist (paths start at the repo root): {ref}"
-                    )
-
     status = args.status or spec.default_status
     if spec.statuses:
         if status not in spec.statuses:
             raise DocMarshalError(f"a {spec.name} requires --status, one of {list(spec.statuses)}")
     elif args.status:
         raise DocMarshalError(f"type '{spec.name}' has no 'status' field")
+
+    anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
+    if spec.anchors_required(status) and not any(anchors[name] for name in spec.requires):
+        flags = " or ".join("--" + name.replace("_", "-").rstrip("s") for name in spec.requires)
+        since = f" once its status is '{spec.requires_from}'" if spec.requires_from else ""
+        raise DocMarshalError(f"type '{spec.name}' requires at least one {flags}{since}")
+    for name, anchor in registry.anchor_fields.items():
+        if anchor.on_spine:
+            for ref in anchors[name]:
+                if not (repo_root / ref).exists():
+                    raise DocMarshalError(
+                        f"{name} path does not exist (paths start at the repo root): {ref}"
+                    )
 
     meta = frontmatter_lines(args.type, args.summary, today, status, anchors)
     target.parent.mkdir(parents=True, exist_ok=True)

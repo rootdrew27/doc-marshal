@@ -6,8 +6,8 @@ Running the validator on one file as it lands turns a convention error into imme
 while the note is still the thing being worked on.
 
 Deliberately non-blocking. It reports and does not veto: a note can be legitimately incomplete
-mid-edit -- an anchor path the same change is about to create, a `## Related` section not written
-yet -- and a hook that refused those would be fighting the work rather than checking it.
+mid-edit -- an anchor path the same change is about to create, a spec whose code is not yet
+written -- and a hook that refused those would be fighting the work rather than checking it.
 
 Silent when the file is not a note (`check --skip-non-notes` decides that, so this file never has
 to know where the docs root is), when nothing is wrong, and on any internal failure.
