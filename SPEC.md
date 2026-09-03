@@ -429,8 +429,9 @@ Claude Code is the priority; the design stays vendor-neutral.
 - `doc-marshal init` writes **`AGENTS.md`** by default -- the neutral surface, which Claude Code
   also reads.
 - `doc-marshal init --claude-code` writes **`CLAUDE.md`** instead, and additionally writes the
-  `.claude/settings.json` permission entries for `Bash(doc-marshal:*)` so the agent is not prompted
-  on every validator call.
+  `.claude/settings.json` permission entries for `doc-marshal`, `uv run doc-marshal` and
+  `.venv/bin/doc-marshal` so the agent is not prompted on every validator call. (The bare name
+  alone was found not to match anything runnable in a non-interactive MakeRent session, V5.)
 - The flag generalises later to `--agent claude-code|codex|cursor`.
 
 Either way the file is a pointer to `doc-marshal info --process`, so a Codex or Cursor user gets

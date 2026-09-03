@@ -41,7 +41,10 @@ from .settings import SETTINGS, Settings
 SITE_FILES = ("conf.py", "mkdocs.yml", "_config.yml", "book.toml")
 SITE_GLOBS = ("docusaurus.config.*",)
 
-PERMISSION = "Bash(doc-marshal:*)"
+# Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
+# virtualenv. A permission for the bare name alone never matches the two forms a session actually
+# uses when the package is a project dependency, and a non-interactive session cannot ask.
+PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
 
 
 def site_markers(target: Path) -> list[str]:
@@ -102,7 +105,7 @@ Working here:
 
 
 def merge_permission(settings_path: Path) -> bool:
-    """Add the Bash permission to `.claude/settings.json`, creating it if needed. True when changed."""
+    """Add the Bash permissions to `.claude/settings.json`, creating it if needed. True when changed."""
     data: dict = {}
     if settings_path.is_file():
         try:
@@ -113,9 +116,10 @@ def merge_permission(settings_path: Path) -> bool:
             raise DocMarshalError(f"{settings_path} does not hold a JSON object")
     permissions = data.setdefault("permissions", {})
     allow = permissions.setdefault("allow", [])
-    if PERMISSION in allow:
+    missing = [p for p in PERMISSIONS if p not in allow]
+    if not missing:
         return False
-    allow.append(PERMISSION)
+    allow.extend(missing)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return True
@@ -233,7 +237,7 @@ def main(argv: list[str]) -> int:
 
     if args.claude_code:
         if merge_permission(repo_root / ".claude" / "settings.json"):
-            written.append(f".claude/settings.json  (allowed {PERMISSION})")
+            written.append(f".claude/settings.json  (allowed {', '.join(PERMISSIONS)})")
 
     if written:
         print("wrote:")

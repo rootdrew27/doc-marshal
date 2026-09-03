@@ -150,7 +150,7 @@ nothing, except that the session-start hook says so once in a project that has a
 `doc-marshal doctor` reports what each route resolves and flags a mismatch.
 
 `doc-marshal init --claude-code` writes `CLAUDE.md` instead of `AGENTS.md` and allows
-`Bash(doc-marshal:*)` in `.claude/settings.json`. Either file is a pointer to the process, so a
+`doc-marshal`, `uv run doc-marshal` and `.venv/bin/doc-marshal` in `.claude/settings.json`. Either file is a pointer to the process, so a
 Codex or Cursor user gets the same process by the same route with no plugin at all.
 
 ## The docs root is marked, not guessed

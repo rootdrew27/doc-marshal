@@ -17,6 +17,7 @@ doc-marshal info --process
 and follow it, stage by stage. `$ARGUMENTS` is the change description; `--auto` at its start
 selects auto mode as the process defines it (the plan gate is skipped, nothing else is).
 
-If `doc-marshal` is not on PATH, run the project's own copy (`.venv/bin/doc-marshal`); if there
-is none, stop and tell the user to install it (`pip install doc-marshal`). If the project has no
+If `doc-marshal` is not on PATH, run the project's own copy -- `uv run doc-marshal` or
+`.venv/bin/doc-marshal`; if there is none, stop and tell the user to install it
+(`pip install doc-marshal`). If the project has no
 docs root (`doc-marshal doctor` says), stop and tell the user to run `doc-marshal init`.
