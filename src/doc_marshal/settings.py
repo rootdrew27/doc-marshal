@@ -1,8 +1,8 @@
 """The constants of Tier 3, behind one object.
 
-The filename pattern, the summary cap, the em-dash rule, the index and assets names, the forbidden
-names and the excluded directories are not configurable in 0.1 (SPEC.md section 13). They are
-routed through this one object anyway, so that exposing them under `[rules]` in 0.2 is a schema
+The filename pattern, the summary cap, the index and assets names, the forbidden names and the
+excluded directories are not configurable until 0.3 (SPEC.md section 13). They are
+routed through this one object anyway, so that exposing them under `[rules]` in 0.3 is a schema
 addition rather than a refactor through six modules: every consumer already takes a `Settings`.
 """
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     marker_name: str = ".doc-marshal.toml"
-    """The file that marks the docs root and, from 0.2, holds its configuration."""
+    """The file that marks the docs root and, from 0.3, holds its configuration."""
 
     default_docs_dir: str = "docs"
     """Where `init` puts the docs root when not told otherwise."""
@@ -40,9 +40,6 @@ class Settings:
 
     summary_max: int = 200
     """`summary` is one line -- the only prose the generated index shows."""
-
-    em_dash: bool = True
-    """Whether a literal em dash is reported. The convention writes it as ` -- `."""
 
     future_slack_days: int = 1
     """An `updated` date this far ahead of today is tolerated -- a writer ahead of CI's UTC clock."""

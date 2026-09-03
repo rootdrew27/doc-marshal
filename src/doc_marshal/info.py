@@ -11,7 +11,7 @@ accurate than any stored file, and it always matches the installed version.
     doc-marshal info --conventions    # the rules that are not per-type
     doc-marshal info --process        # the update-docs process, staged
     doc-marshal info --format json    # the registry as data, for third parties
-    doc-marshal info --dump-toml      # the registry as the 0.2 configuration schema
+    doc-marshal info --dump-toml      # the registry as the 0.3 configuration schema
 """
 
 from __future__ import annotations
@@ -253,7 +253,6 @@ def render_json(registry: Registry) -> str:
         "assets_dirname": registry.settings.assets_dirname,
         "filename_pattern": registry.settings.filename_pattern,
         "summary_max": registry.settings.summary_max,
-        "em_dash": registry.settings.em_dash,
         "excluded_dirs": sorted(registry.settings.excluded_dirs),
         "memory_names": sorted(registry.settings.memory_names),
         "forbidden_names": registry.settings.forbidden_names,
@@ -284,7 +283,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
     parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.2 configuration schema")
+    parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.3 configuration schema")
     parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
     args = parser.parse_args(argv)
 

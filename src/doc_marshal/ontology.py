@@ -3,7 +3,7 @@
 `DocType` is the single internal representation. The validator enforces from it, the scaffolder
 writes from it, and `info` renders it -- no check hardcodes a type name. The preset is constructed
 in Python so its docstrings, type checking and cross-references (`Structure(max_cell=summary_max)`)
-survive; `from_dict` is the alternate constructor the 0.2 config loader builds on, and `to_toml` is
+survive; `from_dict` is the alternate constructor the 0.3 config loader builds on, and `to_toml` is
 the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
 function: if the schema cannot express the shipped preset, the schema is too weak.
 
@@ -347,7 +347,7 @@ STANDARD = standard()
 
 # --- serialization ------------------------------------------------------------------------------
 #
-# The TOML shape 0.2's `.doc-marshal.toml` takes. Written now so the round-trip test can run on day
+# The TOML shape 0.3's `.doc-marshal.toml` takes. Written now so the round-trip test can run on day
 # one, and so `info --dump-toml` shows a user the worked example of the schema they will configure.
 
 
@@ -406,7 +406,7 @@ def to_dict(registry: Registry) -> dict[str, Any]:
 
 
 def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings = SETTINGS) -> Registry:
-    """Construct a registry from plain data -- the inverse of `to_dict`, and the constructor the 0.2
+    """Construct a registry from plain data -- the inverse of `to_dict`, and the constructor the 0.3
     loader calls once it has merged a config over its preset. Strict: an unknown key is an error,
     since a typo that validated as nothing would be exactly the silent failure this tool exists to
     remove."""
@@ -458,7 +458,7 @@ def to_toml(registry: Registry) -> str:
     data = to_dict(registry)
     lines: list[str] = [
         "# The effective doc-marshal registry, as configuration. `doc-marshal info --dump-toml`.",
-        "# Configuration is read from 0.2; this is the schema it will take.",
+        "# Configuration is read from 0.3; this is the schema it will take.",
         "",
         f"extends = {_toml_value(data['extends'])}",
     ]

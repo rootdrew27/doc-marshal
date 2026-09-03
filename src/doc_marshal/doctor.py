@@ -51,9 +51,9 @@ def on_path() -> tuple[str, str | None] | None:
 def in_venv(repo_root: Path) -> tuple[Path, str | None] | None:
     """The engine in the project's virtualenv -- the one the plugin's hooks resolve first."""
     for venv in VENV_DIRS:
-        exe = repo_root / venv / "bin" / "doc-marshal"
-        if exe.is_file() and os.access(exe, os.X_OK):
-            return exe, version_of(str(exe))
+        for exe in (repo_root / venv / "bin" / "doc-marshal", repo_root / venv / "Scripts" / "doc-marshal.exe"):
+            if exe.is_file() and os.access(exe, os.X_OK):
+                return exe, version_of(str(exe))
     return None
 
 

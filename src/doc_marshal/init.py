@@ -6,7 +6,7 @@
 
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
-- the marker, `.doc-marshal.toml`, empty -- location rather than configuration in 0.1;
+- the marker, `.doc-marshal.toml`, a comment and no keys -- location, not configuration, until 0.3;
 - the root `nomenclature` note, because that type is `root_required` and `check --all` errors without it;
 - the generated index, so the tree validates from its first minute;
 - one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs root. It
@@ -51,6 +51,13 @@ SITE_GLOBS = ("docusaurus.config.*",)
 # Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
 # virtualenv. A permission for the bare name alone never matches the two forms a session actually
 # uses when the package is a project dependency, and a non-interactive session cannot ask.
+# What `init` writes into the marker. The one person who will ever open this file is about to add a
+# key to it, so the blast radius of doing that is stated where they will read it.
+MARKER_TEXT = """\
+# doc-marshal docs root. The file marks the directory by existing.
+# Configuration arrives in 0.3; until then any key here makes every doc-marshal command exit 2.
+"""
+
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
 
 
@@ -234,8 +241,8 @@ def main(argv: list[str]) -> int:
     target.mkdir(parents=True, exist_ok=True)
     marker = target / settings.marker_name
     if not marker.exists():
-        marker.write_text("", encoding="utf-8")
-        written.append(f"{label}/{settings.marker_name}  (the marker; empty -- configuration arrives in 0.2)")
+        marker.write_text(MARKER_TEXT, encoding="utf-8")
+        written.append(f"{label}/{settings.marker_name}  (the marker; holds no keys until 0.3)")
     else:
         print(f"{label}/{settings.marker_name} already exists -- filling in whatever else is missing")
 
