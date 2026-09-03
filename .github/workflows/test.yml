@@ -8,9 +8,9 @@ on:
 permissions:
   contents: read
 
-# The test suite arrives with the MakeRent migration (SPEC.md section 14), which is the first real
-# fixture. Until then CI proves the package installs and every command runs end to end on a fresh
-# repository, and that the plugin's hooks resolve the installed engine.
+# The test suite is built on synthetic trees (SPEC.md section 14). Until it lands, CI proves the
+# package installs and every command runs end to end on a fresh repository, and that the plugin's
+# hooks resolve the installed engine.
 jobs:
   smoke:
     runs-on: ubuntu-latest

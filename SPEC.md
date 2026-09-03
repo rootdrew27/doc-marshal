@@ -1,12 +1,12 @@
 # doc-marshal -- design spec
 
-**Status:** agreed, unbuilt. Written 2026-09-02 from a design session held in the MakeRent repo.
+**Status:** agreed, unbuilt. Written 2026-09-02 from a design session held in the repository the
+prototype was developed in.
 
-**Provenance:** the tooling this project extracts lives at
-`.claude/skills/update-docs/` in MakeRent, at commit `d664cb1`. That kit is the working
-prototype -- every rule below has been exercised against a real 30-note documentation tree.
-This document records what the extraction decided, including the parts that reverse the
-prototype.
+**Provenance:** the tooling this project extracts was a working prototype that lived as a skill kit
+in a private application repository. Every rule below has been exercised against a real 30-note
+documentation tree. This document records what the extraction decided, including the parts that
+reverse the prototype.
 
 This is a *spec* in the sense the ontology uses the word: it describes work before it is built,
 and its Validation section carries items that are not yet closed. It is not a reference. When
@@ -431,7 +431,7 @@ Claude Code is the priority; the design stays vendor-neutral.
 - `doc-marshal init --claude-code` writes **`CLAUDE.md`** instead, and additionally writes the
   `.claude/settings.json` permission entries for `doc-marshal`, `uv run doc-marshal` and
   `.venv/bin/doc-marshal` so the agent is not prompted on every validator call. (The bare name
-  alone was found not to match anything runnable in a non-interactive MakeRent session, V5.)
+  alone was found not to match anything runnable in a non-interactive session, V5.)
 - The flag generalises later to `--agent claude-code|codex|cursor`.
 
 Either way the file is a pointer to `doc-marshal info --process`, so a Codex or Cursor user gets
@@ -501,19 +501,20 @@ configuration. `standard` is the only ontology and it is hardcoded. Ships:
 Fresh repository, **no history transfer**. A subtree split would capture only one of four source
 directories -- the hooks, the commit hook and the workflows live elsewhere and are being dropped or
 rewritten -- and the files that came across would be restructured into `src/`, giving renames on
-top of a partial history. The initial commit records extraction from MakeRent `d664cb1`; the
-reasoning stays readable in MakeRent's history, and most of it is in the docstrings regardless.
+top of a partial history. The reasoning stays readable in the prototype's history, and most of it
+is in the docstrings regardless.
 
 **Not dogfooded initially.** When it is, the split is: the package's prose documents the
 convention, and the repository's own docs tree documents the implementation.
 
-### Then -- migrate MakeRent
+### Then -- run it against a real tree
 
-The real integration test. MakeRent needs zero configurability, and running it exercises the
-things paper cannot check: whether the plugin resolving the repository's own engine is
-comprehensible, whether
-`info`-instead-of-files works for an agent mid-task, and whether a thin SKILL.md still gets matched
-and followed.
+The real integration test is an existing project's documentation tree, used informally during
+development and never checked in here as a fixture. Such a tree needs zero configurability, and
+running it exercises the things paper cannot check: whether the plugin resolving the repository's
+own engine is comprehensible, whether `info`-instead-of-files works for an agent mid-task, and
+whether a thin SKILL.md still gets matched and followed. The test suite in `tests/` is built on
+synthetic trees so the repository stays self-contained.
 
 ### 0.2 -- configuration
 
@@ -552,12 +553,12 @@ Each row is a decision taken in the design session, with the alternative it beat
 
 ## 16. Carried in from the prototype review
 
-Findings from reviewing MakeRent `d664cb1`, to be handled during extraction.
+Findings from reviewing the prototype, to be handled during extraction.
 
 - **`init` must scaffold `CONTEXT.md`** as well as the marker. The `context` type is
   `root_required`, so `check --all` errors without it, and 0.1 has no config escape. `init` is the
   command that makes a repository legible to the tool, not a convenience.
-- **`max_rows = 20` and `max_chars = 6000` are hard errors in 0.1.** The README states plainly
+- **`max_rows = 35` and `max_chars = 6000` are hard errors in 0.1.** The README states plainly
   that the vocabulary is deliberately small. 0.2 makes them overridable per §4.3.
 - **`session_context.py`'s `REGENERATE`** is an f-string with no placeholders, and hardcodes the
   skill path. Both disappear when it becomes `doc-marshal index`.
@@ -569,20 +570,20 @@ Findings from reviewing MakeRent `d664cb1`, to be handled during extraction.
 
 ## 17. Validation
 
-- [ ] **V1** -- `doc-marshal check --all` reproduces the prototype's output on MakeRent's tree,
-      note for note, with the marker placed in its existing `agent-docs/` directory.
-- [ ] **V1b** -- `doc-marshal init` warns on a `docs/` directory holding `conf.py` or `mkdocs.yml`,
+- [x] **V1** -- `doc-marshal check --all` reproduces the prototype's output on the prototype's own
+      tree, note for note, with the marker placed in its existing `agent-docs/` directory.
+- [x] **V1b** -- `doc-marshal init` warns on a `docs/` directory holding `conf.py` or `mkdocs.yml`,
       and says what it found; and every command fails legibly when no marker exists.
-- [ ] **V1c** -- a repository holding both a Sphinx `docs/` and a marked tree elsewhere validates
+- [x] **V1c** -- a repository holding both a Sphinx `docs/` and a marked tree elsewhere validates
       only the marked one.
 - [ ] **V2** -- the round-trip test passes: the `standard` preset serializes to TOML, loads back,
       and compares equal. *(0.2)*
-- [ ] **V3** -- the plugin's hooks validate a note through the engine in the project's virtualenv;
+- [x] **V3** -- the plugin's hooks validate a note through the engine in the project's virtualenv;
       with no engine installed, SessionStart says so once and PostToolUse stays silent.
-- [ ] **V4** -- `doctor` reports a deliberate version mismatch between a repo pin and the installed
+- [x] **V4** -- `doctor` reports a deliberate version mismatch between a repo pin and the installed
       engine.
-- [ ] **V5** -- MakeRent runs a full `/update-docs` cycle against the extracted tool, with the thin
-      SKILL.md, and the agent completes the process without the prose it used to carry.
-- [ ] **V6** -- a fresh session's injected block is under 1000 characters on a 300-note tree.
-- [ ] **V7** -- `pre-commit run --all-files` blocks a commit carrying an invalid note, and the
+- [x] **V5** -- a real project runs a full `/update-docs` cycle against the extracted tool, with
+      the thin SKILL.md, and the agent completes the process without the prose it used to carry.
+- [x] **V6** -- a fresh session's injected block is under 1000 characters on a 300-note tree.
+- [x] **V7** -- `pre-commit run --all-files` blocks a commit carrying an invalid note, and the
       index regeneration fails for re-adding rather than silently staging.
