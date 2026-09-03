@@ -7,123 +7,150 @@ frontmatter rules -- is `doc-marshal info --conventions`.
 Examples throughout illustrate *shape*, drawn from a generic service project. Match their form,
 not their subject matter.
 
-One type per document. A document that mixes types serves no reader well: someone executing a
-procedure does not want rationale in the middle of it, and someone deciding whether an approach was
-already tried does not want to read a reference table. Split instead, and link.
+A type names the reader it serves, and nothing else. One type per document: a document that mixes
+types serves no reader well, because someone running a procedure does not want a specification in
+the middle of it, and someone reading how a feature behaves does not want a step list. Split
+instead, and link.
 
 Two columns below are load-bearing. **Mutability** decides whether a change rewrites a doc or appends
-to it. **The anchor** is what outside the doc would falsify it -- a repo path for facts this repo
-decides, a source for facts it observes -- and it is what makes "which docs does this diff touch?" a
-question with an answer. The column gives each type's required *minimum*: any declared field is
-legal on any type, and a doc anchored both ways carries both.
+to it. **The anchor minimum** is what outside the doc would falsify it -- a repo path for facts this
+repo decides, a source for facts it observes -- and it is what makes "which docs does this diff
+touch?" a question with an answer. The column gives the fields of which a note must carry *at least
+one*: any declared field is legal on any type, and a doc anchored both ways carries both.
 
 {{types_table}}
 
 The types requiring no anchor are anchored by their own content instead: a `decision` by its
-context section, a `history` entry by describing code that may no longer exist, a `spec` by
-describing work that may not exist yet, and a `context` note by the words the repo actually uses.
+context section, and a `context` note by the words the repo actually uses. A `spec` is anchored
+from `done` onward, because before that the code it would name need not exist.
 
 ---
 
 ## `reference`
 
-Facts **this repo decides**, enumerated. Config fields and their meaning, event codes, registry
-schemas, CLI surfaces, the interfaces and message formats we define. If we could change the fact by
-editing code and shipping, it is a `reference`.
+A fact someone looks up. Granular and specialized: one subject per note, stated flat.
+
+Two kinds of fact live here, and the difference is **who decided it**, not how it reads:
+
+- **Facts this repo decides.** Config fields and their meaning, event codes, schemas, CLI surfaces,
+  the interfaces and message formats we define. If we could change the fact by editing code and
+  shipping, it is ours, and the note anchors to that code with `code_refs`.
+- **Facts this repo observes.** Part numbers and their specs, measured waveforms, pin-outs, vendor
+  protocols, operating-system and third-party behaviour, research the project draws on. Nothing we
+  ship changes them; a new measurement, a vendor revision or a replaced part does. The note anchors
+  to where the fact came from with `source`.
+
+A note carries both when both apply, and that is the common case rather than an exception: a vendor
+protocol we implement anchors to the datasheet *and* to the client that speaks it. Code
+contradicting a vendor spec is a bug in the code, not a stale doc, and the two anchors are what let
+either side be checked.
 
 - Structure follows the thing described, not a story. Tables and definition lists over paragraphs.
-- No procedures ("to do X, run Y") -- that is a runbook. No rationale -- that is an explanation.
-- State what is true now. A reference doc has no past tense.
+- No procedures ("to do X, run Y") -- that is a runbook.
+- State what is true now. A reference has no past tense.
 - Completeness matters more than prose quality: a reference with three of five fields is a trap.
-
-Examples: `services/payments/api.md`, `platform/registry-schema.md`.
-
-Add `source` as well for any fact here that came from outside the repo -- a value you took from a
-datasheet, a limit a vendor imposed on your interface. A protocol you did not author is
-`background` even when you implement it; see below.
-
----
-
-## `background`
-
-Facts **this repo observes**, which it did not author and cannot change by shipping: part numbers and
-their specs, measured waveforms, pin-outs, wiring, vendor protocols, operating-system and protocol
-background.
-
-- Same voice as `reference` -- flat, enumerative, present tense, no procedures, no rationale. The
-  difference is not how it reads, it is **who decided the fact**.
-- **The routing test: does this repo *decide* this fact, or *observe* it?** A fact you could change by
-  editing code is a `reference`. A fact that only a new measurement, a vendor revision, or a replaced
-  part could change is `background`.
-- **A vendor protocol you implement is still `background`**, and so is a world fact your code
-  *encodes* -- a flicker frequency in a profile file, a timeout derived from a datasheet limit. You
-  author the implementation, not the protocol; editing the value makes the *value* wrong, not the
-  measurement. Both carry `source` for the fact and `code_refs` for the code. Do not route either to
-  `reference` on the grounds that your code could contradict it: code contradicting a vendor spec is
-  a bug in the code, not a stale doc, and `reference` would make the vendor anchor optional exactly
-  where a vendor revision is the likeliest thing to invalidate the doc.
-- **Cite what backs every non-obvious claim.** A number with no source is the failure mode of this
-  type: nobody can tell a datasheet figure from a bench measurement from a guess that hardened into
-  fact. Where both exist and disagree, say so and give both -- the disagreement is the useful part.
+- Insight is welcome where it helps a reader use the fact -- the constraint behind a limit, the
+  invariant a schema protects -- but a choice with live alternatives is a `decision`, and how a
+  feature behaves as a whole is a `spec`.
+- **Cite what backs every non-obvious observed claim.** A number with no source is the failure mode:
+  nobody can tell a datasheet figure from a bench measurement from a guess that hardened into fact.
+  Where two sources disagree, say so and give both -- the disagreement is the useful part.
 - Distinguish **specified** from **measured**. A vendor's typical value is not what your unit does.
-- Note the revision of anything you cite. Datasheets get revised and the old figure stops being true.
+  Note the revision of anything you cite; datasheets get revised and the old figure stops being true.
 
-Examples: `pumps/controller-spec.md`, `sensors/wiring.md`.
+Examples: `services/payments/api.md`, `platform/registry-schema.md`, `pumps/controller-spec.md`.
 
 `source` entries are URLs, or repo-root-relative paths to an attachment or to another note that
-carries the measurement -- **never** a code path, which is what `code_refs` is for. Add `code_refs`
-as well whenever this repo implements against, encodes, or depends on the facts recorded here; that
-is the common case, not an exception, and it is what puts the doc on the drift spine alongside its
-vendor anchor.
-
-Attachments keep their published filenames and live in the docs root's one `assets/` directory,
-which is exempt from validation.
+carries the measurement -- **never** a code path, which is what `code_refs` is for. Attachments keep
+their published filenames and live in the docs root's one `assets/` directory, which is exempt
+from validation.
 
 ---
 
 ## `runbook`
 
-A procedure someone runs, often while something is broken.
+A procedure someone runs: deploying a package, validating an application, setting up a workstation
+or a service, rotating a credential, recovering from a known failure.
 
 - Imperative mood, second person implied. "Confirm it", "Take the camera from the app".
 - Literal commands, exact and copy-pasteable. This is the one type where hardcoded values are correct.
 - Decision-tree shape where the path branches: *if X then Y*. Name the condition before the action.
-- Escalation criteria must be **time- or condition-based**, never "if it still seems wrong".
-- Say up front what the system already tried automatically, so the operator does not repeat it.
 - Order steps by what to try first, cheapest and least destructive first.
+- Say what a step should show when it worked, so the reader knows to go on rather than guess.
+- Where a step can fail, say what the failure looks like and what to do about it. Any escalation
+  criterion is **time- or condition-based**, never "if it still seems wrong".
+- No rationale beyond what a step needs to be run safely -- link the `spec` or `reference` instead.
 
-Examples: `services/payments/retry-runbook.md`, `platform/provisioning/*`.
+Examples: `services/payments/deploy.md`, `platform/provisioning/*`, `local-testing.md`.
 
 ---
 
-## `explanation`
+## `spec`
 
-Why the system is shaped the way it is. Invariants, the constraint that forced the design, what
-would break if you changed it.
+The behaviour of an application or feature **as a whole**: what it does, stated so that someone
+can build it, validate it, or read it to learn what the system is. Overarching, where a `reference`
+is granular: a spec says what a thing does end to end, and links to the references that hold the
+facts its statements rest on. Expect a spec to point at several references, and a reference to be
+pointed at by more than one spec.
 
-- Connective prose. This is the type where paragraphs earn their place.
-- Name the invariant explicitly, and name what violates it. An invariant a reader cannot check is
-  not documented.
-- Record rejected approaches *as part of the argument* -- "the obvious approach was tried and
-  rejected, because <the specific property that made it fail>" -- rather than as a separate list.
-  The reason must name a property, not a preference.
-- Distinguish implemented from validated from deployed. Never let a reader infer that a described
-  mechanism is running in production when it is not.
-- No commands. No field-by-field enumeration.
+- Carry a `status`: `proposed` while nothing is built, `in-progress` while the code and the doc do
+  not yet agree, `done` when they do. The status is a claim about the code, not about the writing.
+- **Living at every status.** When the code changes, the spec is rewritten in place to match; when
+  the spec is rewritten ahead of the code, its status goes back to `in-progress` until the code
+  catches up. The validator warns when a `done` spec was edited in a change that touched none of
+  its code, because only the author knows which of the two happened.
+- Keep validation items enumerated with stable identifiers (`V1`, `V2`, ...) so an individual item
+  can be ticked off, cited and reported on without renumbering the rest. An `in-progress` spec with
+  nothing left unticked is either `done` or missing an item.
+- Statements, not narrative. Where a statement rests on a fact, link the reference that holds it
+  rather than restating the fact here.
+
+Structure:
+
+```markdown
+---
+type: spec
+updated: 2026-08-07
+summary: How a payment retry is scheduled, parked and escalated.
+status: in-progress
+code_refs:
+  - src/payments/retry.py
+---
+
+# Payment retries
+
+## Overview
+The feature in a paragraph: what it is for, and where it starts and stops.
+
+## Behavior
+What it does, as statements, each linked to the reference that justifies it.
+
+## Validation
+- [x] **V1** -- a failed charge is retried on the schedule `retry.backoff` declares.
+- [ ] **V2** -- the fifth failure parks the payment and notifies the owner.
+```
+
+`code_refs` is required once the status is `done` and optional before it: a `proposed` spec names
+no code because none exists, and paths arrive as the work lands. A spec anchored to nothing is off
+the drift spine, which is the correct statement about a feature that is not built yet and the wrong
+one about a feature that is.
 
 ---
 
 ## `decision`
 
-One architectural decision, its context, and its consequences.
+One architectural decision, its context, and its consequences. This is where the **why** of a
+choice lives.
 
 - Lives in the docs root's `decisions/`, named `NNNN-kebab-slug.md`, where `NNNN` is the highest
   existing number plus one, zero-padded to four. If two branches collide on a number, renumber the
   later one on merge. `doc-marshal new decision <slug>` derives all of that; do not number one by hand.
 - **Reserved for choices with live alternatives or cross-subsystem consequences** -- the ones someone
-  will reopen. Routine implementation choices are explained, not recorded.
+  will reopen. Routine implementation choices are not recorded; an insight that helps a reader use
+  a fact belongs in the reference that states it.
 - **Append-only.** Never edit an accepted decision. If it changes, write a new decision that
-  supersedes it and link both directions.
+  supersedes it and link both directions. A dead end that was abandoned without a choice left
+  standing is recorded by git, not here.
 - Include the alternatives considered and why each was rejected. That is the part that stops the
   question being reopened.
 
@@ -152,52 +179,9 @@ Each one, and the specific reason it lost.
 
 ## Consequences
 What this makes easy, what it makes hard, and what it commits us to.
-
-## Related
 ```
 
 `supersedes:` and `superseded_by:` name the other decision's filename. `code_refs` is optional.
-
----
-
-## `spec`
-
-Work described before it exists, or built but not yet validated. The type that must be reconciled
-when reality catches up.
-
-- Carry an explicit `status`: `proposed`, `building`, `shipped-unvalidated`, or `done`.
-- Keep pending validation items enumerated with stable identifiers (`V1`, `V2`, ...) so an individual
-  item can be ticked off, cited, and reported on without renumbering the rest. A reader must be able
-  to tell built-and-verified from built-but-unvalidated from not-built.
-- When shipped work lands, **reconcile in place**: update `status`, tick off the items now validated,
-  and correct anything the implementation did differently from the plan.
-- When everything has shipped **and** validated, convert the doc to an `explanation` of the built
-  system: strip the plan scaffolding, change `type`, and keep the invariants and rejected approaches.
-  The original plan stays recoverable from git.
-
-`code_refs` is **optional and expected to arrive late**: a `proposed` spec names no code because
-none exists, and paths are added as the work lands -- by `shipped-unvalidated` the spec should name
-what was built.
-
----
-
-## `history`
-
-The project's memory: what we tried, what broke, what we measured, what we ruled out.
-
-- One `history.md` per subsystem folder, e.g. `services/payments/history.md`.
-- **Appended, never rewritten.** Add a new dated entry (`## 2026-08-07 -- <what happened>`) at the
-  end. Earlier entries stay exactly as written even when later work proves them wrong -- being wrong
-  at the time is the record.
-- Verbose prose is correct here. Include the numbers, the symptom as observed, the wrong hypothesis
-  and why it was wrong.
-- A large investigation may get its own note in the same folder, dated in the filename --
-  `load-test-findings-2026-07-21.md` -- and linked from `history.md`. Those notes are immutable
-  once written; a later run adds a new one rather than editing.
-- The filter: does someone need this **without** knowing to go looking in `git log`? If the answer is
-  no, leave it in git.
-
-`code_refs` is optional -- history spans code that may no longer exist.
 
 ---
 
@@ -222,8 +206,8 @@ out. `doc-marshal info --conventions` §8 states the rules; this is how the type
 - `## Ambiguities` holds **live** concerns only -- a term two people still use differently, a name
   known to be overloaded. A resolved one is deleted, or becomes the `decision` that resolved it.
   This is not an archive; the size cap makes that concrete.
-- No `## Related`, and no `code_refs`. A vocabulary is falsified by the words the repo uses, not by
-  a file moving, and anchoring it to code would flag it on every unrelated change.
+- No `code_refs`. A vocabulary is falsified by the words the repo uses, not by a file moving, and
+  anchoring it to code would flag it on every unrelated change.
 
 The type is the one whose body is **parsed** -- the sections, the columns and the caps are fixed and
 machine-checked, because the alias scan and the nested-collision check read the table. Reformatting
@@ -238,5 +222,6 @@ why. What it means for writing a note:
 
 - A note is discoverable **only** if its `summary:` is good, because the generated index shows
   nothing else. Treat that line as the most load-bearing sentence in the doc.
-- Cross-references go in `## Related`, where each link carries a reason. That is connectivity, not
-  indexing -- an index says *what exists*, `## Related` says *why you would go there next*.
+- Cross-references are inline links, made where the statement that needs them is. A note does not
+  end with a list of its neighbours: an index says *what exists*, and a link in a sentence says
+  *why you would go there*.

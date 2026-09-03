@@ -106,13 +106,11 @@ each. With the standard preset, route by what the reader needs:
 
 | The change introduces | Type |
 | --- | --- |
-| a config field, an event code, a schema, a CLI surface -- facts this repo **decides** | `reference` |
-| a part's specs, a measured waveform, a pin-out, a vendor protocol, OS behavior -- facts it **observes** | `background` |
-| a failure mode, an alarm, an operator action, a procedure to execute | `runbook` |
-| an architecture, an invariant, a why-it-works-this-way | `explanation` |
+| a config field, an event code, a schema, a CLI surface -- a fact this repo **decides** | `reference`, anchored with `code_refs` |
+| a part's specs, a measurement, a vendor protocol, third-party behaviour -- a fact it **observes** | `reference`, anchored with `source` (and `code_refs` where we implement against it) |
+| a procedure to run: a deploy, a validation, a setup, a recovery | `runbook` |
+| how an application or feature behaves **as a whole**, at any stage from proposed to built | `spec` -- and a change to built behaviour updates the existing spec's body and `status` |
 | a choice with live alternatives that is likely to be revisited | `decision` |
-| work described before it is built, or with validation still pending | `spec` |
-| a dead end, a measurement, something that broke, a rejected approach | `history` |
 | a term the project uses inconsistently, or a word that needs ruling out | `context` -- but see the vocabulary rule in Stage 4: not on this run |
 
 Two rules govern the routing itself:
@@ -122,9 +120,15 @@ Two rules govern the routing itself:
 - **Prefer editing an existing doc.** A new note is justified when no existing doc owns the subject,
   not when the subject is new to you.
 
-`reference` vs `background` turns on **authorship** -- does this repo *decide* the fact or *observe*
-it? -- not on what our code could contradict, which drags observed facts into `reference`.
-`doc-marshal info background` works through the hard cases.
+`reference` vs `spec` turns on **scope**, not on time. A spec says what a feature does end to end
+and links to the references that hold the facts it rests on; a reference holds one granular subject.
+Rationale for a choice with live alternatives is a `decision`; rationale that helps a reader use a
+fact stays in the reference that states it. A dead end with no choice behind it goes in the commit
+message, not in a note.
+
+A `spec` whose code the change touched is rewritten to match and stays `done`. A spec the change
+rewrote *ahead* of the code goes to `in-progress`; the validator warns when a `done` spec was
+edited by a change that touched none of its `code_refs`, and that warning is the prompt to decide.
 
 ## Stage 3 -- Plan gate
 
@@ -201,7 +205,9 @@ at the root, some one per directory -- edit the nearest one making the falsified
 other.
 
 - A statement the change made wrong gets a surgical edit.
-- A pointer into the docs root whose target moved or whose claim changed gets fixed.
+- A pointer into the docs root whose target moved or whose claim changed gets fixed. The root
+  `CLAUDE.md` may carry an `@<docs root>/CLAUDE.md` import line that `doc-marshal init` wrote; it
+  is what puts the docs-root pointer in every session, so it stays.
 - A **genuinely new subsystem** gets a proposed new paragraph or section -- present it for approval,
   do not write it silently. This applies even in auto mode.
 - **Never hand-write an index**, here or anywhere -- the conventions have the rule and the reason.

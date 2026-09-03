@@ -80,16 +80,20 @@ undiscoverable.
 Every **living** note declares what outside itself would falsify it. This is what keeps "which docs
 does this diff touch?" answerable, and no note may satisfy the rule by omitting the field.
 
-Which field a note *must* carry follows from **authorship**: a repo-path field for facts this repo
-decides, a source field for facts it observes. The table is the registry the validator enforces
-from, so it states the requirement rather than describing it.
+Which field a note carries follows from **authorship**: a repo-path field for facts this repo
+decides, a source field for facts it observes, both when a note holds both kinds. A type's minimum
+is the set of fields of which a note must carry **at least one**. The table is the registry the
+validator enforces from, so it states the requirement rather than describing it.
 
 {{anchor_table}}
 
 - **Every path in frontmatter is written from the repo root** -- never from the docs root and never
   absolute. One rule for every field. Paths must resolve.
-- The table gives each type's **required minimum, not its permitted set.** Any declared field is
-  allowed on **any** type and is validated whenever present.
+- The table gives each type's **minimum, not its permitted set.** Any declared field is allowed on
+  **any** type and is validated whenever present.
+- A type may be anchored only **from a status onward**; `doc-marshal info <type>` says so where it
+  applies. A note in that status edited by a change that touched none of its anchored code is a
+  warning, because the doc may now lead the code and its status would no longer be true.
 - **Whenever a note states a fact that came from outside the repo, it carries a source anchor** --
   on any type. A note describing a third-party protocol our code implements carries both: the source
   for the spec, the repo path for the implementation. Do not drop one for tidiness.
@@ -113,17 +117,17 @@ code_refs:
 ---
 ```
 
-A note about a fact we observe rather than decide. It is `background` because we did not author the
-register map, and it carries **both** anchors because we implement against it:
+A note about a fact we observe rather than decide. It carries `source` because we did not author
+the register map, and `code_refs` as well because we implement against it:
 
 ```yaml
 ---
-type: background
+type: reference
 updated: 2026-08-07
 summary: Modbus register map for the pump controller, as specified and as observed.
 source:
   - docs/assets/pump-controller/protocol-spec-rev-c.pdf
-  - docs/pumps/history.md
+  - docs/pumps/bench-measurements.md
 code_refs:
   - src/pumps/modbus_client.py
 ---
@@ -159,11 +163,8 @@ the change at hand, leave it: report which note blocked it rather than fixing do
 - **Relative markdown links only**: `[retry runbook](../services/payments/retry-runbook.md)`.
   Wikilinks (`[[...]]`) are not a link style here. Absolute paths are not either.
 - Link **inline, on first mention** of a concept that has its own note -- once per section, not
-  every occurrence.
-- Every note ends with a **`## Related`** section: one relative link per line, each with a clause
-  saying *why* you would go there. Not a bare list. This is connectivity, not indexing -- an index
-  says what exists, `## Related` says where to go next. A type may opt out; `doc-marshal info <type>`
-  says whether it does.
+  every occurrence. This is the tree's connectivity: an index says what exists, a link in a
+  sentence says why you would go there next. A note does not end with a list of its neighbours.
 - Heading anchors in links must resolve.
 
 ## 7. Numbered notes
@@ -253,19 +254,19 @@ run as proof that a note follows the convention.
 
 **Machine-checked** (`doc-marshal check`): §1's non-notes and the README ban, §2's attachment
 departures, §3's naming, §4's required fields, anchor minimums, resolution by kind, date sanity and
-per-type `status`, §6's link style and resolution including heading anchors and the requirement that
-each `## Related` line give a reason, §7's naming and number uniqueness, §8's placement, sections,
+per-type `status`, §6's link style and resolution including heading anchors, §7's naming and number
+uniqueness, §8's placement, sections,
 columns, caps and additive-only rule, and the one rule in §9 a script can see -- the literal em dash.
 
 **Convention only, checked by a human or a reviewing agent**: the rest of §9, §8's conformance in
-code, §6's "inline on first mention", whether a `## Related` reason is a *good* one, and §5's ban on
+code, §6's "inline on first mention" and its ban on trailing neighbour lists, and §5's ban on
 hand-written listings inside agent-memory files. A rule being unenforceable does not make it
 optional -- it makes it a review obligation.
 
-Of what the validator reports, errors fail the run and warnings never do. Warnings are a missing or
-reasonless `## Related` link, an `updated` date not bumped on a note you have edited, a literal em
-dash, §8's alias scan, and the attachment departures in §2; every other machine-checked rule is an
-error. There is no inline suppression and no severity configuration: whatever the registry says is
+Of what the validator reports, errors fail the run and warnings never do. Warnings are an
+`updated` date not bumped on a note you have edited, a note anchored from its status onward that
+was edited while none of its code was (§4), a literal em dash, §8's alias scan, and the attachment
+departures in §2; every other machine-checked rule is an error. There is no inline suppression and no severity configuration: whatever the registry says is
 enforced completely, and everything configurable lives in `{{marker_name}}` where review can see it.
 
 ### Where enforcement runs
@@ -274,7 +275,7 @@ enforced completely, and everything configurable lives in `{{marker_name}}` wher
 | --- | --- | --- |
 | every write to a note | `doc-marshal check <that file>`, via the Claude Code plugin's PostToolUse hook | reports into the session; never blocks |
 | every `git commit` | `doc-marshal check` on staged notes, then `doc-marshal index`, via the pre-commit framework | errors block; a regenerated index fails the hook for re-adding |
-| every pull request | `doc-marshal check --all`, `doc-marshal index --check` | errors fail the build; a stale index warns |
+| every pull request | `doc-marshal check --all --format github`, `doc-marshal index --check` | errors fail the build, each on the file it names; a stale index warns |
 | every pull request | `doc-marshal affected --format github` | annotates anchored notes; never fails |
 
 A fifth point is supply, not enforcement: at **session start**, the plugin injects the index
