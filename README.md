@@ -80,7 +80,7 @@ Two of them do more than hold prose:
 - **`context`** is the shared vocabulary: one `CONTEXT.md` at the docs root, injected into every
   session, with a fixed table of terms, definitions and the aliases each rules out. Every other
   note is scanned against the `Avoid` column. A nested `CONTEXT.md` adds terms for its subtree and
-  may never redefine an ancestor's. The vocabulary is deliberately small -- twenty terms, six
+  may never redefine an ancestor's. The vocabulary is deliberately small -- thirty-five terms, six
   thousand characters -- because every session pays for it.
 
 The full argument for each type is `doc-marshal info <type>`; the rules that are not per-type --

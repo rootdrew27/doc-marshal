@@ -6,3 +6,7 @@
 
 3. The Claude Code plugin for `doc-marshal` is a secondary feature, and not a first-class offering. 
 4. Grant the engine its Claude Code permission from the plugin, not from `.claude/settings.json`. The entries `init --claude-code` writes (`Bash(doc-marshal:*)`, `Bash(uv run doc-marshal:*)`, `Bash(.venv/bin/doc-marshal:*)`) are command prefixes, so they cover only the spellings someone thought of -- an absolute path, `./.venv/bin/doc-marshal`, `python -m doc_marshal`, `poetry run doc-marshal` all still prompt, and a non-interactive session cannot answer (found in the V5 run). A PreToolUse hook in the plugin would instead parse each Bash command, strip any runner or path in front of the executable, and return `permissionDecision: allow` when the program is `doc-marshal` or `python -m doc_marshal`. Strict by construction: refuse any command containing chaining, pipes, redirection or substitution, so `doc-marshal check; rm -rf ~` is never approved the way a prefix rule would. The settings.json entries stay as the fallback for Claude Code without the plugin. Editing notes (`Edit`/`Write` under the docs root) is a separate, user-owned policy; at most `init` could print an opt-in `Edit(<docs-root>/**)` line.
+
+5. Add a convention specifying a folder that stores images, pdfs, etc. (non-markdown) and consider adding tools like pdf extractors to this package so that these files can easily be read. Important note: the `reference` docs will frequently reference files in this folder.
+
+6. Handle mermaid diagrams.
