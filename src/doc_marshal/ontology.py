@@ -63,8 +63,10 @@ class Structure:
     table silently turns every check built on it into a no-op. Stating the shape in the registry
     keeps the rule with the rest of the type, and means a second parsed type needs no new code.
 
-    `max_chars` bounds the whole file, frontmatter included, because the note is emitted with it.
-    It exists for a type injected into every session, where size is a cost paid forever.
+    Two independent caps. `max_rows` bounds the table; `max_chars` bounds everything outside the
+    table's rows -- frontmatter, headings, the prose sections -- so each bounds one thing and
+    neither is met by squeezing the other. Both exist for a type injected into every session,
+    where size is a cost paid forever, and the session's cost is the two together.
     """
 
     sections: tuple[str, ...]  # the exact set of `##` headings, in this order
@@ -310,13 +312,13 @@ def standard(settings: Settings = SETTINGS) -> Registry:
             structure=Structure(
                 sections=("Terminology", "Relationships", "Ambiguities"),
                 table_in="Terminology",
-                columns=("Term", "Definition", "Avoid", "Historical"),
+                columns=("Term", "Definition", "Avoid"),
                 key_column="Term",
                 body_column="Definition",
                 scanned_columns=("Avoid",),
                 max_rows=35,
                 max_cell=settings.summary_max,
-                max_chars=6000,
+                max_chars=3000,
             ),
             skeleton=(
                 "<!-- One line on what this nomenclature covers. Terms specific to it, never general",
@@ -324,8 +326,8 @@ def standard(settings: Settings = SETTINGS) -> Registry:
                 "",
                 "## Terminology",
                 "",
-                "| Term | Definition | Avoid | Historical |",
-                "| --- | --- | --- | --- |",
+                "| Term | Definition | Avoid |",
+                "| --- | --- | --- |",
                 "",
                 "## Relationships",
                 "",

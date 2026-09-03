@@ -514,6 +514,20 @@ def parse_table(prose: str, structure: Structure) -> tuple[list[str], list[list[
     return header, rows
 
 
+def table_chars(text: str, structure: Structure) -> int:
+    """The characters the table's rows take -- header, separator and body, newlines included."""
+    total = 0
+    inside = False
+    for line in text.splitlines():
+        match = SECTION_RE.match(line)
+        if match:
+            inside = match.group(1).strip() == structure.table_in
+            continue
+        if inside and TABLE_ROW_RE.match(line):
+            total += len(line) + 1
+    return total
+
+
 def check_structure(path: Path, spec: DocType, prose: str, text: str, report: Report) -> None:
     """A type whose body is data is validated for shape, not just for prose.
 
@@ -521,8 +535,8 @@ def check_structure(path: Path, spec: DocType, prose: str, text: str, report: Re
     renamed column or a dropped section does not degrade them, it silently turns them off, and a
     check that has quietly stopped running is worse than one that never existed.
 
-    `text` is the whole file as read by the caller: the size cap is on the note as emitted,
-    frontmatter included.
+    `text` is the whole file as read by the caller. `max_chars` is measured on it with the table's
+    rows taken out: the rows are `max_rows`' business, and the prose around them is this cap's.
     """
     structure = spec.structure
     if structure is None:
@@ -537,12 +551,13 @@ def check_structure(path: Path, spec: DocType, prose: str, text: str, report: Re
             f"{', '.join('## ' + s for s in found) or 'none'}",
         )
 
-    size = len(text)
-    if size > structure.max_chars:
+    outside = len(text) - table_chars(text, structure)
+    if outside > structure.max_chars:
         report.error(
             path,
-            f"{size} chars -- a '{spec.name}' note is emitted into every session and is capped at "
-            f"{structure.max_chars}; cut terms or tighten definitions",
+            f"{outside} chars outside the '{structure.table_in}' table -- a '{spec.name}' note is "
+            f"emitted into every session; the prose around its table is capped at "
+            f"{structure.max_chars} (the table at {structure.max_rows} rows)",
         )
 
     header, rows = parse_table(prose, structure)
