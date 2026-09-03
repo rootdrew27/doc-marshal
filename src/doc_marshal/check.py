@@ -443,7 +443,7 @@ def check_location(
     if spec.numbered and not registry.settings.numbered_name_re.match(path.stem):
         report.error(path, f"a '{spec.name}' filename must be NNNN-kebab-slug.md")
 
-    # A claimed filename binds in both directions. One way alone leaves a hole: a `context` note
+    # A claimed filename binds in both directions. One way alone leaves a hole: a `nomenclature` note
     # under another name is unfindable by the checks that glob for it, and any other type wearing
     # the name would be picked up by them and parsed as something it is not.
     if spec.fixed_name is not None and path.name != spec.fixed_name:
@@ -616,8 +616,8 @@ class Vocabulary:
     """The terms in force under each directory that holds a structured, fixed-name note.
 
     Resolution is by containment rather than by exact directory, so a note deep in the tree
-    inherits every context note above it. `additive` is what makes merging them safe: no two
-    context notes in one chain may define the same term, so the merge cannot depend on order.
+    inherits every nomenclature note above it. `additive` is what makes merging them safe: no two
+    nomenclature notes in one chain may define the same term, so the merge cannot depend on order.
     """
 
     by_dir: dict[Path, dict[str, list[str]]] = field(default_factory=dict)
@@ -637,7 +637,7 @@ class Vocabulary:
 def build_vocabulary(
     docs_root: Path, registry: Registry, report: Report, in_scope: set[Path] | None
 ) -> Vocabulary:
-    """Collect every context note's terms, reporting collisions down each chain.
+    """Collect every nomenclature note's terms, reporting collisions down each chain.
 
     A nested note redefining an ancestor's term is an error: the point of the file is that one word
     has one meaning, and a repo where the meaning depends on which directory you are reading from
@@ -823,7 +823,7 @@ def run(
     report = Report(root=repo_root)
     in_scope = None if sweep else set(targets)
     # Built once, from the whole tree rather than from the run's targets: a note being checked
-    # inherits the vocabulary of every context note above it, most of which this run never names.
+    # inherits the vocabulary of every nomenclature note above it, most of which this run never names.
     vocabulary = build_vocabulary(docs_root, registry, report, in_scope)
     checked = 0
     for path in targets:

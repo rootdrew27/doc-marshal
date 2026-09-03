@@ -8,7 +8,7 @@ The docs root is the directory holding `.doc-marshal.toml`; `doc-marshal doctor`
 rules live in the tool and win on any conflict with this file:
 
 - `doc-marshal info --conventions` -- every rule for the tree: notes, attachments, naming,
-  frontmatter and anchors, indexes, links, numbered notes, context notes, prose. Read it in Stage 4,
+  frontmatter and anchors, indexes, links, numbered notes, nomenclature notes, prose. Read it in Stage 4,
   before writing.
 - `doc-marshal info` and `doc-marshal info <type>` -- the types: what each serves, its voice,
   structure, mutability and frontmatter. Read them in Stage 2, when routing.
@@ -37,7 +37,7 @@ procedures and approval gates are Stage 4.
 | notes under the docs root | yes -- create, edit, propose deletion. Renaming is in scope but gated: Stage 4 |
 | `INDEX.md` | never by hand -- generated output. Stage 5 regenerates it with `doc-marshal index` |
 | `assets/**` | no -- attachments, exempt from validation, names not yours |
-| `CONTEXT.md`, at any level | read it, write by it -- editing the vocabulary is its own task, not part of a docs run |
+| `NOMENCLATURE.md`, at any level | read it, write by it -- editing the vocabulary is its own task, not part of a docs run |
 | agent-memory files (`CLAUDE.md`, `AGENTS.md`) | yes, surgically -- Stage 4 says how narrowly |
 | docstrings and comments in the project's source | yes -- but only in the files the change touched, which Stage 1's diff already gave you |
 | any other documentation tree | no -- see below |
@@ -113,7 +113,7 @@ each. With the standard preset, route by what the reader needs:
 | a procedure to run: a deploy, a validation, a setup, a recovery | `runbook` |
 | how an application or feature behaves **as a whole**, at any stage from proposed to built | `spec` -- and a change to built behaviour updates the existing spec's body and `status` |
 | a choice with live alternatives that is likely to be revisited | `decision` |
-| a term the project uses inconsistently, or a word that needs ruling out | `context` -- but see the vocabulary rule in Stage 4: not on this run |
+| a term the project uses inconsistently, or a word that needs ruling out | `nomenclature` -- but see the vocabulary rule in Stage 4: not on this run |
 
 Two rules govern the routing itself:
 
@@ -151,12 +151,12 @@ not restate its rules inside a doc.
 
 ### Vocabulary rule
 
-Write in the terms the docs root's `CONTEXT.md` defines, and in the terms of any `CONTEXT.md` in a
+Write in the terms the docs root's `NOMENCLATURE.md` defines, and in the terms of any `NOMENCLATURE.md` in a
 directory above the note you are writing. Where it rules a word out, use the term it names instead.
 Where a word is in backticks because it is the literal name of a field, a flag or an API, leave it
 alone -- that is what the backticks are for.
 
-**Do not edit `CONTEXT.md` as part of a docs run.** If the change needs a term the vocabulary does
+**Do not edit `NOMENCLATURE.md` as part of a docs run.** If the change needs a term the vocabulary does
 not have, or contradicts one it does, write the docs in the existing terms and say so in the Stage 6
 report. Changing what a word means is a decision about the domain, not a documentation update, and
 it lands as its own task.
@@ -178,7 +178,7 @@ doc-marshal new decision <slug> --summary "<one line>"
 ```
 
 It applies the mechanical part of the conventions -- today's date, the fields the type requires, a
-numbered note's number, location and title prefix, a context note's filename and skeleton -- and
+numbered note's number, location and title prefix, a nomenclature note's filename and skeleton -- and
 refuses to write a note that would fail the validator the moment it exists. The skeleton it leaves is
 a prompt, not an outline: delete a heading that earns nothing rather than writing a paragraph under it
 because it is there.

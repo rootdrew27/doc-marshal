@@ -13,7 +13,7 @@ declare yourself (from 0.2) is held to exactly the same standard.
 
 ```bash
 pip install doc-marshal        # or: uv tool install doc-marshal
-doc-marshal init               # marks docs/ as the docs root; writes CONTEXT.md, INDEX.md, AGENTS.md
+doc-marshal init               # marks docs/ as the docs root; writes NOMENCLATURE.md, INDEX.md, AGENTS.md
 doc-marshal init --claude-code # CLAUDE.md instead, imported from the root CLAUDE.md so every session sees it
 doc-marshal new reference docs/ledger/schema.md --summary "Fields of the ledger record." --code-ref src/ledger/schema.py
 doc-marshal check --all        # validate every note against the ontology
@@ -64,23 +64,23 @@ mixed note. Route by what the reader needs.
 | `runbook` | someone running a procedure | imperative, literal, copy-pasteable | living -- rewritten in place | `code_refs` |
 | `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | none |
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | living at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
-| `context` | someone choosing what to call a thing | flat, definitional, opinionated | living -- rewritten as the domain sharpens | none |
+| `nomenclature` | someone choosing what to call a thing | flat, definitional, opinionated | living -- rewritten as the domain sharpens | none |
 
 The anchor minimum is *any of* the fields listed: a `reference` about a fact this repo decides
 carries `code_refs`, one about a fact it observes carries `source`, and one about a vendor protocol
 we implement carries both. A `spec` carries `status` (`proposed`, `in-progress`, `done`) and is
 anchored once it is `done`; it is living at every status, and the validator warns when a `done`
 spec is edited by a change that touched none of its code. `decision` is append-only and anchored by
-its own content. `context` is falsified by the words the repo uses, not by a path.
+its own content. `nomenclature` is falsified by the words the repo uses, not by a path.
 
 Two of them do more than hold prose:
 
 - **`decision`** notes live in `decisions/` as `NNNN-slug.md`, are never edited after acceptance,
   and record being replaced with `supersedes` / `superseded_by`. `doc-marshal new decision <slug>`
   derives the number.
-- **`context`** is the shared vocabulary: one `CONTEXT.md` at the docs root, injected into every
+- **`nomenclature`** is the shared vocabulary: one `NOMENCLATURE.md` at the docs root, injected into every
   session, with a fixed table of terms, definitions and the aliases each rules out. Every other
-  note is scanned against the `Avoid` column. A nested `CONTEXT.md` adds terms for its subtree and
+  note is scanned against the `Avoid` column. A nested `NOMENCLATURE.md` adds terms for its subtree and
   may never redefine an ancestor's. The vocabulary is deliberately small -- thirty-five terms, six
   thousand characters -- because every session pays for it.
 
@@ -110,7 +110,7 @@ suppressions are unauditable; everything configurable lives in one file that rev
 Errors: frontmatter parses and carries `type`, `updated` and `summary`; `type` names a live type;
 required anchors are present and every anchor entry resolves by its kind; a type's placement holds
 (folder, numbering, fixed filename); `status` is one the type allows; links resolve, including
-heading anchors; no wikilinks, no absolute links; a `context` note's exact shape and caps; no
+heading anchors; no wikilinks, no absolute links; a `nomenclature` note's exact shape and caps; no
 `README.md` in the tree.
 
 Warnings: an `updated` date not bumped on a note the change edited, a `done` spec edited while none
@@ -153,7 +153,7 @@ the code, which by definition touches no documentation.
 
 The `plugin/` directory is a Claude Code plugin. Its value is two hooks no other harness provides:
 **PostToolUse** validation of each note the moment it is written, and **SessionStart** injection of
-the index preview (folder names and counts, nothing more), the root `CONTEXT.md` verbatim, and the
+the index preview (folder names and counts, nothing more), the root `NOMENCLATURE.md` verbatim, and the
 enabled types. It also carries a thin `update-docs` skill that defers to `doc-marshal info --process`.
 
 The plugin is an add-on to the package, not a second way to install it. Its hooks run the

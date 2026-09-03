@@ -21,7 +21,7 @@ one*: any declared field is legal on any type, and a doc anchored both ways carr
 {{types_table}}
 
 The types requiring no anchor are anchored by their own content instead: a `decision` by its
-context section, and a `context` note by the words the repo actually uses. A `spec` is anchored
+context section, and a `nomenclature` note by the words the repo actually uses. A `spec` is anchored
 from `done` onward, because before that the code it would name need not exist.
 
 ---
@@ -185,13 +185,13 @@ What this makes easy, what it makes hard, and what it commits us to.
 
 ---
 
-## `context`
+## `nomenclature`
 
 The **vocabulary** the repo is written in: which word means which thing, and which words are ruled
 out. `doc-marshal info --conventions` §8 states the rules; this is how the type reads.
 
-- Lives at `CONTEXT.md` -- the docs root carries one, and any directory may add one that refines it.
-  The filename is the type's, so `doc-marshal new context <directory>` is enough.
+- Lives at `NOMENCLATURE.md` -- the docs root carries one, and any directory may add one that refines it.
+  The filename is the type's, so `doc-marshal new nomenclature <directory>` is enough.
 - **Only terms specific to this project.** Before adding a row, ask whether the concept is unique to
   this domain or is a general programming idea the project happens to use heavily. Only the former
   belongs. Timeouts, retries and error types do not, however central they are.

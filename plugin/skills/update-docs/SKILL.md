@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Update the repository's doc-marshal documentation tree, agent-memory files, and in-code docs to reflect a finalized code change. Use after work is complete -- when the user says "update the docs", "document this", "sync the docs", or invokes /update-docs. Requires a docs root marked with .doc-marshal.toml. Maintains a typed doc ontology (by default reference, runbook, spec, decision, context) and verifies its own output with doc-marshal.
+description: Update the repository's doc-marshal documentation tree, agent-memory files, and in-code docs to reflect a finalized code change. Use after work is complete -- when the user says "update the docs", "document this", "sync the docs", or invokes /update-docs. Requires a docs root marked with .doc-marshal.toml. Maintains a typed doc ontology (by default reference, runbook, spec, decision, nomenclature) and verifies its own output with doc-marshal.
 argument-hint: "[--auto] <what changed>"
 ---
 

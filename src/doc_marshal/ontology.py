@@ -209,7 +209,7 @@ def standard(settings: Settings = SETTINGS) -> Registry:
     not permitted sets: any declared field is legal on any type and is validated whenever present.
 
     Two types require no anchor. `decision` is append-only and anchored by its own content. A
-    `context` note is falsified by the words the repo uses, not by a path, and anchoring it to code
+    `nomenclature` note is falsified by the words the repo uses, not by a path, and anchoring it to code
     would flag a vocabulary on every unrelated change.
 
     Order is canonical: it is the order `info` lists the types in, from the most common to the least.
@@ -300,11 +300,11 @@ def standard(settings: Settings = SETTINGS) -> Registry:
             ),
         ),
         DocType(
-            name="context",
+            name="nomenclature",
             serves="someone choosing what to call a thing",
             voice="flat, definitional, opinionated",
             mutability="living -- rewritten as the domain sharpens",
-            fixed_name="CONTEXT.md",
+            fixed_name="NOMENCLATURE.md",
             root_required=True,
             additive=True,
             structure=Structure(
@@ -319,7 +319,7 @@ def standard(settings: Settings = SETTINGS) -> Registry:
                 max_chars=6000,
             ),
             skeleton=(
-                "<!-- One line on what this context covers. Terms specific to it, never general",
+                "<!-- One line on what this nomenclature covers. Terms specific to it, never general",
                 "     programming concepts. Be opinionated: one word per concept. -->",
                 "",
                 "## Terminology",

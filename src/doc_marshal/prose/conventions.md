@@ -177,9 +177,9 @@ Do not read the directory and add one by hand: `doc-marshal new <type> <slug>` d
 the location and the `NNNN -- ` title prefix, which is every part of this rule a script can apply
 more reliably than a person can.
 
-## 8. Context notes
+## 8. Nomenclature notes
 
-These conventions govern the **form** of the tree. A `context` note governs its **vocabulary** --
+These conventions govern the **form** of the tree. A `nomenclature` note governs its **vocabulary** --
 which word means which thing, and which words are ruled out. The two do not overlap, and neither
 overrules the other: a note can satisfy every rule here and still be written in the wrong words.
 
@@ -200,7 +200,7 @@ a review obligation, in the sense of §10.
 ### Shape
 
 The body is data as much as prose -- other checks parse it -- so its shape is fixed and every
-departure is an error. `doc-marshal info context` states the exact sections, columns and caps.
+departure is an error. `doc-marshal info nomenclature` states the exact sections, columns and caps.
 
 - **`Definition`** says what the term *is*, in one line. Not what it does.
 - **`Avoid`** lists the aliases ruled out, comma-separated. These are scanned.
@@ -215,7 +215,7 @@ and rule out the rest.
 
 ### Size
 
-A context note at the docs root is **emitted into every session**, so its size is a cost paid on
+A nomenclature note at the docs root is **emitted into every session**, so its size is a cost paid on
 every run rather than only when someone opens it. The caps on rows, definition length and file size
 are errors. When the file is full, a term that has stopped earning its place comes out before a new
 one goes in.
@@ -279,7 +279,7 @@ enforced completely, and everything configurable lives in `{{marker_name}}` wher
 | every pull request | `doc-marshal affected --format github` | annotates anchored notes; never fails |
 
 A fifth point is supply, not enforcement: at **session start**, the plugin injects the index
-preview, the root context note, and the compact type list, so a session knows what exists and what
+preview, the root nomenclature note, and the compact type list, so a session knows what exists and what
 to call it before it writes anything. `doc-marshal session-context` prints the same.
 
 Neither pull-request job takes a `paths:` filter. Half of what they check is whether anchors still

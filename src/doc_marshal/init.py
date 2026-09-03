@@ -7,7 +7,7 @@
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
 - the marker, `.doc-marshal.toml`, empty -- location rather than configuration in 0.1;
-- the root `context` note, because that type is `root_required` and `check --all` errors without it;
+- the root `nomenclature` note, because that type is `root_required` and `check --all` errors without it;
 - the generated index, so the tree validates from its first minute;
 - one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs root. It
   says what the tree, its commands and its two special files are for -- a pointer to
@@ -87,7 +87,7 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
     which is versioned with the engine. No heading: as an import it is a fragment of the root
     file, not a document.
     """
-    context = next(
+    nomenclature = next(
         (spec.fixed_name for spec in registry.enabled.values() if spec.root_required and spec.fixed_name),
         None,
     )
@@ -109,8 +109,8 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
         "",
         f"- `{index}` -- generated routing surface: one line per note with its type and summary.",
     ]
-    if context:
-        lines.append(f"- `{context}` -- the shared vocabulary for docs and code, and the aliases it rules out.")
+    if nomenclature:
+        lines.append(f"- `{nomenclature}` -- the shared vocabulary for docs and code, and the aliases it rules out.")
     return "\n".join(lines) + "\n"
 
 
@@ -152,8 +152,8 @@ def merge_permission(settings_path: Path) -> bool:
     return True
 
 
-def scaffold_context(target: Path, registry: Registry, repo_name: str) -> Path | None:
-    """The root context note, if the registry has a root-required fixed-name type and it is absent."""
+def scaffold_nomenclature(target: Path, registry: Registry, repo_name: str) -> Path | None:
+    """The root nomenclature note, if the registry has a root-required fixed-name type and it is absent."""
     for spec in registry.enabled.values():
         if not spec.root_required or spec.fixed_name is None:
             continue
@@ -240,9 +240,9 @@ def main(argv: list[str]) -> int:
         print(f"{label}/{settings.marker_name} already exists -- filling in whatever else is missing")
 
     registry = load_registry(target, settings)
-    context = scaffold_context(target, registry, repo_root.name)
-    if context is not None:
-        written.append(f"{label}/{context.name}  (the shared vocabulary -- fill in the terms this project uses)")
+    nomenclature = scaffold_nomenclature(target, registry, repo_root.name)
+    if nomenclature is not None:
+        written.append(f"{label}/{nomenclature.name}  (the shared vocabulary -- fill in the terms this project uses)")
 
     pointer_name = "CLAUDE.md" if args.claude_code else "AGENTS.md"
     pointer = target / pointer_name

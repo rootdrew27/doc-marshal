@@ -62,7 +62,7 @@ what outside the note would falsify it (see §3.3).
 | `runbook` | someone running a procedure | `code_refs` |
 | `decision` | someone about to reopen a settled choice | none |
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | `code_refs` once `done` |
-| `context` | someone choosing what to call a thing | none |
+| `nomenclature` | someone choosing what to call a thing | none |
 
 **Revised 2026-09-03.** The 0.1 preset had eight types, and three of them encoded an axis rather
 than a reader. Whether a fact was decided here or observed from outside is a property of the fact,
@@ -76,7 +76,7 @@ a dead end with a choice behind it is a `decision`, and the rest is `git log`. T
 deployment showed the skew the axes caused -- fifteen decisions to one reference in a tree of
 thirty-two -- and a type system with fewer, reader-named types is one an agent routes on reliably.
 
-Two types require no anchor. `decision` is append-only and anchored by its own content. `context`
+Two types require no anchor. `decision` is append-only and anchored by its own content. `nomenclature`
 is falsified by the words the repo uses, not by a path.
 
 Anchor minimums are **any-of**: `requires` lists the fields of which a note must carry at least
@@ -117,7 +117,7 @@ is validated for shape as an error rather than a warning, because a renamed colu
 degrade the checks built on it -- it silently turns them off, and a check that has quietly stopped
 running is worse than one that never existed.
 
-`context` is the only preset type with a `structure` today. Its `Avoid` column is read by every
+`nomenclature` is the only preset type with a `structure` today. Its `Avoid` column is read by every
 other note's vocabulary check.
 
 ### 3.3 Anchors
@@ -213,7 +213,7 @@ yields the preset's `reference` with one field replaced -- not a fresh type whos
 revert to defaults. The alternative would mean that adding a `folder` to `decision` silently
 strips its numbering, supersession and skeleton.
 
-**Merge is shallow per table, and nested tables merge the same way.** `[types.context.structure]
+**Merge is shallow per table, and nested tables merge the same way.** `[types.nomenclature.structure]
 max_rows = 30` overrides one number without restating `columns`, `sections` or the other caps.
 
 ### 4.4 Disabling
@@ -342,13 +342,13 @@ A `SessionStart` hook injects three blocks:
 1. **The index preview** -- folder names with note counts, and nothing else, ending with a pointer
    to `doc-marshal index` for the full list. **Uniform reduction at every size, including the top
    level.**
-2. **The docs root's `CONTEXT.md`, verbatim.** The terms and the aliases they rule out are the
+2. **The docs root's `NOMENCLATURE.md`, verbatim.** The terms and the aliases they rule out are the
    content; a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a
    nested one governs its subtree and is read on arriving there.
 3. **The compact `info` block** -- the enabled types and their anchors, one line per type.
 
 The reasoning for (1): `INDEX.md` in the prototype is injected in full and uncapped. It measured
-**7592 characters at 30 notes** and grows linearly with the tree forever, while the `context` type
+**7592 characters at 30 notes** and grows linearly with the tree forever, while the `nomenclature` type
 caps *itself* at 6000 characters with the explicit argument that it "is emitted into every session."
 The argument that justifies the smaller cap applies with more force to the file that had none.
 
@@ -560,7 +560,7 @@ what trees validate, so a minor bump rather than a patch; MakeRent migrates afte
 ### 0.3 -- configuration
 
 The loader of §4, gated by the round-trip test. Brings with it `[rules]`, `exclude`, Tier 3, and
-the `[types.context.structure]` overrides for `max_rows` and `max_chars`.
+the `[types.nomenclature.structure]` overrides for `max_rows` and `max_chars`.
 
 ## 15. Decision log
 
@@ -598,12 +598,13 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 25 | `--claude-code` imports the docs-root pointer from the root `CLAUDE.md`, and `doctor` checks the line | relying on the nested memory file, which loads only once a session reads under the docs root |
 | 26 | The pointer file is descriptive -- what exists and what it is for | a pointer that instructs, duplicating `info --process` in a file the engine cannot regenerate |
 | 27 | The preset revision is 0.2; configuration moves to 0.3 | shipping a change that breaks existing trees under 0.1.x |
+| 28 | The vocabulary type is `nomenclature`, at `NOMENCLATURE.md` | `context` / `CONTEXT.md`, which reads as general context storage and collides with the word everywhere else it is used |
 
 ## 16. Carried in from the prototype review
 
 Findings from reviewing the prototype, to be handled during extraction.
 
-- **`init` must scaffold `CONTEXT.md`** as well as the marker. The `context` type is
+- **`init` must scaffold `NOMENCLATURE.md`** as well as the marker. The `nomenclature` type is
   `root_required`, so `check --all` errors without it, and 0.1 has no config escape. `init` is the
   command that makes a repository legible to the tool, not a convenience.
 - **`max_rows = 35` and `max_chars = 6000` are hard errors in 0.1.** The README states plainly
@@ -621,7 +622,7 @@ Findings from reviewing the prototype, to be handled during extraction.
 - [x] **V1** -- `doc-marshal check --all` reproduces the prototype's output on the prototype's own
       tree, note for note, with the marker placed in its existing `agent-docs/` directory. *(0.1;
       against the five-type preset the same tree fails on exactly its migration set -- six
-      `background` notes and four spec statuses -- and nothing else.)*
+      `background` notes, four spec statuses and the `CONTEXT.md` rename -- and nothing else.)*
 - [x] **V1b** -- `doc-marshal init` warns on a `docs/` directory holding `conf.py` or `mkdocs.yml`,
       and says what it found; and every command fails legibly when no marker exists.
 - [x] **V1c** -- a repository holding both a Sphinx `docs/` and a marked tree elsewhere validates

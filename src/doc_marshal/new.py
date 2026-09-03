@@ -8,7 +8,7 @@ command applies them.
     doc-marshal new reference docs/ledger/schema.md \\
         --summary "Fields of the ledger record." --code-ref src/ledger/schema.py
     doc-marshal new decision own-revenue-model --summary "Why the agent picks its own business."
-    doc-marshal new context docs/payments --summary "Vocabulary of the payments subsystem."
+    doc-marshal new nomenclature docs/payments --summary "Vocabulary of the payments subsystem."
 
 For a numbered type, pass a bare slug: the number, the folder and the `NNNN -- ` title prefix are
 all derived. For a fixed-name type, a directory is enough. Anything the type requires and you did
@@ -91,7 +91,7 @@ def resolve_target(
         if path.name != spec.fixed_name:
             path = path / spec.fixed_name
         target = path.resolve()
-        return target, title or f"{title_from_slug(target.parent.name)} context"
+        return target, title or f"{title_from_slug(target.parent.name)} nomenclature"
     path = Path(given)
     if path.suffix != ".md":
         path = path.with_name(path.name + ".md")

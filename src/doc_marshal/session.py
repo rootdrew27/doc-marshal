@@ -5,7 +5,7 @@ Three blocks, in the order they should be read (SPEC.md section 7):
 1. The index preview -- folder names with note counts, and nothing else, ending with a pointer to
    the full index. Uniform reduction at every size, top level included: the full index grows
    linearly with the tree forever, and every session paid for it whether or not it opened a doc.
-2. The docs root's context note, verbatim. The terms and the aliases they rule out are the
+2. The docs root's nomenclature note, verbatim. The terms and the aliases they rule out are the
    content; a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a
    nested one governs its subtree and is read on arriving there.
 3. The compact `info` block -- the enabled types and their anchors.
@@ -62,7 +62,7 @@ def index_block(docs_root: Path, registry: Registry, label: str) -> str:
     return "\n".join(lines)
 
 
-def context_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]:
+def nomenclature_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]:
     """The docs root's fixed-name, root-required notes, verbatim."""
     blocks: list[str] = []
     for spec in registry.enabled.values():
@@ -88,7 +88,7 @@ def session_context(docs_root: Path, registry: Registry) -> str:
     label = rel_to(docs_root, find_repo_root(docs_root)).as_posix()
     blocks = [
         index_block(docs_root, registry, label),
-        *context_blocks(docs_root, registry, label),
+        *nomenclature_blocks(docs_root, registry, label),
         render_session_types(registry),
     ]
     return "\n\n".join(block for block in blocks if block)

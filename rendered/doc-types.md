@@ -26,7 +26,7 @@ one*: any declared field is legal on any type, and a doc anchored both ways carr
 | `runbook` | someone running a procedure | imperative, literal, copy-pasteable | living -- rewritten in place | `code_refs` |
 | `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | none |
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | living at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
-| `context` | someone choosing what to call a thing | flat, definitional, opinionated | living -- rewritten as the domain sharpens | none |
+| `nomenclature` | someone choosing what to call a thing | flat, definitional, opinionated | living -- rewritten as the domain sharpens | none |
 
 ## `reference`
 
@@ -179,13 +179,13 @@ no code because none exists, and paths arrive as the work lands. A spec anchored
 the drift spine, which is the correct statement about a feature that is not built yet and the wrong
 one about a feature that is.
 
-## `context`
+## `nomenclature`
 
 The **vocabulary** the repo is written in: which word means which thing, and which words are ruled
 out. `doc-marshal info --conventions` §8 states the rules; this is how the type reads.
 
-- Lives at `CONTEXT.md` -- the docs root carries one, and any directory may add one that refines it.
-  The filename is the type's, so `doc-marshal new context <directory>` is enough.
+- Lives at `NOMENCLATURE.md` -- the docs root carries one, and any directory may add one that refines it.
+  The filename is the type's, so `doc-marshal new nomenclature <directory>` is enough.
 - **Only terms specific to this project.** Before adding a row, ask whether the concept is unique to
   this domain or is a general programming idea the project happens to use heavily. Only the former
   belongs. Timeouts, retries and error types do not, however central they are.
