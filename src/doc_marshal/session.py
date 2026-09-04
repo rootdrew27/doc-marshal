@@ -19,11 +19,10 @@ plugin's job; it only has to run this command and speak the hook's JSON.
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
-from .check import cell_items, cell_text, parse_table, sections
+from .check import cell_items, cell_text, parse_table, sections, strip_comments
 from .config import add_docs_root_option, load_registry
 from .index import index_state, render_preview
 from .info import render_session_types
@@ -36,8 +35,6 @@ from .paths import (
     read_note,
     rel_to,
 )
-
-COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 REGENERATE = "doc-marshal index"
 
@@ -87,7 +84,7 @@ def render_nomenclature(path: Path, spec: DocType) -> str:
     """
     structure = spec.structure
     _, body, text, error = read_note(path)
-    source = COMMENT_RE.sub("", body if error is None else text).strip()
+    source = strip_comments(body if error is None else text).strip()
     if structure is None:
         return source
     header, rows, _ = parse_table(source, structure)

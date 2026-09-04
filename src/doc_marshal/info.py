@@ -11,7 +11,7 @@ accurate than any stored file, and it always matches the installed version.
     doc-marshal info --conventions    # the rules that are not per-type
     doc-marshal info --process        # the update-docs process, staged
     doc-marshal info --format json    # the registry as data, for third parties
-    doc-marshal info --dump-toml      # the registry as the 0.3 configuration schema
+    doc-marshal info --dump-toml      # the registry as the configuration schema of a later release
 """
 
 from __future__ import annotations
@@ -131,7 +131,8 @@ def render_session_types(registry: Registry) -> str:
     width = max((len(n) for n in types), default=4)
     lines = [
         "Note types (`doc-marshal info <type>` for the argument; `doc-marshal info --process` before "
-        "editing docs):"
+        "editing docs). Scaffold a new note with `doc-marshal new <type> <path>`: it writes the "
+        "sections the type requires."
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {describe_requires(spec)}")
@@ -169,8 +170,8 @@ def render_type(registry: Registry, name: str) -> str:
         ("requires", describe_requires(spec)),
     ]
     if spec.statuses:
-        default = f" (default {spec.default_status})" if spec.default_status else ""
-        facts.append(("status", " | ".join(spec.statuses) + default))
+        default = f"; `new` writes {spec.default_status} when --status is omitted" if spec.default_status else ""
+        facts.append(("status", " | ".join(spec.statuses) + " -- required in the note" + default))
     if spec.folder:
         facts.append(("folder", f"{spec.folder}/ at the docs root"))
     if spec.numbered:
@@ -184,6 +185,15 @@ def render_type(registry: Registry, name: str) -> str:
     if spec.supersession:
         s = spec.supersession
         facts.append(("supersession", f"`{s.forward}` / `{s.back}` name the other note; status `{s.status}` requires `{s.back}`"))
+    if spec.required_sections:
+        facts.append((
+            "sections",
+            ", ".join(f"## {s}" for s in spec.required_sections)
+            + " -- required, in this order, each with content; other sections allowed",
+        ))
+    for section, status in spec.empty_at:
+        facts.append(("must be empty", f"## {section} once status is {status} (the section itself is optional)"))
+    facts.append(("title", "one H1, first" + (", starting `NNNN -- `" if spec.numbered else "")))
     if spec.structure:
         st = spec.structure
         facts.append(("sections", ", ".join(f"## {s}" for s in st.sections) + " -- exactly, in order"))
@@ -281,7 +291,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
     parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.3 configuration schema")
+    parser.add_argument("--dump-toml", action="store_true", help="the registry as the configuration schema of a later release")
     add_docs_root_option(parser)
     args = parser.parse_args(argv)
 

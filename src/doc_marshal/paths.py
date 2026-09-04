@@ -17,7 +17,7 @@ from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
-from .settings import SETTINGS, Settings
+from .settings import MARKDOWN_SUFFIXES, NOTE_SUFFIX, SETTINGS, Settings
 
 
 class DocMarshalError(Exception):
@@ -38,16 +38,26 @@ def classify(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> str:
     matters: `assets/` wins over everything (it is unvalidated at any depth), tooling directories
     win over the forbidden-name check (a README under `.github/` is tooling, not a stray index).
     The marker is not markdown, so it is never a note without a special case.
+
+    Names are judged case-insensitively, because the filesystems this runs on disagree about
+    case and a `Readme.md` is the same stray index as a `README.md`. A markdown file under any
+    other spelling of the suffix is forbidden rather than ignored: silently skipping `.MD` left a
+    note nobody validated. The generated index is a non-note only at the docs root, spelled
+    exactly; anywhere else, or in any other case, it is a second index and forbidden.
     """
     if in_assets(path, docs_root, settings):
         return ATTACHMENT
-    if path.suffix != ".md":
+    if path.suffix.lower() not in MARKDOWN_SUFFIXES:
         return NOT_A_NOTE
     if settings.excluded_dirs.intersection(rel_to(path, docs_root).parts):
         return NOT_A_NOTE
-    if path.name in settings.excluded_names:
+    if path.suffix != NOTE_SUFFIX:
+        return FORBIDDEN
+    if path.name == settings.index_name and path.parent == docs_root:
         return NOT_A_NOTE
-    if path.name in settings.forbidden_names:
+    if path.name in settings.memory_names:
+        return NOT_A_NOTE
+    if path.name.lower() in settings.forbidden_names:
         return FORBIDDEN
     return NOTE
 
@@ -218,8 +228,13 @@ def iter_notes(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
 
 
 def iter_checkable(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
-    """Every path a validation sweep should report on -- `is_checkable`, over the whole tree."""
-    return _sorted(p for p in docs_root.rglob("*.md") if is_checkable(p, docs_root, settings))
+    """Every path a validation sweep should report on -- `is_checkable`, over the whole tree,
+    including the markdown files whose suffix is misspelled and therefore forbidden."""
+    return _sorted(
+        p
+        for p in docs_root.rglob("*")
+        if p.is_file() and p.suffix.lower() in MARKDOWN_SUFFIXES and is_checkable(p, docs_root, settings)
+    )
 
 
 # --- git ----------------------------------------------------------------------------------------
@@ -268,6 +283,44 @@ def _git_lines(cwd: Path, *args: str) -> list[str] | None:
 def git_toplevel(start: Path) -> Path | None:
     toplevel = _git_value(start, "rev-parse", "--show-toplevel")
     return Path(toplevel).resolve() if toplevel else None
+
+
+_TRACKED: dict[Path, frozenset[str] | None] = {}
+
+
+def is_tracked(repo_root: Path, target: Path) -> bool | None:
+    """Whether git tracks `target` -- a file by name, a directory by anything under it -- or None
+    outside a git repository.
+
+    An anchor that exists on disk but is not committed passes in the one checkout that has it
+    and fails in every other and in CI, which is precisely the local-versus-CI disagreement the
+    tool exists to remove. `git ls-files` is read once per repository for the life of the process.
+    """
+    if repo_root not in _TRACKED:
+        listed = _git(repo_root, "ls-files", "-z")
+        _TRACKED[repo_root] = None if listed is None else frozenset(filter(None, listed.split("\0")))
+    tracked = _TRACKED[repo_root]
+    if tracked is None:
+        return None
+    rel = target.relative_to(repo_root).as_posix()
+    return rel in tracked or any(entry.startswith(rel + "/") for entry in tracked)
+
+
+def validate_range(repo_root: Path, rev_range: str) -> None:
+    """Refuse a `--range` that git would silently read as something else.
+
+    The form is `A..B`, both ends commits, `A` an ancestor of `B`. A single ref, a three-dot
+    range, a reversed pair or a base a shallow clone cannot resolve all used to pass with exit 0
+    and quietly disable the freshness and lead checks. Each failure names the part at fault.
+    """
+    base, dots, head = rev_range.partition("..")
+    if not dots or not base or not head or head.startswith("."):
+        raise DocMarshalError(f"--range must be A..B, two commits and two dots: {rev_range!r}")
+    for name in (base, head):
+        if _git(repo_root, "rev-parse", "--verify", "--quiet", f"{name}^{{commit}}") is None:
+            raise DocMarshalError(f"--range names {name!r}, which is not a commit here (shallow clone?): {rev_range}")
+    if _git(repo_root, "merge-base", "--is-ancestor", base, head) is None:
+        raise DocMarshalError(f"--range {rev_range}: {base!r} is not an ancestor of {head!r}")
 
 
 # --- the docs root ------------------------------------------------------------------------------
@@ -472,6 +525,25 @@ def changed_paths(repo_root: Path, rev_range: str | None = None) -> set[str]:
     return paths
 
 
+def _content_changes(repo_root: Path, rev_range: str | None, pathspec: Path | None) -> set[str] | None:
+    """Paths whose content differs across the change, a pure `git mv` excluded.
+
+    `--find-renames=100%` reports an exact rename as one `R100` line and nothing else; a rename
+    with an edit is a delete and an add, and the add counts. Without a range the comparison is
+    the working tree against HEAD, staged or not.
+    """
+    scope = ("--", str(pathspec)) if pathspec is not None else ()
+    lines = _git_lines(repo_root, "diff", "--name-status", "--find-renames=100%", rev_range or "HEAD", *scope)
+    if lines is None:
+        return None
+    changed: set[str] = set()
+    for line in lines:
+        status, *names = line.split("\t")
+        if not status.startswith("R"):
+            changed.update(names)
+    return changed
+
+
 def edited_notes(
     repo_root: Path, rev_range: str | None = None, pathspec: Path | None = None
 ) -> set[Path] | None:
@@ -482,16 +554,20 @@ def edited_notes(
     there is an empty set that looks like "nothing edited" and quietly disables every check built
     on it. Given a range, that range is the change instead.
 
+    A `git mv` with no content change is not an edit: nothing in the note became stale. A plain
+    `mv` is a delete plus an untracked file, and the untracked file counts as new.
+
     None and the empty set mean different things -- "cannot tell" versus "nothing edited" -- so
     checks that only apply to an edited file stay silent rather than guess.
     """
-    paths = (
-        _git_lines(repo_root, "diff", "--name-only", rev_range)
-        if rev_range
-        else _porcelain_paths(repo_root, pathspec)
-    )
+    paths = _content_changes(repo_root, rev_range, pathspec)
     if paths is None:
         return None
+    if rev_range is None:
+        scope = ("--", str(pathspec)) if pathspec is not None else ()
+        untracked = _git(repo_root, "ls-files", "-z", "--others", "--exclude-standard", *scope)
+        if untracked is not None:
+            paths |= set(filter(None, untracked.split("\0")))
     return {(repo_root / p).resolve() for p in paths}
 
 

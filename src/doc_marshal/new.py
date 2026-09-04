@@ -11,12 +11,16 @@ command applies them.
     doc-marshal new nomenclature docs/payments --summary "Vocabulary of the payments subsystem."
 
 For a numbered type, pass a bare slug: the number, the folder and the `NNNN -- ` title prefix are
-all derived. For a fixed-name type, a directory is enough. Anything the type requires and you did
-not supply is an error before anything is written -- a note that fails the validator on creation
-is worse than no note.
+all derived. For a fixed-name type, a directory is enough.
 
-The skeleton is a starting point, not an outline to fill in mechanically: delete a heading that
-earns nothing rather than writing a paragraph under it because it is there.
+What is checked here is only what writing the file needs: a live type, a legal status, a path
+under the docs root, naming and placement. Anchors are not resolved and the type's minimum is
+not enforced -- that is `check`'s job, and the note it writes fails `check` until its required
+sections are written. The last line printed is the gate. An earlier version validated here as
+well and still wrote notes `check` rejected, because two implementations of one rule drift.
+
+The skeleton writes every section the type requires and nothing else; a heading the type does
+not require earns its place or is deleted.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .check import Report, check_anchor, check_location, check_naming
+from .check import Report, check_location, check_naming
 from .config import add_docs_root_option, resolve
 from .ontology import DocType, Registry
 from .paths import DocMarshalError, find_repo_root, rel_to
@@ -101,22 +105,24 @@ def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None
     return target, title or title_from_slug(target.stem)
 
 
-def validate(
-    target: Path, spec: DocType, anchors: dict[str, list[str]], docs_root: Path, repo_root: Path, registry: Registry
-) -> None:
-    """Refuse a note the validator would reject: the same naming, placement and anchor checks
-    `check` runs, against the path and anchors this note is about to be written with. One
-    implementation of each rule, so `new` cannot write what `check` then fails."""
+def validate(target: Path, spec: DocType, docs_root: Path, repo_root: Path, registry: Registry) -> None:
+    """Refuse a path the file cannot be written at: outside the docs root, misnamed, or misplaced
+    for its type. The same naming and placement checks `check` runs, so the two cannot disagree
+    about where a note goes."""
     if not target.is_relative_to(docs_root):
         raise DocMarshalError(f"a note must live under the docs root ({docs_root}): {target}")
     report = Report(root=repo_root)
     check_naming(target, docs_root, registry, report)
     check_location(target, spec, docs_root, registry, report)
-    for name, anchor in registry.anchor_fields.items():
-        if anchors[name]:
-            check_anchor(target, anchor, anchors[name], docs_root, repo_root, registry, report)
     if report.findings:
         raise DocMarshalError("\n".join(msg for _, _, msg in report.findings))
+
+
+def birth_statuses(spec: DocType) -> tuple[str, ...]:
+    """The statuses a note may be created in: every one the type allows except the one that
+    records its replacement. A note is never born superseded."""
+    replaced = spec.supersession.status if spec.supersession else None
+    return tuple(s for s in spec.statuses if s != replaced)
 
 
 def main(argv: list[str]) -> int:
@@ -130,7 +136,7 @@ def main(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="doc-marshal new",
-        description="Scaffold a note the validator will accept.",
+        description="Scaffold a note with the frontmatter and sections its type requires.",
         parents=[root_options],
     )
     parser.add_argument("type", choices=list(types))
@@ -153,7 +159,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--status",
         help="; ".join(
-            f"{t.name}: {' | '.join(t.statuses)}"
+            f"{t.name}: {' | '.join(birth_statuses(t))}"
             + (f" (default {t.default_status})" if t.default_status else "")
             for t in types.values()
             if t.statuses
@@ -178,17 +184,13 @@ def main(argv: list[str]) -> int:
 
     status = args.status or spec.default_status
     if spec.statuses:
-        if status not in spec.statuses:
-            raise DocMarshalError(f"a {spec.name} requires --status, one of {list(spec.statuses)}")
+        if status not in birth_statuses(spec):
+            raise DocMarshalError(f"a {spec.name} requires --status, one of {list(birth_statuses(spec))}")
     elif args.status:
         raise DocMarshalError(f"type '{spec.name}' has no 'status' field")
 
     anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
-    if spec.anchors_required(status) and not any(anchors[name] for name in spec.requires):
-        flags = " or ".join(registry.anchor_fields[name].flag for name in spec.requires)
-        since = f" once its status is '{spec.requires_from}'" if spec.requires_from else ""
-        raise DocMarshalError(f"type '{spec.name}' requires at least one {flags}{since}")
-    validate(target, spec, anchors, docs_root, repo_root, registry)
+    validate(target, spec, docs_root, repo_root, registry)
 
     meta = frontmatter_lines(args.type, args.summary, today, status, anchors)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -196,7 +198,7 @@ def main(argv: list[str]) -> int:
 
     written = rel_to(target, repo_root)
     print(f"wrote {written}")
-    print(f"next: write it, then doc-marshal check {written}")
+    print(f"next: write it, then doc-marshal check {written}  (the scaffold does not pass until written)")
     return 0
 
 
