@@ -108,7 +108,17 @@ no check hardcodes a type name.
 | `append_only` | never edited after acceptance, so its wording cannot be corrected |
 | `supersession` | field names and status recording that this note was replaced |
 | `skeleton` | what the scaffolder writes |
+| `required_sections` | the `##` sections a prose note carries: each once, in this relative order, each with content; other sections anywhere |
+| `empty_at` | (section, status) pairs: in that status the section, if present, must be blank |
 | `structure` | the body shape other checks parse -- see below |
+
+**`required_sections`** is the shape rule for prose. Every note has exactly one H1, first, and a
+numbered note's H1 carries its number; a type with required sections must have each present,
+once, in order, and written once HTML comments are stripped. The registry refuses a type whose
+skeleton does not write its required sections in that order, so `new` and `check` read one list.
+In the preset: `decision` requires Context, Decision, Alternatives considered, Consequences;
+`spec` requires Overview, Behavior, Validation and is `empty_at` Open questions once `done`;
+`runbook` requires Prerequisites, Steps; `reference` requires nothing. *(0.3.)*
 
 **`structure`** exists for a type whose body is *data* rather than prose. It declares the exact
 `##` sections in order, the table's columns, which column is the key, which columns other notes
@@ -134,8 +144,11 @@ resolve.
 
 The preset declares two: `code_refs` (`repo-path`) and `source` (`docs-path` or `url`).
 
-**The drift spine** is the set of anchor fields with `resolves = "repo-path"`. `doc-marshal
-affected` matches those, and only those, against a git diff. This generalises the prototype, where
+**The drift spine** is the set of anchor fields with `resolves = "repo-path"` -- what the lead
+check reads when it asks whether a `done` spec's code moved. `doc-marshal affected` matches every
+path-valued field, spine and `docs-path` alike, against a git diff, so a note whose source note or
+attachment changed is reported too *(0.3; before, only the spine)*. Any path anchor must be
+tracked by git, whichever field holds it. This generalises the prototype, where
 `affected_docs.py` read the literal string `code_refs` and `check_source` hardcoded the rule that
 `source` must resolve inside the docs root. Both were convention judgments about two specific
 fields baked into engine code; they become instances of a general rule.
@@ -322,7 +335,7 @@ installation paths.
 | `check [paths...]` / `check --all` | validate the named notes, or sweep the tree; `--range` names the change for the freshness and lead checks; `--format github` annotates a pull request |
 | `index` | regenerate `INDEX.md`; `--check` reports staleness without writing |
 | `affected` | notes whose `repo-path` anchors name code a change touched; `--range`, `--paths`, `--format github` |
-| `new <type> <path>` | scaffold a note the validator will accept |
+| `new <type> <path>` | scaffold a note with its type's frontmatter and required sections; it does not validate, and the scaffold fails `check` until written |
 | `info` | the compact effective registry -- enabled types, one line each, with anchors |
 | `info <type>` | one type in full: argument, skeleton, facets, statuses |
 | `info --conventions` | the preset preamble -- the rules that are not per-type |
@@ -521,9 +534,9 @@ validating at 0.6 while CI runs 0.5. The plugin carries no engine of its own (§
 versions in play are the ones the repository installs and pins, and `doctor` compares those.
 
 **Tier 3 constants** -- the filename pattern, `SUMMARY_MAX`, the index and assets directory names,
-the forbidden names, the excluded directories -- are **not configurable until 0.3**. They are
-routed through one settings object anyway, so exposing them then is a schema addition rather than
-a refactor through six modules.
+the forbidden names, the excluded directories -- are **not configurable until configuration
+lands**. They are routed through one settings object anyway, so exposing them then is a schema
+addition rather than a refactor through six modules.
 
 ## 14. Release plan
 
@@ -571,10 +584,27 @@ directory, no em dash rule, the nomenclature note without its `Historical` colum
 caps, the session receiving that note's content rather than its file, and the marker stating its
 own blast radius.
 
-### 0.3 -- configuration
+### 0.3 -- the validator says what it means
+
+Two reviews on 2026-09-03 fed this release. First, enforced structure per type (§3.2): the
+`required_sections` and `empty_at` facets, the title rule on every note, populated sections, and
+the four per-type spines. Second, the limits found migrating MakeRent to 0.2.0, under one theme --
+no silent passes: path anchors tracked by git and spelled without dot segments; unknown
+frontmatter keys, a `superseded_by` on an unreplaced note and a note naming itself as errors;
+forbidden names in any case, a nested index and a misspelled `.md` suffix as errors; images and
+angle-bracket links checked, code spans not, heading anchors exact; the alias scan reading the
+summary, skipping comments and following a wrap; `--range` validated as `A..B` or exit 2; a pure
+`git mv` not an edit; `affected` matching `docs-path` anchors and refusing absolute `--paths`;
+`new` no longer validating and never writing a superseded note; `doctor` exiting 1 with no docs
+root or no engine. Git is required. A breaking change to what trees validate, so a minor bump;
+consumers pinned to `0.2.*` see none of it until they choose to.
+
+### Later -- configuration
 
 The loader of §4, gated by the round-trip test. Brings with it `[rules]`, `exclude`, Tier 3, and
-the `[types.nomenclature.structure]` overrides for `max_rows` and `max_chars`.
+the `[types.nomenclature.structure]` overrides for `max_rows` and `max_chars`. Not numbered: the
+marker and the SPEC say "a later release" rather than promise a version that may carry something
+else first.
 
 ## 15. Decision log
 
@@ -623,6 +653,26 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 36 | The session receives the nomenclature note's content -- one line per term, then its prose sections -- not its file | verbatim injection, frontmatter and comments included |
 | 37 | The marker states its own blast radius; no configuration escape hatch before 0.3 | an empty file, and a refusal message naming the wrong release |
 | 38 | Claude Code on macOS and Linux is the supported platform; Windows and other harnesses get the CLI and nothing tested beyond it. No test suite in 0.2 | claiming a neutrality the tests do not back; pytest on synthetic trees, deferred by the consumer |
+| 39 | Prose structure is `required_sections`: present, once, in relative order, written; other sections anywhere. `structure` stays the exact-set rule for parsed bodies | the exact-set model everywhere, which forbids a section a decision genuinely needs; presence in any order, which loses the reading order |
+| 40 | `decision` requires Context, Decision, Alternatives considered, Consequences; `spec` requires Overview, Behavior, Validation; `runbook` requires Prerequisites, Steps; `reference` requires nothing | a subset for decisions; a spine on references, which the prose does not support |
+| 41 | Every note has one H1, first; a numbered note's H1 carries its number; a required section may not repeat | policing heading-level skips, which fires on legitimate documents |
+| 42 | A required section must have content once HTML comments are stripped | presence only, under which a scaffold satisfies the rule the moment it is written |
+| 43 | `spec` writes `## Open questions`, optional, and a `done` spec may hold nothing under it, expressed as `empty_at` data | a required-but-may-be-empty flag; enforcing Validation item shape or id stability across a range |
+| 44 | Structural maintenance on an accepted decision -- a heading, a link, an `updated` bump -- is not an edit of the decision; append-only stays a convention | machine-enforcing append-only, or grandfathering old decisions by run scope |
+| 45 | A path anchor of either kind must be tracked by git; outside a repository a path anchor is an error. Git is required | existence on disk, which passed for months in one checkout and failed in every other |
+| 46 | `new` does not validate anchors or minimums; naming and placement only. The scaffold fails `check` until written, and `new`'s last line is the gate | two implementations of one rule, which wrote notes `check` rejected |
+| 47 | A note is never born superseded; `superseded_by` implies the superseded status; neither supersession field names the note itself. No reciprocity check | accepting the state MakeRent's decisions 0008 and 0010 were silently in |
+| 48 | A multi-word alias matches across whitespace within a paragraph, at most one line break; the scan reads `summary` and skips HTML comments | a single-line match, blind to every wrapped alias in a tree wrapped at 100 columns |
+| 49 | `--range` is `A..B`, both commits, `A` an ancestor of `B`, or exit 2; `check` and `affected` alike | silent exit 0 on a bad range, which disabled the freshness and lead checks in CI unnoticed |
+| 50 | Forbidden names match in any case; a nested `INDEX.md` is forbidden; `.markdown` and `.MD` are errors by name | ignoring them, which left notes nobody validated |
+| 51 | Links: inline code spans skipped, images checked, `<dest>` accepted, heading anchors exact; `?query`, HTML `<a>` and reference-style definitions are documented boundaries | resolving fragments case-insensitively, which GitHub does not |
+| 52 | Unknown frontmatter keys are errors; the known set is the registry's | passing them, under which a misspelled anchor field anchored nothing |
+| 53 | No `.` or `..` segment in a frontmatter path | normalising them, so the text named one path and the resolver another |
+| 54 | A pure `git mv` is not an edit for freshness; a plain `mv` is | demanding a bump on a note nothing in which became stale |
+| 55 | `affected` matches every path field; absolute `--paths` exit 2 | matching the spine only, so a changed source note reported nothing |
+| 56 | `doctor` exits 1 with no docs root or no engine | reporting "every copy agrees" about nothing |
+| 57 | Nomenclature: duplicate terms and an alias equal to a term are errors, compared in any case; `\|` is a literal pipe; the prose cap counts the body only; an anchor is legal on the type | the text saying "carries none" while the validator accepted one |
+| 58 | Configuration is "a later release", unnumbered; the session block steers to `new` in one sentence rather than listing sections per type | naming 0.4 and renaming again later; four lines per session that `new` makes unnecessary |
 
 ## 16. Carried in from the prototype review
 

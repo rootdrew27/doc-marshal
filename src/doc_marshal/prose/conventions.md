@@ -25,9 +25,15 @@ Not notes, and never validated or indexed:
 | {{excluded_dirs}} | tooling and metadata |
 
 **There is no `README.md` anywhere under the docs root**, and one is an error: it is a
-hand-maintained index by another name, which §5 bans and explains. A lower-case `index.md` is an
-error too, caught by name rather than validated as an ordinary note -- "missing frontmatter" would
-not tell you that the generated index is `{{index_name}}` and this file should be deleted or renamed.
+hand-maintained index by another name, which §5 bans and explains. Any other spelling of the
+index's name is an error too -- `index.md`, `Index.md`, or an `{{index_name}}` in a subdirectory --
+caught by name rather than validated as an ordinary note, since "missing frontmatter" would not
+tell you that the one generated index is `{{index_name}}` at the docs root. Names are judged in
+any case, because the filesystems this runs on disagree about it.
+
+A note is a `.md` file. A markdown file under any other spelling of the suffix -- `.markdown`,
+`.MD` -- is an error by name, not a file the tool ignores: rename it. Non-markdown files are not
+notes and are never validated.
 
 ## 2. The `{{assets_dirname}}/` directory
 
@@ -58,6 +64,11 @@ upper-case name no type claims is still an error.
 
 A numbered type carries a `NNNN-` prefix -- see §7.
 
+Boundaries of the pattern, stated so nobody reads them as gaps: it is ASCII only, so an accented
+name fails; a name may start with a digit; a dotfile or dot-directory fails it unless it is one of
+the exempt tooling names in §1; and a nested agent-memory file, or both memory files at the root,
+pass without comment, since those files are never notes.
+
 Rename a note only when its subject has become something else. A naming error that a change did not
 cause is not a reason to rename; a rename breaks every inbound link, so it is the most disruptive
 edit available and needs approval.
@@ -76,6 +87,16 @@ always required:
 `summary` is the only prose the generated index shows, so a note without a good one is effectively
 undiscoverable.
 
+**No other key is allowed** beyond the ones the type declares: the three above, every declared
+anchor field (on any type), `status` where the type has statuses, and the supersession pair where
+the type declares one. An unknown key is an error, because a misspelled `code-refs` used to
+anchor nothing and validate as if it had.
+
+The parser reads scalars and dash-item lists and nothing richer, and the block opens at the first
+byte of the file. Documented boundaries: a folded scalar, a flow list `[a, b]`, a nested mapping, a
+UTF-8 byte-order mark, or a blank line before the opening `---` each reads as "no frontmatter" or
+"unparseable", and an empty `https://` passes as a URL.
+
 ### Anchors
 
 Every **living** note declares what outside itself would falsify it. This is what keeps "which docs
@@ -90,9 +111,16 @@ validator enforces from, so it states the requirement rather than describing it.
 
 - **Every path in frontmatter is written from the repo root** -- never from the docs root and never
   absolute. One rule for every field. Paths must resolve, with **exact spelling**: a
-  case-insensitive filesystem does not make `Src/` a match for `src/`, because CI's will not. And a
-  path names something **strictly inside** the repository: `.` is not an anchor, since a note the
-  whole repository falsifies is anchored to nothing. A directory inside it is fine.
+  case-insensitive filesystem does not make `Src/` a match for `src/`, because CI's will not, and
+  no `.` or `..` segment is exact. And a path names something **strictly inside** the repository:
+  `.` is not an anchor, since a note the whole repository falsifies is anchored to nothing. A
+  directory inside it is fine.
+- **A path anchor must be tracked by git**, whichever field holds it. A file that exists only in
+  this checkout -- untracked, or ignored -- satisfies the anchor here and fails in every other
+  clone and in CI, which is the disagreement the tool exists to remove. Commit the file, or
+  mention it in prose rather than anchoring to it; a secrets file is never anchored. This holds
+  for attachments too: an `{{assets_dirname}}/` directory that is gitignored cannot be anchored
+  to. The tool therefore runs inside a git repository; outside one, a path anchor is an error.
 - The table gives each type's **minimum, not its permitted set.** Any declared field is allowed on
   **any** type and is validated whenever present.
 - A type may be anchored only **from a status onward**; `doc-marshal info <type>` says so where it
@@ -103,8 +131,10 @@ validator enforces from, so it states the requirement rather than describing it.
   for the spec, the repo path for the implementation. Do not drop one for tidiness.
 - A `docs-path` field must resolve **inside** the docs root. Code belongs in a `repo-path` field;
   pointing a source at a source file would anchor a note while keeping it off the drift spine.
-- **The drift spine** is the set of fields that resolve as `repo-path` -- today {{spine}}.
-  `doc-marshal affected` matches those, and only those, against a diff.
+- **The drift spine** is the set of fields that resolve as `repo-path` -- today {{spine}}. It is
+  what the lead check reads: a `done` spec edited while none of its spine paths were. `doc-marshal
+  affected` matches every path-valued field, spine and `docs-path` alike, against a diff, so a
+  note whose source note or attachment changed is reported as well as one whose code did.
 
 Per-type extras (`status`, supersession fields) are shown by `doc-marshal info <type>`.
 
@@ -169,7 +199,13 @@ the change at hand, leave it: report which note blocked it rather than fixing do
 - Link **inline, on first mention** of a concept that has its own note -- once per section, not
   every occurrence. This is the tree's connectivity: an index says what exists, a link in a
   sentence says why you would go there next. A note does not end with a list of its neighbours.
-- Heading anchors in links must resolve.
+- Heading anchors in links must resolve, **exactly**: the fragment is the lower-case slug GitHub
+  makes from the heading, so `#Heading-With-Caps` does not resolve.
+- Images are links -- `![](../assets/x.png)` is checked like any other target. A destination in
+  angle brackets, `[x](<a name.md>)`, is accepted. A link inside a code span or a fenced block is
+  quoted, not made, and is not checked.
+- Documented boundaries: a `?query` suffix is reported as broken, and an HTML `<a href>` or a
+  reference-style definition (`[r]: x.md`) is not checked at all.
 
 ## 7. Numbered notes
 
@@ -179,7 +215,10 @@ collide, renumber the later one on merge.
 
 Do not read the directory and add one by hand: `doc-marshal new <type> <slug>` derives the number,
 the location and the `NNNN -- ` title prefix, which is every part of this rule a script can apply
-more reliably than a person can.
+more reliably than a person can. The title must carry the number the filename does (§9).
+
+The number comes from the working tree, so two worktrees or branches can hand out the same one;
+that collision surfaces on merge as the uniqueness error, and the later note is renumbered then.
 
 ## 8. Nomenclature notes
 
@@ -190,7 +229,7 @@ overrules the other: a note can satisfy every rule here and still be written in 
 The vocabulary binds **documentation and code alike**. Only the docs tree is scanned, because a
 third-party library routinely hands you a banned word as the literal name of a field or a method,
 and renaming code to satisfy a text search is worse than the drift it fixes. Conformance in code is
-a review obligation, in the sense of §10.
+a review obligation, in the sense of §11.
 
 ### Placement
 
@@ -211,6 +250,8 @@ departure is an error. `doc-marshal info nomenclature` states the exact sections
   old word goes here too; the `decision` that renamed it is the history, and append-only notes
   are never scanned, so old decisions keep their old words unflagged.
 - Say "no aliases" with a dash. A blank cell reads as an unfinished row.
+- One row per term, compared in any case: `Widget` and `widget` are one term twice. A word under
+  `Avoid` that is also a term is an error. A literal pipe inside a cell is written `\|`.
 
 Only terms **specific to this project** earn a row. General programming concepts do not, however
 heavily the project uses them. Be opinionated: where several words exist for one concept, pick one
@@ -220,23 +261,42 @@ and rule out the rest.
 
 A nomenclature note at the docs root is **emitted into every session**, so its size is a cost paid on
 every run rather than only when someone opens it. Two caps, each an error and each bounding one
-thing: the table's **rows**, and the **characters outside the table** -- frontmatter, headings and
-the prose sections. Neither is met by squeezing the other, and the session pays for both. A
-definition's length is capped as well. When the table is full, a term that has stopped earning its
-place comes out before a new one goes in.
+thing: the table's **rows**, and the **characters of the body outside the table** -- headings and
+the prose sections; the frontmatter is not counted, since a session never sees it. Neither is met
+by squeezing the other, and the session pays for both. A definition's length is capped as well.
+When the table is full, a term that has stopped earning its place comes out before a new one goes in.
 
 ### Enforcement
 
 Using a word from an `Avoid` column is a **warning**, never an error. The scan is a word match and
-cannot see intent, so a false positive must not block a commit. Two exemptions, both structural:
+cannot see intent, so a false positive must not block a commit. It reads the body and the
+frontmatter `summary` -- the one line every session sees -- and follows a multi-word alias across
+a line wrap inside a paragraph, since trees wrap prose at a column. It does not read across a
+paragraph break, and it does not read HTML comments. Two exemptions, both structural:
 
 - **Code spans and fenced blocks are skipped.** Backticks are how you say a banned word is a
-  literal name rather than a concept.
+  literal name rather than a concept. An indented code block is not a fence and is scanned.
 - **Append-only types are skipped.** Their wording cannot lawfully be corrected, so flagging it
   would produce warnings nobody is permitted to act on. This follows from the type's mutability in
   the registry, not from a list of names, so a future append-only type inherits it.
 
-## 9. Prose
+## 9. Structure
+
+Every note has **exactly one H1**, and it is the first heading. A note without one has nothing for
+a reader or an index to call it; a second H1 is two notes in one file. A numbered note's H1 starts
+with the number its filename carries, `NNNN -- `, as `doc-marshal new` writes it.
+
+A type may declare **required sections** -- `doc-marshal info <type>` lists them. Each must be
+present, once, in that relative order, and each must say something once HTML comments are stripped:
+the scaffold's comment under a heading is a prompt, not content. Other sections may appear anywhere.
+A type may also name a section that must be **empty from a status onward**, which is the reverse
+rule: a `done` spec with an open question is not done. All of it is an error, being shape.
+
+`doc-marshal new` writes exactly the required sections, so a fresh scaffold fails `check` until
+it is written, and the last line `new` prints is the gate. Heading levels are not otherwise
+policed: a `###` before the first `##` is a style choice, not a shape error.
+
+## 10. Prose
 
 - Sentence case in headings. The H1 is the human title, so it reads as prose even though the
   filename is kebab-case.
@@ -249,27 +309,37 @@ cannot see intent, so a false positive must not block a commit. Two exemptions, 
 - Every factual claim traces to code or config, not to another doc -- another doc may be the thing
   that drifted.
 
-## 10. Enforcement
+## 11. Enforcement
 
 These rules are authoritative whether or not a script can check a given one. Some are
 machine-checked and some are not, and the split is worth knowing so nobody reads a clean validator
 run as proof that a note follows the convention.
 
-**Machine-checked** (`doc-marshal check`): §1's non-notes and the README ban, §2's attachment
-departures, §3's naming, §4's required fields, anchor minimums, resolution by kind, date sanity and
-per-type `status`, §6's link style and resolution including heading anchors, §7's naming and number
-uniqueness, §8's placement, sections, columns, caps and additive-only rule.
+**Machine-checked** (`doc-marshal check`): §1's non-notes, forbidden names in any case and
+misspelled suffixes, §2's attachment departures, §3's naming, §4's required fields, unknown keys,
+anchor minimums, resolution by kind with exact spelling and no dot segments, tracked-by-git, date
+sanity, per-type `status` and the supersession rules, §6's link style and resolution including
+images and exact heading anchors, §7's naming and number uniqueness, §8's placement, sections,
+columns, caps, duplicate terms and additive-only rule, §9's title and required sections.
 
-**Convention only, checked by a human or a reviewing agent**: §9, §8's conformance in
-code, §6's "inline on first mention" and its ban on trailing neighbour lists, and §5's ban on
-hand-written listings inside agent-memory files. A rule being unenforceable does not make it
-optional -- it makes it a review obligation.
+**Convention only, checked by a human or a reviewing agent**: §10, §8's conformance in
+code, §6's "inline on first mention" and its ban on trailing neighbour lists, §5's ban on
+hand-written listings inside agent-memory files, and a `decision`'s append-only rule. A rule being
+unenforceable does not make it optional -- it makes it a review obligation.
 
 Of what the validator reports, errors fail the run and warnings never do. Everything a script can
 judge on shape alone is an error. The two warnings are the rules that judge meaning: a note
 anchored from its status onward that was edited while none of its code was (§4), and §8's alias
 scan. There is no inline suppression and no severity configuration: whatever the registry says is
 enforced completely, and everything configurable lives in `{{marker_name}}` where review can see it.
+
+**The change a run is scoped to.** Without `--range`, the change is the working tree against
+`HEAD` plus untracked files. With `--range A..B`, it is exactly that: both ends must be commits and
+`A` an ancestor of `B`, or the command exits 2 -- a single ref, a three-dot range, a reversed pair
+or a base a shallow clone cannot resolve used to pass silently and disable the freshness and lead
+checks. A `git mv` with no content change is not an edit for freshness; a plain `mv` is a delete
+plus a new untracked file, and counts. `--format github` annotates the file, not a line: the
+validator reports on notes, not positions.
 
 ### Where enforcement runs
 
@@ -287,3 +357,8 @@ to call it before it writes anything. `doc-marshal session-context` prints the s
 Neither pull-request job takes a `paths:` filter. Half of what they check is whether anchors still
 resolve, and those break in the change that renames or deletes the code -- which by definition
 touches no documentation.
+
+The tool expects to run inside a git repository: the tracked-anchor rule, the freshness window and
+`affected` are all questions to git. Claude Code on macOS and Linux is the supported platform;
+the CLI, pre-commit and CI paths run anywhere Python does, and nothing beyond them is tested
+elsewhere.

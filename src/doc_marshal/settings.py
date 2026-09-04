@@ -51,11 +51,6 @@ class Settings:
     """An `updated` date this far ahead of today is tolerated -- a writer ahead of CI's UTC clock."""
 
     @property
-    def excluded_names(self) -> frozenset[str]:
-        """Not notes anywhere under the docs root: the generated index and the agent-memory files."""
-        return self.memory_names | {self.index_name}
-
-    @property
     def forbidden_names(self) -> dict[str, str]:
         """Not allowed anywhere under the docs root, in any spelling of case, each with the reason
         reported to its author. Keyed by the lower-cased name."""
