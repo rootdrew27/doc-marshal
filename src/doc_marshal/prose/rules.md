@@ -1,5 +1,8 @@
 # Rules for a doc-marshal docs tree
 
+The source of truth is `doc-marshal check` run on the docs: this text describes what it enforces.
+Errors fail the run; the two warnings are marked.
+
 The **docs root** is the directory holding the `{{marker_name}}` marker; one repository has one.
 Paths below are relative to it unless stated otherwise.
 
