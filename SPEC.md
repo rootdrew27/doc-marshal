@@ -676,6 +676,7 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 59 | The rules document states only what `check` enforces, each rule an error unless marked a warning. Writing guidance the tool cannot check lives in the process, and the argument for each type in its own document | a conventions document mixing enforced rules with advice, with the split recoverable only from two lists at its end |
 | 60 | The boundaries of the parser and the checks are recorded in §18, not in the rules | boundary paragraphs inline in the rules, which read as rules and doubled the document's length |
 | 61 | The document, its flag, its renderer and its rendered copy are `rules`; the agent-memory files are "instructions to an agent, outside the rules"; renaming an attachment is governed by the anchors that name it, not by a prohibition | `conventions`, which reads as suggestion; "not documentation", which the tool did not mean; "never rename anything under `assets/`", which the tool does not hold |
+| 62 | The types document carries each type's registry facts, rendered from the same source as `info <type>`, and its prose is the unchecked argument for the type, said so once in the preamble | prose restating the registry per type, a second copy of every enforced fact that had already drifted on numbering and supersession |
 
 ## 16. Carried in from the prototype review
 

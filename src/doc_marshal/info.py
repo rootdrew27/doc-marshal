@@ -158,12 +158,10 @@ def type_sections(text: str) -> dict[str, str]:
     return sections
 
 
-def render_type(registry: Registry, name: str) -> str:
-    spec = registry.get(name)
-    if spec is None:
-        known = ", ".join(registry.enabled)
-        raise DocMarshalError(f"no enabled type named {name!r}; the registry has: {known}")
-    lines = [f"# `{spec.name}`", ""]
+def type_facts(registry: Registry, spec: DocType) -> list[tuple[str, str]]:
+    """What the registry says about a type, as (label, fact) pairs: everything `check` enforces
+    on a note of it. Rendered aligned by `info <type>` and as a list by the types document, so
+    the prose never restates a fact the registry owns."""
     facts: list[tuple[str, str]] = [
         ("serves", spec.serves),
         ("voice", spec.voice),
@@ -201,7 +199,17 @@ def render_type(registry: Registry, name: str) -> str:
         st = spec.structure
         facts.append(("sections", ", ".join(f"## {s}" for s in st.sections) + " -- exactly, in order"))
         facts.append(("table", f"under ## {st.table_in}, columns {' | '.join(st.columns)}; key `{st.key_column}`, scanned {', '.join(f'`{c}`' for c in st.scanned_columns)}"))
-        facts.append(("caps", f"{st.max_rows} rows, {st.max_cell} chars per {st.body_column.lower()}, {st.max_chars} chars per file"))
+        facts.append(("caps", f"{st.max_rows} rows, {st.max_cell} chars per {st.body_column.lower()}, {st.max_chars} chars of body outside the table"))
+    return facts
+
+
+def render_type(registry: Registry, name: str) -> str:
+    spec = registry.get(name)
+    if spec is None:
+        known = ", ".join(registry.enabled)
+        raise DocMarshalError(f"no enabled type named {name!r}; the registry has: {known}")
+    lines = [f"# `{spec.name}`", ""]
+    facts = type_facts(registry, spec)
     width = max(len(k) for k, _ in facts)
     lines += [f"{k.ljust(width)}  {v}" for k, v in facts]
     lines.append("")
@@ -239,15 +247,25 @@ def render_rules(registry: Registry) -> str:
 
 
 def render_doc_types(registry: Registry) -> str:
-    """The preamble of doc-types.md, the generated table, then only the enabled types' sections."""
+    """The preamble of doc-types.md, the generated table, then each enabled type: the registry's
+    facts as a list, followed by the type's argument from the prose."""
     text = prose("doc-types.md")
-    head, _, _ = text.partition("{{types_table}}")
+    head, _, tail = text.partition("{{types_table}}")
+    after, _, _ = tail.partition("\n## `")
     sections = type_sections(text)
-    out = [head.rstrip(), "", render_types_table(registry), ""]
+    out = [head.rstrip(), "", render_types_table(registry), "", after.strip(), ""]
     for spec in registry.enabled.values():
+        out += [f"## `{spec.name}`", ""]
+        # The table above already gives serves, voice and mutability.
+        out += [
+            f"- **{label}:** {fact}"
+            for label, fact in type_facts(registry, spec)
+            if label not in ("serves", "voice", "mutability")
+        ]
+        out.append("")
         body = sections.get(spec.name) or spec.description
         if body:
-            out += [f"## `{spec.name}`", "", body.rstrip(), ""]
+            out += [body.rstrip(), ""]
     return "\n".join(out).rstrip() + "\n"
 
 
