@@ -1,11 +1,5 @@
 # Rules for a doc-marshal docs tree
 
-Every rule here is enforced by `doc-marshal check`, and this text ships in the same package as
-the check, so the two cannot disagree. A rule is an **error** unless it says it is a warning:
-errors fail the run, warnings never do. Per-type rules -- sections, statuses, anchors a type
-requires -- are `doc-marshal info <type>`; how to update the tree after a code change is
-`doc-marshal info --process`.
-
 The **docs root** is the directory holding the `{{marker_name}}` marker; one repository has one.
 Paths below are relative to it unless stated otherwise.
 
