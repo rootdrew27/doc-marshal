@@ -29,17 +29,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 from . import __version__
 from .config import load_registry
-from .index import index_state, render
+from .index import index_state, plural, render
 from .new import frontmatter_lines, render_note
 from .ontology import Registry
 from .paths import (
     DocMarshalError,
+    cwd_repo,
     find_markers,
-    git_toplevel,
+    iter_notes,
     rel_to,
     split_frontmatter,
 )
@@ -70,13 +72,9 @@ def site_markers(target: Path) -> list[str]:
 
 
 def frontmatterless(target: Path, settings: Settings) -> list[Path]:
-    """Markdown files under the target that carry no frontmatter and would fail as notes."""
+    """Notes under the target that carry no frontmatter and would fail as notes."""
     hits: list[Path] = []
-    for path in sorted(target.rglob("*.md")):
-        if settings.excluded_dirs.intersection(path.relative_to(target).parts):
-            continue
-        if path.name in settings.excluded_names:
-            continue
+    for path in iter_notes(target, settings):
         try:
             block, _ = split_frontmatter(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError):
@@ -94,10 +92,6 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
     which is versioned with the engine. No heading: as an import it is a fragment of the root
     file, not a document.
     """
-    nomenclature = next(
-        (spec.fixed_name for spec in registry.enabled.values() if spec.root_required and spec.fixed_name),
-        None,
-    )
     index = settings.index_name
     lines = [
         f"`{docs_label}/` is a doc-marshal docs tree: typed markdown notes whose primary reader is a coding",
@@ -116,9 +110,21 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
         "",
         f"- `{index}` -- generated routing surface: one line per note with its type and summary.",
     ]
-    if nomenclature:
-        lines.append(f"- `{nomenclature}` -- the shared vocabulary for docs and code, and the aliases it rules out.")
+    for spec in registry.root_notes:
+        lines.append(f"- `{spec.fixed_name}` -- the shared vocabulary for docs and code, and the aliases it rules out.")
     return "\n".join(lines) + "\n"
+
+
+def import_line(docs_label: str, pointer_name: str) -> str:
+    """The Claude Code memory import that pulls the docs-root pointer into every session."""
+    return f"@{docs_label}/{pointer_name}"
+
+
+def has_import(root_file: Path, line: str) -> bool:
+    """Whether the root memory file already carries the import line."""
+    return root_file.is_file() and any(
+        existing.strip() == line for existing in root_file.read_text(encoding="utf-8").splitlines()
+    )
 
 
 def merge_import(root_file: Path, line: str) -> bool:
@@ -127,9 +133,9 @@ def merge_import(root_file: Path, line: str) -> bool:
     if not root_file.exists():
         root_file.write_text(f"{line}\n", encoding="utf-8")
         return True
-    text = root_file.read_text(encoding="utf-8")
-    if any(existing.strip() == line for existing in text.splitlines()):
+    if has_import(root_file, line):
         return False
+    text = root_file.read_text(encoding="utf-8")
     if text and not text.endswith("\n"):
         text += "\n"
     if text and not text.endswith("\n\n"):
@@ -161,14 +167,10 @@ def merge_permission(settings_path: Path) -> bool:
 
 def scaffold_nomenclature(target: Path, registry: Registry, repo_name: str) -> Path | None:
     """The root nomenclature note, if the registry has a root-required fixed-name type and it is absent."""
-    for spec in registry.enabled.values():
-        if not spec.root_required or spec.fixed_name is None:
-            continue
+    for spec in registry.root_notes:
         path = target / spec.fixed_name
         if path.exists():
             return None
-        from datetime import date
-
         today = date.today().isoformat()
         summary = (
             "The project's shared terminology -- one word per concept, the aliases ruled out, and "
@@ -196,9 +198,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     settings = SETTINGS
 
-    cwd = Path.cwd().resolve()
-    toplevel = git_toplevel(cwd)
-    repo_root = toplevel or cwd
+    cwd, repo_root, toplevel = cwd_repo()
     given = Path(args.path) if args.path else Path(settings.default_docs_dir)
     target = (given if given.is_absolute() else repo_root / given).resolve()
     if not target.is_relative_to(repo_root):
@@ -256,22 +256,20 @@ def main(argv: list[str]) -> int:
     if not pointer.exists():
         pointer.write_text(pointer_text(label, settings, registry), encoding="utf-8")
         written.append(f"{label}/{pointer_name}  (a pointer to `doc-marshal info`, not a copy of the rules)")
-    import_line = f"@{label}/{pointer_name}"
-    if args.claude_code and merge_import(repo_root / pointer_name, import_line):
-        written.append(f"{pointer_name}  (imports {label}/{pointer_name} into every session: `{import_line}`)")
+    line = import_line(label, pointer_name)
+    if args.claude_code and merge_import(repo_root / pointer_name, line):
+        written.append(f"{pointer_name}  (imports {label}/{pointer_name} into every session: `{line}`)")
 
     state = index_state(target, registry)
-    index = target / settings.index_name
-    if state.notes and not state.problems:
-        if state.stale:
-            index.write_text(render(state.notes), encoding="utf-8")
-            written.append(f"{label}/{settings.index_name}  (generated -- {len(state.notes)} note(s))")
-    elif state.problems:
+    if state.problems:
         print(
             f"warn:  {settings.index_name} not generated -- these notes cannot be indexed yet:\n  "
             + "\n  ".join(state.problems),
             file=sys.stderr,
         )
+    elif state.notes and state.stale:
+        (target / settings.index_name).write_text(render(state.notes), encoding="utf-8")
+        written.append(f"{label}/{settings.index_name}  (generated -- {len(state.notes)} {plural(len(state.notes))})")
 
     if args.claude_code:
         if merge_permission(repo_root / ".claude" / "settings.json"):

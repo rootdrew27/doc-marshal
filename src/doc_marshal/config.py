@@ -10,12 +10,13 @@ remove.
 
 from __future__ import annotations
 
+import argparse
 import tomllib
 from pathlib import Path
 
 from . import __version__
 from .ontology import STANDARD, Registry
-from .paths import DocMarshalError
+from .paths import DocMarshalError, find_docs_root
 from .settings import SETTINGS, Settings
 
 
@@ -33,3 +34,17 @@ def load_registry(docs_root: Path, settings: Settings = SETTINGS) -> Registry:
                 "marks the docs root by existing, holds no keys, and any key fails every command."
             )
     return STANDARD
+
+
+DOCS_ROOT_HELP = "docs root (default: the directory holding the marker)"
+
+
+def add_docs_root_option(parser: argparse.ArgumentParser) -> None:
+    """The `--docs-root` option every command takes, spelled once."""
+    parser.add_argument("--docs-root", help=DOCS_ROOT_HELP)
+
+
+def resolve(explicit: str | None, settings: Settings = SETTINGS) -> tuple[Path, Registry]:
+    """The docs root and the registry in force for it -- the two things every command starts from."""
+    docs_root = find_docs_root(explicit, settings)
+    return docs_root, load_registry(docs_root, settings)

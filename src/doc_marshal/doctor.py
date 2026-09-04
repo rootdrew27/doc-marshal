@@ -19,15 +19,12 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .paths import DocMarshalError, find_docs_root, find_repo_root, git_toplevel, rel_to
+from .config import add_docs_root_option
+from .init import has_import, import_line
+from .paths import DocMarshalError, cwd_repo, find_docs_root, find_repo_root, rel_to
 from .settings import SETTINGS
 
 VENV_DIRS = (".venv", "venv")
-
-
-def running_from() -> str:
-    """Where this module was imported from."""
-    return str(Path(__file__).resolve().parent)
 
 
 def version_of(exe: str) -> str | None:
@@ -100,11 +97,11 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="doc-marshal doctor", description="Report every resolvable engine and flag a version mismatch."
     )
-    parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
+    add_docs_root_option(parser)
     args = parser.parse_args(argv)
 
     problems: list[str] = []
-    print(f"running:   doc-marshal {__version__} from {running_from()}")
+    print(f"running:   doc-marshal {__version__} from {Path(__file__).resolve().parent}")
     print(f"python:    {sys.version.split()[0]} at {sys.executable}")
 
     docs_root: Path | None = None
@@ -113,7 +110,7 @@ def main(argv: list[str]) -> int:
         repo_root = find_repo_root(docs_root)
         print(f"docs root: {rel_to(docs_root, repo_root)}/ under {repo_root} (marker {SETTINGS.marker_name})")
     except DocMarshalError as exc:
-        repo_root = git_toplevel(Path.cwd()) or Path.cwd()
+        _, repo_root, _ = cwd_repo()
         print(f"docs root: none -- {exc.args[0].splitlines()[0]}")
 
     # A docs-root CLAUDE.md is what `init --claude-code` writes, and it reaches a session only
@@ -121,12 +118,8 @@ def main(argv: list[str]) -> int:
     # only once a session reads under the docs root, so the pointer exists and nobody sees it.
     if docs_root is not None and (docs_root / "CLAUDE.md").is_file():
         label = rel_to(docs_root, repo_root).as_posix()
-        line = f"@{label}/CLAUDE.md"
-        root_file = repo_root / "CLAUDE.md"
-        imported = root_file.is_file() and any(
-            existing.strip() == line for existing in root_file.read_text(encoding="utf-8").splitlines()
-        )
-        if imported:
+        line = import_line(label, "CLAUDE.md")
+        if has_import(repo_root / "CLAUDE.md", line):
             print(f"root file: CLAUDE.md imports {label}/CLAUDE.md (every session sees the pointer)")
         else:
             print(f"root file: CLAUDE.md does not import {label}/CLAUDE.md")

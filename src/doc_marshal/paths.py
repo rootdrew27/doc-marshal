@@ -43,8 +43,7 @@ def classify(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> str:
         return ATTACHMENT
     if path.suffix != ".md":
         return NOT_A_NOTE
-    rel = path.relative_to(docs_root) if path.is_relative_to(docs_root) else path
-    if settings.excluded_dirs.intersection(rel.parts):
+    if settings.excluded_dirs.intersection(rel_to(path, docs_root).parts):
         return NOT_A_NOTE
     if path.name in settings.excluded_names:
         return NOT_A_NOTE
@@ -195,10 +194,15 @@ def read_note(path: Path) -> tuple[Meta | None, str, str, str | None]:
         return None, body, text, f"unparseable frontmatter -- {exc}"
 
 
-def read_meta(path: Path) -> tuple[Meta | None, str, str | None]:
-    """Read a note as (metadata, body, error). Exactly one of metadata/error is None."""
-    meta, body, _, error = read_note(path)
-    return meta, body, error
+def anchor_entries(meta: Meta, field: str) -> list[str]:
+    """The string entries of an anchor field, or nothing when the field is absent or not a list.
+
+    One reading for every consumer: `check_anchor` reports a scalar as an error, and after that
+    the lead check and `affected` must agree that a scalar anchors nothing rather than one
+    iterating its characters and the other skipping it.
+    """
+    value = meta.get(field)
+    return [entry for entry in value if isinstance(entry, str)] if isinstance(value, list) else []
 
 
 # --- the note set -------------------------------------------------------------------------------
@@ -211,15 +215,6 @@ def _sorted(paths: Iterable[Path]) -> list[Path]:
 def iter_notes(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
     """Every note under the docs root, sorted by folder then filename."""
     return _sorted(p for p in docs_root.rglob("*.md") if classify(p, docs_root, settings) == NOTE)
-
-
-def iter_named(docs_root: Path, name: str, settings: Settings = SETTINGS) -> list[Path]:
-    """Every note under the docs root with this exact filename, sorted.
-
-    For a type the registry pins to one filename: the whole set is findable by name alone, without
-    reading frontmatter across the tree to discover which notes claim the type.
-    """
-    return _sorted(p for p in docs_root.rglob(name) if classify(p, docs_root, settings) == NOTE)
 
 
 def iter_checkable(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
@@ -288,7 +283,7 @@ COMMON_DOCS_DIRS = ("docs", "doc", "agent-docs", "notes", "documentation")
 
 
 def find_markers(
-    repo_root: Path, cwd: Path | None = None, settings: Settings = SETTINGS, *, stop_at: Path | None = None
+    repo_root: Path, cwd: Path, settings: Settings = SETTINGS, *, stop_at: Path | None = None
 ) -> list[Path]:
     """Every marker file in the repository, sorted.
 
@@ -301,7 +296,7 @@ def find_markers(
     still the marker.
     """
     found: set[Path] = set()
-    start = (cwd or Path.cwd()).resolve()
+    start = cwd.resolve()
     for base in (start, *start.parents):
         if (base / settings.marker_name).is_file():
             found.add((base / settings.marker_name).resolve())
@@ -323,6 +318,14 @@ def find_markers(
     return sorted(found)
 
 
+def cwd_repo() -> tuple[Path, Path, Path | None]:
+    """The working directory, the repository it is in, and the git toplevel when there is one.
+    Outside git the working directory stands in for the repository."""
+    cwd = Path.cwd().resolve()
+    toplevel = git_toplevel(cwd)
+    return cwd, toplevel or cwd, toplevel
+
+
 def find_docs_root(explicit: str | None = None, settings: Settings = SETTINGS) -> Path:
     """Resolve the docs root: `--docs-root`, then the environment, then the marker. Never by name.
 
@@ -337,9 +340,7 @@ def find_docs_root(explicit: str | None = None, settings: Settings = SETTINGS) -
                 raise DocMarshalError(f"{label} is not a directory: {root}")
             return root
 
-    cwd = Path.cwd().resolve()
-    toplevel = git_toplevel(cwd)
-    repo_root = toplevel or cwd
+    cwd, repo_root, toplevel = cwd_repo()
     markers = find_markers(repo_root, cwd, settings, stop_at=toplevel)
     if len(markers) == 1:
         return markers[0].parent

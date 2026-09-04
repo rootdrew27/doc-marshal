@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _engine
 
 
@@ -25,11 +26,12 @@ def emit(context: str) -> None:
 
 
 def main() -> int:
-    if _engine.command() is None:
+    prefix = _engine.command()
+    if prefix is None:
         if _engine.has_docs_root():
             emit(_engine.MISSING_ENGINE)
         return 0
-    result = _engine.run("session-context", "--quiet-if-absent")
+    result = _engine.run("session-context", "--quiet-if-absent", prefix=prefix)
     if result is None or result.returncode != 0:
         return 0
     context = result.stdout.strip()

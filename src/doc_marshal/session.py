@@ -23,12 +23,19 @@ import re
 import sys
 from pathlib import Path
 
-from .check import EMPTY_CELLS, SECTION_RE, parse_table
-from .config import load_registry
+from .check import cell_items, cell_text, parse_table, sections
+from .config import add_docs_root_option, load_registry
 from .index import index_state, render_preview
 from .info import render_session_types
 from .ontology import DocType, Registry
-from .paths import DocMarshalError, find_docs_root, find_repo_root, read_note, rel_to
+from .paths import (
+    DocMarshalError,
+    exists_exact,
+    find_docs_root,
+    find_repo_root,
+    read_note,
+    rel_to,
+)
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
@@ -42,7 +49,7 @@ def index_block(docs_root: Path, registry: Registry, label: str) -> str:
     rather than left for CI to mention later. Any failure to answer counts as not stale: a broken
     hook must not manufacture a warning about the docs.
     """
-    index = docs_root / registry.settings.index_name
+    index_name = registry.settings.index_name
     try:
         state = index_state(docs_root, registry)
     except Exception:  # noqa: BLE001 -- a hook must not fail the session over a docs problem
@@ -54,13 +61,13 @@ def index_block(docs_root: Path, registry: Registry, label: str) -> str:
         )
     lines = [f"{label}/ is the documentation tree (doc-marshal). {render_preview(state.notes)}"]
     lines.append(
-        f"Full list with each note's type and summary: {label}/{index.name} "
+        f"Full list with each note's type and summary: {label}/{index_name} "
         f"(generated -- `{REGENERATE}` regenerates it; never edit it)."
     )
     if state.stale:
         lines.insert(
             0,
-            f"WARNING: {label}/{index.name} no longer matches the notes it is generated from -- it may "
+            f"WARNING: {label}/{index_name} no longer matches the notes it is generated from -- it may "
             f"name docs that moved or omit docs that exist. Regenerate it with `{REGENERATE}`.",
         )
     if state.problems:
@@ -68,66 +75,44 @@ def index_block(docs_root: Path, registry: Registry, label: str) -> str:
     return "\n".join(lines)
 
 
-def _sections(body: str) -> dict[str, str]:
-    """A note's `##` sections, name to content, in document order. Text before the first is dropped."""
-    found: dict[str, str] = {}
-    current: str | None = None
-    for line in body.splitlines():
-        match = SECTION_RE.match(line)
-        if match:
-            current = match.group(1).strip()
-            found[current] = ""
-        elif current is not None:
-            found[current] += line + "\n"
-    return found
-
-
 def render_nomenclature(path: Path, spec: DocType) -> str:
     """A nomenclature note as a session should read it.
 
-    The table becomes one line per term -- the term, its definition, the aliases it rules out --
-    read through the same parser the validator uses, so a reformatted table cannot leak in as
-    text. The other sections follow as written. HTML comments are stripped throughout, and the
+    The table becomes one line per term -- the key column, the body column, then each scanned
+    column under its own name -- read through the same parser the validator uses, so a reformatted
+    table cannot leak in as text. The other sections follow as written. HTML comments are stripped throughout, and the
     frontmatter and title are not emitted at all: the block's own sentence says what this is.
     Falls back to the body verbatim when the table is not the shape the registry expects, because
     a malformed table is `check`'s finding and must not hide the vocabulary.
     """
     structure = spec.structure
-    meta, body, text, error = read_note(path)
+    _, body, text, error = read_note(path)
     source = COMMENT_RE.sub("", body if error is None else text).strip()
     if structure is None:
         return source
-    sections = _sections(source)
-    header, rows = parse_table(source, structure)
+    header, rows, _ = parse_table(source, structure)
     if tuple(header) != structure.columns:
         return source
-    index = {name: position for position, name in enumerate(header)}
-    scanned = [c for c in structure.scanned_columns if c in index]
     lines: list[str] = [f"**{structure.table_in}**", ""]
     for row in rows:
-        if len(row) != len(header):
-            continue
-        term = row[index[structure.key_column]].strip()
-        definition = row[index[structure.body_column]].strip().rstrip(".")
-        avoid = ", ".join(
-            row[index[c]].strip() for c in scanned if row[index[c]].strip().lower() not in EMPTY_CELLS
-        )
-        lines.append(f"- **{term}** -- {definition}." + (f" Avoid: {avoid}." if avoid else ""))
-    for name, content in sections.items():
-        if name == structure.table_in or not content.strip():
-            continue
-        lines += ["", f"**{name}**", "", content.strip()]
+        entry = f"- **{cell_text(row[structure.key_column])}** -- {row[structure.body_column].rstrip('.')}."
+        for column in structure.scanned_columns:
+            if items := cell_items(row[column]):
+                entry += f" {column}: {', '.join(items)}."
+        lines.append(entry)
+    for name, body in sections(source):
+        content = "\n".join(body).strip()
+        if name != structure.table_in and content:
+            lines += ["", f"**{name}**", "", content]
     return "\n".join(lines)
 
 
 def nomenclature_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]:
     """The docs root's fixed-name, root-required notes, rendered for reading."""
     blocks: list[str] = []
-    for spec in registry.enabled.values():
-        if not spec.root_required or spec.fixed_name is None:
-            continue
+    for spec in registry.root_notes:
         path = docs_root / spec.fixed_name
-        if not path.is_file():
+        if not exists_exact(docs_root, path):
             blocks.append(
                 f"{label}/{spec.fixed_name} is missing. The docs tree expects one, and notes written "
                 f"without it will not share a vocabulary. `doc-marshal new {spec.name} {label}` scaffolds it."
@@ -157,7 +142,7 @@ def main(argv: list[str]) -> int:
         prog="doc-marshal session-context",
         description="Print what a fresh session is given about the docs tree.",
     )
-    parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
+    add_docs_root_option(parser)
     parser.add_argument(
         "--quiet-if-absent",
         action="store_true",

@@ -26,10 +26,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .config import load_registry
+from .check import Report, check_anchor, check_location, check_naming
+from .config import add_docs_root_option, resolve
 from .ontology import DocType, Registry
-from .paths import DocMarshalError, exists_exact, find_docs_root, find_repo_root, rel_to
-from .settings import NUMBER_PREFIX_RE, Settings
+from .paths import DocMarshalError, find_repo_root, rel_to
+from .settings import NUMBER_PREFIX_RE
 
 
 def title_from_slug(slug: str) -> str:
@@ -73,15 +74,7 @@ def frontmatter_lines(
     return meta
 
 
-def flag_for(field: str) -> str:
-    """The singular flag an anchor field is given on the command line: `code_refs` is `--code-ref`,
-    since each occurrence names one entry."""
-    return "--" + field.replace("_", "-").removesuffix("s")
-
-
-def resolve_target(
-    spec: DocType, given: str, docs_root: Path, repo_root: Path, title: str | None
-) -> tuple[Path, str]:
+def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None) -> tuple[Path, str]:
     """Where the note goes and what its H1 says, from the type's placement rules.
 
     A relative path is read from the current directory, the way every other tool reads one; the
@@ -90,7 +83,7 @@ def resolve_target(
     """
     if spec.numbered:
         slug = Path(given).stem
-        folder = docs_root / spec.folder if spec.folder else docs_root
+        folder = spec.home(docs_root)
         number = next_number(folder)
         return folder / f"{number}-{slug}.md", f"{number} -- {title or title_from_slug(slug)}"
     if spec.fixed_name is not None:
@@ -100,7 +93,7 @@ def resolve_target(
         if path.name != spec.fixed_name:
             path = path / spec.fixed_name
         target = path.resolve()
-        return target, title or f"{title_from_slug(target.parent.name)} nomenclature"
+        return target, title or f"{title_from_slug(target.parent.name)} {spec.name}"
     path = Path(given)
     if path.suffix != ".md":
         path = path.with_name(path.name + ".md")
@@ -108,34 +101,37 @@ def resolve_target(
     return target, title or title_from_slug(target.stem)
 
 
-def validate_placement(target: Path, spec: DocType, docs_root: Path, registry: Registry) -> None:
-    settings: Settings = registry.settings
+def validate(
+    target: Path, spec: DocType, anchors: dict[str, list[str]], docs_root: Path, repo_root: Path, registry: Registry
+) -> None:
+    """Refuse a note the validator would reject: the same naming, placement and anchor checks
+    `check` runs, against the path and anchors this note is about to be written with. One
+    implementation of each rule, so `new` cannot write what `check` then fails."""
     if not target.is_relative_to(docs_root):
         raise DocMarshalError(f"a note must live under the docs root ({docs_root}): {target}")
-    rel = target.relative_to(docs_root)
-    # A type that claims a filename is exempt from the naming pattern for that name alone -- the
-    # folders holding it are not.
-    names = list(rel.parts[:-1]) if target.name in registry.fixed_names else [*rel.parts[:-1], target.stem]
-    for part in names:
-        if not settings.name_re.match(part):
-            raise DocMarshalError(f"not kebab-case: {part}")
-    if spec.folder is not None and target.parent != docs_root / spec.folder:
-        raise DocMarshalError(f"a '{spec.name}' note belongs in {spec.folder}/ under the docs root")
+    report = Report(root=repo_root)
+    check_naming(target, docs_root, registry, report)
+    check_location(target, spec, docs_root, registry, report)
+    for name, anchor in registry.anchor_fields.items():
+        if anchors[name]:
+            check_anchor(target, anchor, anchors[name], docs_root, repo_root, registry, report)
+    if report.findings:
+        raise DocMarshalError("\n".join(msg for _, _, msg in report.findings))
 
 
 def main(argv: list[str]) -> int:
     # The registry is needed to list the types in --help, so the docs root is resolved before the
-    # parser is built. The resulting error message is the same one every other command prints.
-    docs_root_arg = None
-    if "--docs-root" in argv:
-        docs_root_arg = argv[argv.index("--docs-root") + 1]
-    docs_root = find_docs_root(docs_root_arg)
-    registry = load_registry(docs_root)
+    # full parser is built. The resulting error message is the same one every other command prints.
+    root_options = argparse.ArgumentParser(add_help=False)
+    add_docs_root_option(root_options)
+    docs_root, registry = resolve(root_options.parse_known_args(argv)[0].docs_root)
     settings = registry.settings
     types = registry.enabled
 
     parser = argparse.ArgumentParser(
-        prog="doc-marshal new", description="Scaffold a note the validator will accept."
+        prog="doc-marshal new",
+        description="Scaffold a note the validator will accept.",
+        parents=[root_options],
     )
     parser.add_argument("type", choices=list(types))
     parser.add_argument(
@@ -150,9 +146,8 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--title", help="H1 text (default: derived from the filename)")
     for name, anchor in registry.anchor_fields.items():
-        flag = flag_for(name)
         parser.add_argument(
-            flag, action="append", default=[], dest=f"anchor_{name}", metavar="ENTRY",
+            anchor.flag, action="append", default=[], dest=f"anchor_{name}", metavar="ENTRY",
             help=f"{name}: {anchor.contents} (repeatable)",
         )
     parser.add_argument(
@@ -164,7 +159,6 @@ def main(argv: list[str]) -> int:
             if t.statuses
         ),
     )
-    parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
     args = parser.parse_args(argv)
 
     repo_root = find_repo_root(docs_root)
@@ -176,8 +170,7 @@ def main(argv: list[str]) -> int:
             f"summary must be one short line (max {settings.summary_max} chars), got {len(args.summary)}"
         )
 
-    target, title = resolve_target(spec, args.path, docs_root, repo_root, args.title)
-    validate_placement(target, spec, docs_root, registry)
+    target, title = resolve_target(spec, args.path, docs_root, args.title)
     if target.exists():
         raise DocMarshalError(
             f"already exists -- edit it rather than replacing it: {rel_to(target, repo_root)}"
@@ -192,21 +185,10 @@ def main(argv: list[str]) -> int:
 
     anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
     if spec.anchors_required(status) and not any(anchors[name] for name in spec.requires):
-        flags = " or ".join(flag_for(name) for name in spec.requires)
+        flags = " or ".join(registry.anchor_fields[name].flag for name in spec.requires)
         since = f" once its status is '{spec.requires_from}'" if spec.requires_from else ""
         raise DocMarshalError(f"type '{spec.name}' requires at least one {flags}{since}")
-    for name, anchor in registry.anchor_fields.items():
-        if anchor.on_spine:
-            for ref in anchors[name]:
-                resolved = (repo_root / ref).resolve()
-                if resolved == repo_root or not resolved.is_relative_to(repo_root):
-                    raise DocMarshalError(
-                        f"{name} must name a path inside the repository, not the root itself: {ref!r}"
-                    )
-                if not exists_exact(repo_root, resolved):
-                    raise DocMarshalError(
-                        f"{name} path does not exist (spelled exactly, from the repo root): {ref}"
-                    )
+    validate(target, spec, anchors, docs_root, repo_root, registry)
 
     meta = frontmatter_lines(args.type, args.summary, today, status, anchors)
     target.parent.mkdir(parents=True, exist_ok=True)

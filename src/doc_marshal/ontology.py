@@ -12,7 +12,8 @@ What is *not* here: why each type exists and how to route between them. That is 
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import dataclass, field, fields
+from pathlib import Path
 from typing import Any
 
 from .settings import SETTINGS, Settings
@@ -40,6 +41,12 @@ class AnchorField:
     name: str
     contents: str  # prose: what the field holds, rendered by `info` and in error messages
     resolves: tuple[str, ...]
+
+    @property
+    def flag(self) -> str:
+        """The command-line flag `new` gives the field, singular because each occurrence names one
+        entry: `code_refs` is `--code-ref`."""
+        return "--" + self.name.replace("_", "-").removesuffix("s")
 
     def __post_init__(self) -> None:
         unknown = [kind for kind in self.resolves if kind not in RESOLVES]
@@ -121,8 +128,16 @@ class DocType:
     structure: Structure | None = None  # the body shape other checks parse -- see `Structure`
     description: str = ""  # longer prose for a user-declared type; the preset's lives in prose/
 
-    def requires_anchor(self, name: str) -> bool:
-        return name in self.requires
+    def home(self, docs_root: Path) -> Path:
+        """The one directory this type's notes live in when it names a folder; the docs root otherwise."""
+        return docs_root / self.folder if self.folder else docs_root
+
+    @property
+    def is_vocabulary_source(self) -> bool:
+        """Whether other notes are scanned against this type's table: a fixed-name note with a
+        structure that names scanned columns. Read by the vocabulary builder and by the scan's
+        exemption, so the two cannot disagree about which notes are the vocabulary."""
+        return self.structure is not None and self.fixed_name is not None and bool(self.structure.scanned_columns)
 
     def anchors_required(self, status: object) -> bool:
         """Whether `requires` binds a note in the given status. A type that anchors only from a
@@ -169,6 +184,17 @@ class Registry:
                 raise ValueError(f"type {spec.name!r}: default_status is not one of its statuses")
             if spec.requires_from is not None and spec.requires_from not in spec.statuses:
                 raise ValueError(f"type {spec.name!r}: requires_from is not one of its statuses")
+            # Facets that only mean something in combination. Refused here rather than silently
+            # skipped by each consumer, because a rule that quietly never binds is the failure
+            # mode this whole registry exists to prevent.
+            if spec.numbered and spec.folder is None:
+                raise ValueError(f"type {spec.name!r}: numbered without a folder to number within")
+            if spec.root_required and spec.fixed_name is None:
+                raise ValueError(f"type {spec.name!r}: root_required without a fixed_name to find it by")
+            if spec.additive and spec.structure is None:
+                raise ValueError(f"type {spec.name!r}: additive without a structure whose keys would collide")
+            if spec.supersession is not None and spec.supersession.status not in spec.statuses:
+                raise ValueError(f"type {spec.name!r}: supersession.status is not one of its statuses")
 
     @property
     def enabled(self) -> dict[str, DocType]:
@@ -189,13 +215,18 @@ class Registry:
         return {spec.fixed_name: spec.name for spec in self.enabled.values() if spec.fixed_name}
 
     @property
+    def root_notes(self) -> tuple[DocType, ...]:
+        """The live types of which every docs root carries one instance, at their fixed filename."""
+        return tuple(spec for spec in self.enabled.values() if spec.root_required)
+
+    @property
     def spine(self) -> tuple[str, ...]:
         """The drift spine: anchor fields whose entries resolve as repo paths. `affected` matches
         these, and only these, against a diff."""
         return tuple(name for name, f in self.anchor_fields.items() if f.on_spine)
 
     def required_by(self, anchor: str) -> tuple[str, ...]:
-        return tuple(spec.name for spec in self.enabled.values() if spec.requires_anchor(anchor))
+        return tuple(spec.name for spec in self.enabled.values() if anchor in spec.requires)
 
 
 def standard(settings: Settings = SETTINGS) -> Registry:
@@ -342,8 +373,6 @@ def standard(settings: Settings = SETTINGS) -> Registry:
     return Registry("standard", anchors, {t.name: t for t in types}, settings)
 
 
-PRESETS = {"standard": standard}
-
 STANDARD = standard()
 
 
@@ -366,7 +395,7 @@ def to_dict(registry: Registry) -> dict[str, Any]:
             "enabled": spec.enabled,
         }
         for anchor in registry.anchor_fields:
-            table[anchor] = spec.requires_anchor(anchor)
+            table[anchor] = anchor in spec.requires
         if spec.statuses:
             table["statuses"] = list(spec.statuses)
         if spec.default_status is not None:
@@ -500,7 +529,3 @@ def _toml_value(value: Any) -> str:
         return "[" + ", ".join(_toml_value(v) for v in value) + "]"
     raise TypeError(f"cannot serialize {type(value).__name__} to TOML")
 
-
-def with_settings(registry: Registry, settings: Settings) -> Registry:
-    """The same registry bound to different Tier 3 constants."""
-    return replace(registry, settings=settings)

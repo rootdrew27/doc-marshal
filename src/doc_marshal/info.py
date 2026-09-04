@@ -23,9 +23,9 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import load_registry
+from .config import add_docs_root_option, resolve
 from .ontology import STANDARD, DocType, Registry, to_dict, to_toml
-from .paths import DocMarshalError, find_docs_root
+from .paths import DocMarshalError
 
 PROSE = Path(__file__).resolve().parent / "prose"
 
@@ -96,18 +96,16 @@ def _placement(spec: DocType) -> str:
     return "; ".join(parts) or "no anchor"
 
 
-def render_compact(registry: Registry, version: bool = True) -> str:
+def render_compact(registry: Registry) -> str:
     types = registry.enabled
     settings = registry.settings
     width = max((len(n) for n in types), default=4)
     serves_width = max((len(s.serves) for s in types.values()), default=6)
-    lines: list[str] = []
-    if version:
-        lines.append(
-            f"doc-marshal {__version__} -- preset '{registry.preset}': {len(types)} types, "
-            f"{len(registry.anchor_fields)} anchor fields"
-        )
-        lines.append("")
+    lines: list[str] = [
+        f"doc-marshal {__version__} -- preset '{registry.preset}': {len(types)} types, "
+        f"{len(registry.anchor_fields)} anchor fields",
+        "",
+    ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)}  {spec.serves.ljust(serves_width)}  {_placement(spec)}")
     anchors = "; ".join(
@@ -267,7 +265,7 @@ def resolve_registry(explicit: str | None) -> Registry:
     user reading the convention before adopting it -- so it falls back to the shipped preset.
     """
     try:
-        return load_registry(find_docs_root(explicit))
+        return resolve(explicit)[1]
     except DocMarshalError:
         if explicit:
             raise
@@ -284,7 +282,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.3 configuration schema")
-    parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
+    add_docs_root_option(parser)
     args = parser.parse_args(argv)
 
     registry = resolve_registry(args.docs_root)

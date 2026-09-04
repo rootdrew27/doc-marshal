@@ -27,16 +27,23 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from .config import load_registry
+from .config import add_docs_root_option, resolve
 from .ontology import Registry
 from .paths import (
+    anchor_entries,
     changed_paths,
     default_range,
-    find_docs_root,
     find_repo_root,
     iter_notes,
-    read_meta,
+    read_note,
+    rel_to,
 )
+
+
+def workflow_command(level: str, path: Path, msg: str) -> str:
+    """One GitHub Actions workflow command, so a pull request shows the message on the file it
+    names. `%` and newlines are what the syntax reserves."""
+    return f"::{level} file={path.as_posix()}::{msg.replace('%', '%25').replace(chr(10), '%0A')}"
 
 
 def matches(ref: str, changed: set[str]) -> list[str]:
@@ -47,12 +54,13 @@ def matches(ref: str, changed: set[str]) -> list[str]:
     the directory -- so a note anchored either coarsely or finely surfaces the same way.
     """
     anchor = PurePosixPath(ref.rstrip("/"))
-    hits = []
-    for path in changed:
-        candidate = PurePosixPath(path)
-        if candidate == anchor or candidate.is_relative_to(anchor) or anchor.is_relative_to(candidate):
-            hits.append(path)
-    return sorted(hits)
+    return sorted(
+        path
+        for path in changed
+        if (candidate := PurePosixPath(path)) == anchor
+        or candidate.is_relative_to(anchor)
+        or anchor.is_relative_to(candidate)
+    )
 
 
 @dataclass(frozen=True)
@@ -68,18 +76,12 @@ def find_affected(
     """Notes whose spine anchors cover a changed path, and notes whose frontmatter could not be read."""
     findings: list[Finding] = []
     unreadable: list[str] = []
-    spine = registry.spine
     for note in iter_notes(docs_root, registry.settings):
-        meta, _, error = read_meta(note)
+        meta, _, _, error = read_note(note)
         if error is not None or meta is None:
             unreadable.append(f"{note}: {error}")
             continue
-        refs = [
-            ref
-            for field in spine
-            if isinstance(meta.get(field), list)
-            for ref in meta[field]
-        ]
+        refs = [ref for field in registry.spine for ref in anchor_entries(meta, field)]
         hits = sorted({hit for ref in refs for hit in matches(ref, changed)})
         if hits:
             doc_type = meta.get("type")
@@ -100,11 +102,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--format", choices=("text", "github"), default="text")
     parser.add_argument("--print-range", action="store_true", help="print the resolved git range and exit")
     parser.add_argument("--fail-on-match", action="store_true", help="exit 1 when any note matched")
-    parser.add_argument("--docs-root", help="docs root (default: the directory holding the marker)")
+    add_docs_root_option(parser)
     args = parser.parse_args(argv)
 
-    docs_root = find_docs_root(args.docs_root)
-    registry = load_registry(docs_root)
+    docs_root, registry = resolve(args.docs_root)
     repo_root = find_repo_root(docs_root)
 
     if args.print_range:
@@ -130,19 +131,19 @@ def main(argv: list[str]) -> int:
 
     findings, unreadable = find_affected(docs_root, registry, changed)
 
-    def rel(p: Path) -> str:
-        return p.relative_to(repo_root).as_posix()
-
     if args.format == "github":
         for f in findings:
             print(
-                f"::notice file={rel(f.note)}::anchored to changed code ({', '.join(f.hits)}) "
-                f"-- confirm this {f.doc_type} note is still true"
+                workflow_command(
+                    "notice",
+                    rel_to(f.note, repo_root),
+                    f"anchored to changed code ({', '.join(f.hits)}) -- confirm this {f.doc_type} note is still true",
+                )
             )
     else:
         print(f"{len(changed)} changed path(s), {len(findings)} note(s) anchored to them\n")
         for f in findings:
-            print(f"{rel(f.note)}  [{f.doc_type}]")
+            print(f"{rel_to(f.note, repo_root).as_posix()}  [{f.doc_type}]")
             for hit in f.hits:
                 print(f"    <- {hit}")
         if not findings:
