@@ -26,6 +26,7 @@ from . import __version__
 from .config import add_docs_root_option, resolve
 from .ontology import STANDARD, DocType, Registry, to_dict, to_toml
 from .paths import DocMarshalError
+from .settings import NUMBER_TITLE_SEPARATOR
 
 PROSE = Path(__file__).resolve().parent / "prose"
 
@@ -169,9 +170,11 @@ def render_type(registry: Registry, name: str) -> str:
         ("mutability", spec.mutability),
         ("requires", describe_requires(spec)),
     ]
+    facts.append(("frontmatter", ", ".join(f"`{k}`" for k in registry.frontmatter_keys(spec)) + " -- no other key"))
     if spec.statuses:
         default = f"; `new` writes {spec.default_status} when --status is omitted" if spec.default_status else ""
-        facts.append(("status", " | ".join(spec.statuses) + " -- required in the note" + default))
+        born = f"; born {' | '.join(spec.birth_statuses)}, never {spec.supersession.status}" if spec.supersession else ""
+        facts.append(("status", " | ".join(spec.statuses) + " -- required in the note" + default + born))
     if spec.folder:
         facts.append(("folder", f"{spec.folder}/ at the docs root"))
     if spec.numbered:
@@ -193,7 +196,7 @@ def render_type(registry: Registry, name: str) -> str:
         ))
     for section, status in spec.empty_at:
         facts.append(("must be empty", f"## {section} once status is {status} (the section itself is optional)"))
-    facts.append(("title", "one H1, first" + (", starting `NNNN -- `" if spec.numbered else "")))
+    facts.append(("title", "one H1, first" + (f", starting `NNNN{NUMBER_TITLE_SEPARATOR}`" if spec.numbered else "")))
     if spec.structure:
         st = spec.structure
         facts.append(("sections", ", ".join(f"## {s}" for s in st.sections) + " -- exactly, in order"))

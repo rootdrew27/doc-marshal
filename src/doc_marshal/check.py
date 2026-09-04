@@ -40,14 +40,16 @@ from .paths import (
     exists_exact,
     find_docs_root,
     find_repo_root,
+    is_absolute_entry,
     is_checkable,
     is_tracked,
+    is_url,
     iter_checkable,
     read_note,
     rel_to,
     validate_range,
 )
-from .settings import NUMBER_PREFIX_RE, Settings
+from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR, Settings
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # A link or an image: the destination is either `<...>` (CommonMark's spelling for a destination
@@ -133,19 +135,32 @@ class Scope:
         return self.edited is not None and path in self.edited
 
 
-def _outside_fences(text: str) -> Iterator[str]:
-    """The lines of `text` not inside a fenced code block, fences themselves dropped.
+def _fenced_lines(text: str) -> Iterator[tuple[str, bool]]:
+    """Each line of `text` with whether it is code: inside a fenced block, or a fence itself.
 
-    One implementation, so the link checker and the anchor collector cannot disagree about where
-    code starts.
+    One implementation, so the link checker, the heading readers and the section reader cannot
+    disagree about where code starts.
     """
     in_fence = False
     for line in text.splitlines():
         if FENCE_RE.match(line):
             in_fence = not in_fence
-            continue
-        if not in_fence:
-            yield line
+            yield line, True
+        else:
+            yield line, in_fence
+
+
+def _outside_fences(text: str) -> Iterator[str]:
+    """The lines of `text` not inside a fenced code block, fences themselves dropped."""
+    return (line for line, fenced in _fenced_lines(text) if not fenced)
+
+
+def _heading_lines(text: str) -> Iterator[tuple[int, str]]:
+    """Every heading outside fences as (level, text), in document order."""
+    for line in _outside_fences(text):
+        match = HEADING_RE.match(line)
+        if match:
+            yield len(match.group(1)), match.group(2).strip()
 
 
 def headings(text: str) -> set[str]:
@@ -157,15 +172,13 @@ def headings(text: str) -> set[str]:
     """
     anchors: set[str] = set()
     seen: dict[str, int] = {}
-    for line in _outside_fences(text):
-        match = HEADING_RE.match(line)
-        if match:
-            slug = match.group(2).strip().lower()
-            slug = re.sub(r"[^\w\s-]", "", slug)
-            slug = re.sub(r"\s+", "-", slug)
-            count = seen.get(slug, 0)
-            seen[slug] = count + 1
-            anchors.add(slug if count == 0 else f"{slug}-{count}")
+    for _, heading in _heading_lines(text):
+        slug = heading.lower()
+        slug = re.sub(r"[^\w\s-]", "", slug)
+        slug = re.sub(r"\s+", "-", slug)
+        count = seen.get(slug, 0)
+        seen[slug] = count + 1
+        anchors.add(slug if count == 0 else f"{slug}-{count}")
     return anchors
 
 
@@ -221,7 +234,7 @@ def audit_assets(docs_root: Path, settings: Settings, report: Report) -> None:
     """
     assets = docs_root / settings.assets_dirname
     if assets.is_dir():
-        for path in sorted(assets.rglob("*.md")):
+        for path in sorted(assets.rglob(f"*{NOTE_SUFFIX}")):
             report.error(
                 path,
                 f"markdown under {settings.assets_dirname}/ -- that directory holds attachments "
@@ -251,22 +264,22 @@ def check_naming(path: Path, docs_root: Path, registry: Registry, report: Report
             report.error(path, f"folder is not kebab-case: {part}/")
 
 
-def check_links(path: Path, body: str, scope: Scope, report: Report) -> None:
+def check_links(path: Path, prose: str, scan: str, scope: Scope, report: Report) -> None:
     """Every link and image is a resolving relative path; wikilinks are not a link style here.
 
     A target is resolved with exact spelling and must stay inside the repository: a link that
-    leaves it is broken for every clone but this one. Inline code spans are skipped, the way the
-    alias scan skips them: backticks are how a note quotes a link rather than makes one. A
-    heading anchor must match the slug GitHub would make, case included, because that is the
-    resolver a reader's click goes through. A linked note's headings are read once per run,
-    however many notes link into it.
+    leaves it is broken for every clone but this one. Links are read from `scan`, the prose with
+    its code spans removed, the way the alias scan reads it: backticks are how a note quotes a
+    link rather than makes one. The note's own headings are read from `prose`, spans intact,
+    because a backtick in a heading is part of its slug. A heading anchor must match the slug
+    GitHub would make, case included, because that is the resolver a reader's click goes
+    through. A linked note's headings are read once per run, however many notes link into it.
     """
-    body = INLINE_CODE_RE.sub("", body)
-    for raw in WIKILINK_RE.findall(body):
+    for raw in WIKILINK_RE.findall(scan):
         report.error(path, f"wikilink -- use a relative markdown link instead: {raw}")
 
-    own = headings(body)
-    for bracketed, bare in LINK_RE.findall(body):
+    own = headings(prose)
+    for bracketed, bare in LINK_RE.findall(scan):
         target = bracketed or bare
         if urlparse(target).scheme or target.startswith("//"):
             continue
@@ -283,7 +296,7 @@ def check_links(path: Path, body: str, scope: Scope, report: Report) -> None:
         if not exists_exact(scope.repo_root, resolved):
             report.error(path, f"broken link: {target}")
             continue
-        if anchor and resolved.suffix == ".md":
+        if anchor and resolved.suffix == NOTE_SUFFIX:
             found = scope.headings_of.get(resolved)
             if found is None:
                 found = scope.headings_of[resolved] = headings(resolved.read_text(encoding="utf-8"))
@@ -335,13 +348,12 @@ def resolve_entry(
     name = anchor.name
     if "opaque" in kinds and entry.strip():
         return None
-    scheme = urlparse(entry).scheme
-    if "url" in kinds and scheme in ("http", "https"):
+    if "url" in kinds and is_url(entry):
         return None
     path_kinds = [k for k in ("docs-path", "repo-path") if k in kinds]
     if not path_kinds:
         return f"{name} must be an http(s) URL: {entry}"
-    if Path(entry).is_absolute():
+    if is_absolute_entry(entry):
         return f"{name} must be repo-relative, not absolute: {entry}"
     # Split by hand: a path object collapses `.` segments before they can be seen.
     if any(part in (".", "..") for part in entry.split("/")):
@@ -465,16 +477,12 @@ def check_frontmatter(
     # A key the type does not declare is a typo or a private convention, and both used to pass
     # unread: `code-refs` anchored nothing and validated as if it had. The set is the registry's,
     # so a declared anchor field is legal on every type and a status only where the type has one.
-    known = {"type", "updated", "summary", *registry.anchor_fields}
-    if spec.statuses:
-        known.add("status")
-    if spec.supersession is not None:
-        known.update((spec.supersession.forward, spec.supersession.back))
+    known = registry.frontmatter_keys(spec)
     for key in meta:
         if key not in known:
             report.error(
                 path,
-                f"unknown frontmatter key '{key}' -- a '{spec.name}' note may carry {', '.join(sorted(known))}",
+                f"unknown frontmatter key '{key}' -- a '{spec.name}' note may carry {', '.join(known)}",
             )
 
     return spec
@@ -488,7 +496,7 @@ def check_title(path: Path, spec: DocType | None, body: str, report: Report) -> 
     source of truth for it, so the two drifting apart is caught here rather than read as a
     typo. Read outside fences, where a `# comment` is code.
     """
-    levels = [(len(m.group(1)), m.group(2).strip()) for m in map(HEADING_RE.match, _outside_fences(body)) if m]
+    levels = list(_heading_lines(body))
     titles = [text for level, text in levels if level == 1]
     if not titles:
         report.error(path, "no title -- the first heading is a single H1 naming the note")
@@ -498,8 +506,12 @@ def check_title(path: Path, spec: DocType | None, body: str, report: Report) -> 
     if len(titles) > 1:
         report.error(path, f"{len(titles)} H1 headings -- one note is one file; the second is '{titles[1]}'")
     number = NUMBER_PREFIX_RE.match(path.stem) if spec is not None and spec.numbered else None
-    if number is not None and not titles[0].startswith(f"{number.group(1)} -- "):
-        report.error(path, f"a '{spec.name}' title starts with its number: '{number.group(1)} -- ...', got '{titles[0]}'")
+    if number is not None and not titles[0].startswith(number.group(1) + NUMBER_TITLE_SEPARATOR):
+        report.error(
+            path,
+            f"a '{spec.name}' title starts with its number: "
+            f"'{number.group(1)}{NUMBER_TITLE_SEPARATOR}...', got '{titles[0]}'",
+        )
 
 
 def check_sections(path: Path, spec: DocType, meta: Meta, body: str, report: Report) -> None:
@@ -608,11 +620,8 @@ def sections(text: str) -> list[tuple[str, list[str]]]:
     them.
     """
     found: list[tuple[str, list[str]]] = []
-    in_fence = False
-    for line in text.splitlines():
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
-        match = None if in_fence else SECTION_RE.match(line)
+    for line, fenced in _fenced_lines(text):
+        match = None if fenced else SECTION_RE.match(line)
         if match:
             found.append((match.group(1).strip(), []))
         elif found:
@@ -887,7 +896,7 @@ def alias_re(alias: str) -> re.Pattern[str]:
 
 
 def check_vocabulary(
-    path: Path, spec: DocType | None, meta: Meta | None, prose: str, vocabulary: Vocabulary, report: Report
+    path: Path, spec: DocType, meta: Meta, scan: str, vocabulary: Vocabulary, report: Report
 ) -> None:
     """Prose uses the vocabulary's terms rather than the aliases it rules out.
 
@@ -895,21 +904,19 @@ def check_vocabulary(
     that blocks a commit would be worse than the drift it catches.
 
     The frontmatter `summary` is scanned with the body: it is the one line every session reads.
-    HTML comments are not, being notes to the author. Three exemptions, all structural. An
-    append-only type is skipped because its wording cannot lawfully be corrected. A vocabulary
-    note is skipped because the aliases are its content. Code spans and fenced blocks are skipped
-    because a banned alias is routinely the literal name of a field or an API, and backticks are
-    how you say so.
+    `scan` is the body with its comments, fenced blocks and code spans already removed: comments
+    are notes to the author, and a banned alias is routinely the literal name of a field or an
+    API, with backticks the way you say so. Two exemptions, both structural. An append-only type
+    is skipped because its wording cannot lawfully be corrected. A vocabulary note is skipped
+    because the aliases are its content.
     """
-    if spec is None or spec.append_only or spec.is_vocabulary_source:
+    if spec.append_only or spec.is_vocabulary_source:
         return
     banned = vocabulary.aliases_for(path)
     if not banned:
         return
-    summary = meta.get("summary") if meta else None
-    text = strip_comments(INLINE_CODE_RE.sub("", prose))
-    if isinstance(summary, str):
-        text = f"{summary}\n\n{text}"
+    summary = meta.get("summary")
+    text = f"{summary}\n\n{scan}" if isinstance(summary, str) else scan
     for alias in sorted(banned):
         if alias_re(alias).search(text):
             report.warn(
@@ -939,16 +946,20 @@ def check_doc(path: Path, scope: Scope, report: Report) -> None:
             check_lead(path, spec, meta, scope, report)
         check_freshness(path, meta.get("updated"), scope, report)
 
-    # Comments come out before the shape checks so a comment spanning two headings hides the
-    # second the way markdown renders it, and a section holding only its scaffold comment is blank.
+    # Three views of the body, each computed once. Comments come out first, so a comment spanning
+    # two headings hides the second the way markdown renders it and a section holding only its
+    # scaffold comment is blank; then fenced blocks, which are content but not prose; then code
+    # spans, which quote a name rather than use it. The raw body still measures the size cap.
     plain = strip_comments(body)
+    prose = body_without_code(plain)
+    scan = INLINE_CODE_RE.sub("", prose)
     check_title(path, spec, plain, report)
-    prose = body_without_code(body)
     if spec is not None:
-        check_sections(path, spec, meta or {}, plain, report)
+        assert meta is not None  # a resolved type came from parsed frontmatter
+        check_sections(path, spec, meta, plain, report)
         check_structure(path, spec, prose, body, report)
-    check_vocabulary(path, spec, meta, prose, scope.vocabulary, report)
-    check_links(path, prose, scope, report)
+        check_vocabulary(path, spec, meta, scan, scope.vocabulary, report)
+    check_links(path, prose, scan, scope, report)
 
 
 def check_required_notes(
@@ -989,7 +1000,7 @@ def check_numbering(
         if in_scope is not None and not any(p.parent == folder for p in in_scope):
             continue
         seen: dict[str, Path] = {}
-        for path in sorted(folder.glob("*.md")):
+        for path in sorted(folder.glob(f"*{NOTE_SUFFIX}")):
             match = registry.settings.numbered_name_re.match(path.stem)
             if not match:
                 continue
@@ -1032,6 +1043,8 @@ def run(
     """Validate `targets` (or the whole tree with `sweep`). Returns the report and the count checked."""
     settings = registry.settings
     repo_root = find_repo_root(docs_root)
+    if rev_range:
+        validate_range(repo_root, rev_range)
     report = Report(root=repo_root)
 
     to_check: list[Path] = []
@@ -1100,8 +1113,6 @@ def main(argv: list[str]) -> int:
             return 0
         raise
     registry = load_registry(docs_root)
-    if args.range:
-        validate_range(find_repo_root(docs_root), args.range)
 
     targets = iter_checkable(docs_root, registry.settings) if args.all else [p.resolve() for p in args.paths]
     report, checked = run(

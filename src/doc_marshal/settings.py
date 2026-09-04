@@ -61,11 +61,12 @@ class Settings:
             self.index_name.lower(): f"the generated index is {self.index_name}, spelled so, at the docs root only",
         }
 
-    def forbidden_reason(self, path: Path) -> str:
-        """Why `classify` called this path forbidden -- the message the validator prints."""
+    def forbidden_reason(self, path: Path) -> str | None:
+        """Why a markdown file may not exist under the docs root, or None when its name is allowed.
+        The one reading of the rule: `classify` calls it to decide, the validator to explain."""
         if path.suffix != NOTE_SUFFIX:
             return f"notes are {NOTE_SUFFIX} files -- rename it"
-        return self.forbidden_names[path.name.lower()]
+        return self.forbidden_names.get(path.name.lower())
 
     @property
     def name_re(self) -> re.Pattern[str]:
@@ -82,5 +83,8 @@ class Settings:
 # occupies 0007, and handing that number out again would stack a collision on a naming error.
 NUMBER_PREFIX = r"^(\d{4})-"
 NUMBER_PREFIX_RE = re.compile(NUMBER_PREFIX)
+# What separates that number from the title in the note's H1: `0007 -- Parking`. Written by `new`
+# and demanded by `check`, so it is spelled once.
+NUMBER_TITLE_SEPARATOR = " -- "
 
 SETTINGS = Settings()

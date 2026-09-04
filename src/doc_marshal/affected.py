@@ -27,7 +27,6 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlparse
 
 from .config import add_docs_root_option, resolve
 from .ontology import Registry
@@ -37,6 +36,8 @@ from .paths import (
     changed_paths,
     default_range,
     find_repo_root,
+    is_absolute_entry,
+    is_url,
     iter_notes,
     read_note,
     rel_to,
@@ -90,7 +91,7 @@ def find_affected(
             ref
             for field in registry.path_fields
             for ref in anchor_entries(meta, field)
-            if not urlparse(ref).scheme
+            if not is_url(ref)
         ]
         hits = sorted({hit for ref in refs for hit in matches(ref, changed)})
         if hits:
@@ -129,7 +130,7 @@ def main(argv: list[str]) -> int:
     if args.paths:
         # Anchors are written from the repo root, so only a repo-relative path can match one; an
         # absolute path used to match nothing and report "no note affected" as if that were true.
-        absolute = [p for p in args.paths if PurePosixPath(p).is_absolute() or Path(p).is_absolute()]
+        absolute = [p for p in args.paths if is_absolute_entry(p)]
         if absolute:
             raise DocMarshalError(f"--paths must be repo-relative, as anchors are written: {', '.join(absolute)}")
         changed = {PurePosixPath(p).as_posix() for p in args.paths}

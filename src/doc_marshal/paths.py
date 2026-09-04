@@ -15,7 +15,8 @@ import re
 import subprocess
 from collections.abc import Iterable
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse
 
 from .settings import MARKDOWN_SUFFIXES, NOTE_SUFFIX, SETTINGS, Settings
 
@@ -51,13 +52,11 @@ def classify(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> str:
         return NOT_A_NOTE
     if settings.excluded_dirs.intersection(rel_to(path, docs_root).parts):
         return NOT_A_NOTE
-    if path.suffix != NOTE_SUFFIX:
-        return FORBIDDEN
     if path.name == settings.index_name and path.parent == docs_root:
         return NOT_A_NOTE
     if path.name in settings.memory_names:
         return NOT_A_NOTE
-    if path.name.lower() in settings.forbidden_names:
+    if settings.forbidden_reason(path) is not None:
         return FORBIDDEN
     return NOTE
 
@@ -191,8 +190,8 @@ def parse_frontmatter(block: str) -> Meta:
 def read_note(path: Path) -> tuple[Meta | None, str, str, str | None]:
     """Read a note as (metadata, body, whole text, error). Exactly one of metadata/error is None.
 
-    The whole text is returned alongside the body so a check that measures the file does not read
-    it from disk a second time.
+    The whole text is returned alongside the body for the one reader that falls back to it: the
+    session renderer shows a note whose frontmatter will not parse verbatim rather than hiding it.
     """
     text = path.read_text(encoding="utf-8")
     block, body = split_frontmatter(text)
@@ -224,17 +223,31 @@ def _sorted(paths: Iterable[Path]) -> list[Path]:
 
 def iter_notes(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
     """Every note under the docs root, sorted by folder then filename."""
-    return _sorted(p for p in docs_root.rglob("*.md") if classify(p, docs_root, settings) == NOTE)
+    return _sorted(p for p in docs_root.rglob(f"*{NOTE_SUFFIX}") if classify(p, docs_root, settings) == NOTE)
 
 
 def iter_checkable(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
     """Every path a validation sweep should report on -- `is_checkable`, over the whole tree,
     including the markdown files whose suffix is misspelled and therefore forbidden."""
+    # The suffix is read before the file is stat'd, so an attachment-heavy tree costs one string
+    # test per non-markdown entry rather than one syscall.
     return _sorted(
         p
         for p in docs_root.rglob("*")
-        if p.is_file() and p.suffix.lower() in MARKDOWN_SUFFIXES and is_checkable(p, docs_root, settings)
+        if p.suffix.lower() in MARKDOWN_SUFFIXES and p.is_file() and is_checkable(p, docs_root, settings)
     )
+
+
+def is_url(entry: str) -> bool:
+    """Whether an anchor entry is a web address rather than a path. The one reading, so the
+    validator and `affected` agree about which entries the diff is matched against."""
+    return urlparse(entry).scheme in ("http", "https")
+
+
+def is_absolute_entry(entry: str) -> bool:
+    """Whether a path entry is absolute under either the POSIX or the host spelling. Anchors and
+    `--paths` are written from the repo root, so an absolute one matches nothing."""
+    return PurePosixPath(entry).is_absolute() or Path(entry).is_absolute()
 
 
 # --- git ----------------------------------------------------------------------------------------
@@ -280,12 +293,28 @@ def _git_lines(cwd: Path, *args: str) -> list[str] | None:
     return [line for line in output.splitlines() if line]
 
 
+def _git_entries(cwd: Path, *args: str) -> list[str] | None:
+    """A `-z` git command's output as its NUL-separated entries, or None when the command could
+    not run. The NUL sibling of `_git_lines`, with the same None-versus-empty contract."""
+    output = _git(cwd, *args)
+    if output is None:
+        return None
+    return [entry for entry in output.split("\0") if entry]
+
+
+def _pathspec(pathspec: Path | None) -> tuple[str, ...]:
+    """The trailing `-- <path>` that bounds a git query, or nothing when the query is unbounded."""
+    return ("--", str(pathspec)) if pathspec is not None else ()
+
+
 def git_toplevel(start: Path) -> Path | None:
     toplevel = _git_value(start, "rev-parse", "--show-toplevel")
     return Path(toplevel).resolve() if toplevel else None
 
 
-_TRACKED: dict[Path, frozenset[str] | None] = {}
+# Per repository: the tracked files, and every directory that holds one. Both are sets so a
+# directory anchor is answered by one lookup rather than a scan of the listing per entry.
+_TRACKED: dict[Path, tuple[frozenset[str], frozenset[str]] | None] = {}
 
 
 def is_tracked(repo_root: Path, target: Path) -> bool | None:
@@ -297,13 +326,18 @@ def is_tracked(repo_root: Path, target: Path) -> bool | None:
     tool exists to remove. `git ls-files` is read once per repository for the life of the process.
     """
     if repo_root not in _TRACKED:
-        listed = _git(repo_root, "ls-files", "-z")
-        _TRACKED[repo_root] = None if listed is None else frozenset(filter(None, listed.split("\0")))
+        entries = _git_entries(repo_root, "ls-files", "-z")
+        if entries is None:
+            _TRACKED[repo_root] = None
+        else:
+            holders = {str(parent) for entry in entries for parent in PurePosixPath(entry).parents}
+            _TRACKED[repo_root] = (frozenset(entries), frozenset(holders - {"."}))
     tracked = _TRACKED[repo_root]
     if tracked is None:
         return None
+    files, dirs = tracked
     rel = target.relative_to(repo_root).as_posix()
-    return rel in tracked or any(entry.startswith(rel + "/") for entry in tracked)
+    return rel in files or rel in dirs
 
 
 def validate_range(repo_root: Path, rev_range: str) -> None:
@@ -355,10 +389,10 @@ def find_markers(
             found.add((base / settings.marker_name).resolve())
         if base == stop_at:
             break
-    listed = _git(repo_root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    listed = _git_entries(repo_root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
     if listed is not None:
-        for entry in listed.split("\0"):
-            if entry and Path(entry).name == settings.marker_name:
+        for entry in listed:
+            if Path(entry).name == settings.marker_name:
                 candidate = (repo_root / entry).resolve()
                 if candidate.is_file():
                     found.add(candidate)
@@ -479,17 +513,13 @@ def default_range(repo_root: Path) -> str | None:
     return f"{base}..HEAD"
 
 
-def _porcelain_paths(repo_root: Path, pathspec: Path | None = None) -> set[str] | None:
+def _porcelain_paths(repo_root: Path) -> set[str] | None:
     """Paths differing from HEAD in the working tree, staged or not, including untracked.
 
     None when git could not answer. An empty set means the tree is clean, which is a different
     fact -- and the one a fresh CI checkout always reports.
-
-    `pathspec` bounds the walk. Unbounded, `--untracked-files=all` stats every file in the repo,
-    which is wasted work for a caller that only asks about the docs tree.
     """
-    scope = ("--", str(pathspec)) if pathspec is not None else ()
-    status = _git(repo_root, "status", "--porcelain", "-z", "--untracked-files=all", *scope)
+    status = _git(repo_root, "status", "--porcelain", "-z", "--untracked-files=all")
     if status is None:
         return None
     paths: set[str] = set()
@@ -532,8 +562,7 @@ def _content_changes(repo_root: Path, rev_range: str | None, pathspec: Path | No
     with an edit is a delete and an add, and the add counts. Without a range the comparison is
     the working tree against HEAD, staged or not.
     """
-    scope = ("--", str(pathspec)) if pathspec is not None else ()
-    lines = _git_lines(repo_root, "diff", "--name-status", "--find-renames=100%", rev_range or "HEAD", *scope)
+    lines = _git_lines(repo_root, "diff", "--name-status", "--find-renames=100%", rev_range or "HEAD", *_pathspec(pathspec))
     if lines is None:
         return None
     changed: set[str] = set()
@@ -564,10 +593,8 @@ def edited_notes(
     if paths is None:
         return None
     if rev_range is None:
-        scope = ("--", str(pathspec)) if pathspec is not None else ()
-        untracked = _git(repo_root, "ls-files", "-z", "--others", "--exclude-standard", *scope)
-        if untracked is not None:
-            paths |= set(filter(None, untracked.split("\0")))
+        untracked = _git_entries(repo_root, "ls-files", "-z", "--others", "--exclude-standard", *_pathspec(pathspec))
+        paths.update(untracked or ())
     return {(repo_root / p).resolve() for p in paths}
 
 

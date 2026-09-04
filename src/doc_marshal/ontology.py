@@ -141,6 +141,13 @@ class DocType:
         `empty_at` must be drawn from, so `new` writes every section `check` will ask for."""
         return tuple(line[3:].strip() for line in self.skeleton if line.startswith("## "))
 
+    @property
+    def birth_statuses(self) -> tuple[str, ...]:
+        """The statuses a note may be created in: every one the type allows except the one that
+        records its replacement. A note is never born superseded."""
+        replaced = self.supersession.status if self.supersession else None
+        return tuple(s for s in self.statuses if s != replaced)
+
     def home(self, docs_root: Path) -> Path:
         """The one directory this type's notes live in when it names a folder; the docs root otherwise."""
         return docs_root / self.folder if self.folder else docs_root
@@ -208,6 +215,8 @@ class Registry:
                 raise ValueError(f"type {spec.name!r}: additive without a structure whose keys would collide")
             if spec.supersession is not None and spec.supersession.status not in spec.statuses:
                 raise ValueError(f"type {spec.name!r}: supersession.status is not one of its statuses")
+            if spec.default_status is not None and spec.default_status not in spec.birth_statuses:
+                raise ValueError(f"type {spec.name!r}: default_status is the status of a replaced note; none is born so")
             # The scaffold and the validator read the same sections, so `new` writes every heading
             # `check` will demand and nothing `check` forbids.
             if spec.structure is not None and spec.required_sections:
@@ -221,6 +230,8 @@ class Registry:
                     f"type {spec.name!r}: required_sections {list(spec.required_sections)} must appear "
                     f"in the skeleton, in that order; the skeleton writes {list(written)}"
                 )
+            if len({section for section, _ in spec.empty_at}) != len(spec.empty_at):
+                raise ValueError(f"type {spec.name!r}: empty_at names a section twice; one status per section")
             for section, status in spec.empty_at:
                 if section not in written or status not in spec.statuses:
                     raise ValueError(f"type {spec.name!r}: empty_at names a section or status the type lacks: {section!r} at {status!r}")
@@ -264,6 +275,18 @@ class Registry:
         return tuple(
             name for name, f in self.anchor_fields.items() if f.on_spine or "docs-path" in f.resolves
         )
+
+    def frontmatter_keys(self, spec: DocType) -> tuple[str, ...]:
+        """Every key a note of this type may carry: the three every note has, every declared
+        anchor field (legal on every type), `status` where the type has one, and the supersession
+        pair where it declares one. The validator rejects any other key by this list, and `info`
+        prints it."""
+        keys = ["type", "updated", "summary", *self.anchor_fields]
+        if spec.statuses:
+            keys.append("status")
+        if spec.supersession is not None:
+            keys += [spec.supersession.forward, spec.supersession.back]
+        return tuple(keys)
 
     def required_by(self, anchor: str) -> tuple[str, ...]:
         return tuple(spec.name for spec in self.enabled.values() if anchor in spec.requires)
@@ -523,7 +546,7 @@ def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings =
             if key in table:
                 kwargs[key] = tuple(table[key])
         if "empty_at" in table:
-            kwargs["empty_at"] = tuple(sorted(dict(table["empty_at"]).items()))
+            kwargs["empty_at"] = tuple(dict(table["empty_at"]).items())
         kwargs["requires"] = tuple(a for a in anchors if table.get(a))
         if "supersession" in table:
             kwargs["supersession"] = Supersession(**table["supersession"])

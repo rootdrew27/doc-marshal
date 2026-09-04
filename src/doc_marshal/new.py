@@ -34,7 +34,7 @@ from .check import Report, check_location, check_naming
 from .config import add_docs_root_option, resolve
 from .ontology import DocType, Registry
 from .paths import DocMarshalError, find_repo_root, rel_to
-from .settings import NUMBER_PREFIX_RE
+from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR
 
 
 def title_from_slug(slug: str) -> str:
@@ -46,7 +46,7 @@ def next_number(folder: Path) -> str:
     """The next free number in a numbered type's folder: the highest present plus one."""
     highest = 0
     if folder.is_dir():
-        for path in folder.glob("*.md"):
+        for path in folder.glob(f"*{NOTE_SUFFIX}"):
             match = NUMBER_PREFIX_RE.match(path.stem)
             if match:
                 highest = max(highest, int(match.group(1)))
@@ -89,7 +89,7 @@ def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None
         slug = Path(given).stem
         folder = spec.home(docs_root)
         number = next_number(folder)
-        return folder / f"{number}-{slug}.md", f"{number} -- {title or title_from_slug(slug)}"
+        return folder / f"{number}-{slug}{NOTE_SUFFIX}", f"{number}{NUMBER_TITLE_SEPARATOR}{title or title_from_slug(slug)}"
     if spec.fixed_name is not None:
         # The filename belongs to the type, so a directory is enough to say where it goes -- and
         # naming the file anyway is accepted rather than rejected on a technicality.
@@ -99,8 +99,8 @@ def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None
         target = path.resolve()
         return target, title or f"{title_from_slug(target.parent.name)} {spec.name}"
     path = Path(given)
-    if path.suffix != ".md":
-        path = path.with_name(path.name + ".md")
+    if path.suffix != NOTE_SUFFIX:
+        path = path.with_name(path.name + NOTE_SUFFIX)
     target = path.resolve()
     return target, title or title_from_slug(target.stem)
 
@@ -116,13 +116,6 @@ def validate(target: Path, spec: DocType, docs_root: Path, repo_root: Path, regi
     check_location(target, spec, docs_root, registry, report)
     if report.findings:
         raise DocMarshalError("\n".join(msg for _, _, msg in report.findings))
-
-
-def birth_statuses(spec: DocType) -> tuple[str, ...]:
-    """The statuses a note may be created in: every one the type allows except the one that
-    records its replacement. A note is never born superseded."""
-    replaced = spec.supersession.status if spec.supersession else None
-    return tuple(s for s in spec.statuses if s != replaced)
 
 
 def main(argv: list[str]) -> int:
@@ -159,7 +152,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--status",
         help="; ".join(
-            f"{t.name}: {' | '.join(birth_statuses(t))}"
+            f"{t.name}: {' | '.join(t.birth_statuses)}"
             + (f" (default {t.default_status})" if t.default_status else "")
             for t in types.values()
             if t.statuses
@@ -184,8 +177,8 @@ def main(argv: list[str]) -> int:
 
     status = args.status or spec.default_status
     if spec.statuses:
-        if status not in birth_statuses(spec):
-            raise DocMarshalError(f"a {spec.name} requires --status, one of {list(birth_statuses(spec))}")
+        if status not in spec.birth_statuses:
+            raise DocMarshalError(f"a {spec.name} requires --status, one of {list(spec.birth_statuses)}")
     elif args.status:
         raise DocMarshalError(f"type '{spec.name}' has no 'status' field")
 
