@@ -227,7 +227,7 @@ other.
   do not write it silently. This applies even in auto mode.
 - **Never hand-write an index**, here or anywhere: no tree, folder listing or "contents of this
   directory" section. A committed listing's only job is to agree with the filesystem, and it stops
-  doing that silently. The one index is generated (`doc-marshal info --rules` §5).
+  doing that silently. The one index is generated -- the index rule in `doc-marshal info --rules`.
 
 ### In-code docs
 

@@ -3,7 +3,6 @@
 # Rules for a doc-marshal docs tree
 
 The source of truth is `doc-marshal check` run on the docs: this text describes what it enforces.
-Errors fail the run; the two warnings are marked.
 
 The **docs root** is the directory holding the `.doc-marshal.toml` marker; one repository has one.
 Paths below are relative to it unless stated otherwise.
@@ -17,8 +16,8 @@ the docs root is one of these, never validated and never indexed:
 
 | Path | What it is |
 | --- | --- |
-| `assets/**` | attachments (§2) |
-| `INDEX.md` at the docs root | the generated index (§5) |
+| `assets/**` | attachments |
+| `INDEX.md` at the docs root | the generated index |
 | `AGENTS.md`, `CLAUDE.md`, anywhere | instructions to an agent: no frontmatter, no type, outside these rules |
 | `.doc-marshal.toml` | the marker naming this directory the docs root |
 | `.claude/`, `.git/`, `.github/`, `.obsidian/` | tooling and metadata |
@@ -40,18 +39,18 @@ optional, and nothing inside it is checked, at any depth. Two errors, reported b
 - A markdown file under `assets/`.
 - An `assets/` directory anywhere but the docs root.
 
-Anchors (§4) name attachments by path, so renaming one breaks every anchor to it, and `check`
+Anchors name attachments by path, so renaming one breaks every anchor to it, and `check`
 reports each.
 
 ## 3. Naming and placement
 
 - A note's filename and every folder above it, up to the docs root, is kebab-case:
   `^[a-z0-9]+(-[a-z0-9]+)*$`. ASCII only; a name may start with a digit; a dotfile fails unless
-  §1 exempts it.
-- Exempt: everything under `assets/`, the non-notes of §1, and a filename a type
+  it is one of the non-notes above.
+- Exempt: everything under `assets/`, the non-notes above, and a filename a type
   claims -- today `NOMENCLATURE.md` (`nomenclature`). A claimed filename binds both ways: that type must use it, and
   no other type may.
-- A type that names a folder lives in it; a numbered type is named `NNNN-kebab-slug.md` (§7).
+- A type that names a folder lives in it; a numbered type is named `NNNN-kebab-slug.md`.
 
 ## 4. Frontmatter
 

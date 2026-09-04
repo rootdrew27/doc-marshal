@@ -232,7 +232,7 @@ refuses that status. Neither field may name the note itself. `code_refs` is opti
 ## `nomenclature`
 
 The **vocabulary** the repo is written in: which word means which thing, and which words are ruled
-out. `doc-marshal info --rules` §9 states what is checked; this is how the type reads.
+out. the nomenclature rules in `doc-marshal info --rules` state what is checked; this is how the type reads.
 
 - Lives at `NOMENCLATURE.md` -- the docs root carries one, and any directory may add one that refines it.
   The filename is the type's, so `doc-marshal new nomenclature <directory>` is enough.
@@ -268,7 +268,7 @@ it does not degrade those checks, it silently disables them. What the parser hol
 
 ## There is no index type
 
-Indexes are generated, never written -- `doc-marshal info --rules` §5. What it means for writing a
+Indexes are generated, never written -- the index rule in `doc-marshal info --rules`. What it means for writing a
 note:
 
 - A note is discoverable **only** if its `summary:` is good, because the generated index shows
