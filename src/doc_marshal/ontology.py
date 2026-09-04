@@ -3,8 +3,8 @@
 `DocType` is the single internal representation. The validator enforces from it, the scaffolder
 writes from it, and `info` renders it -- no check hardcodes a type name. The preset is constructed
 in Python so its docstrings, type checking and cross-references (`Structure(max_cell=summary_max)`)
-survive; `from_dict` is the alternate constructor the 0.3 config loader builds on, and `to_toml` is
-the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
+survive; `from_dict` is the alternate constructor the configuration loader of a later release
+builds on, and `to_toml` is the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
 function: if the schema cannot express the shipped preset, the schema is too weak.
 
 What is *not* here: why each type exists and how to route between them. That is `prose/`.
@@ -126,7 +126,20 @@ class DocType:
     additive: bool = False  # a nested instance may not redefine a key an ancestor defines
     append_only: bool = False  # never edited after acceptance, so its wording cannot be corrected
     structure: Structure | None = None  # the body shape other checks parse -- see `Structure`
+    # The `##` sections a prose note must carry: each present once, in this relative order, with
+    # content; other sections may appear anywhere. The lighter facet beside `structure`, which
+    # fixes an exact set for a body that is data.
+    required_sections: tuple[str, ...] = ()
+    # (section, status) pairs: in that status a note may keep the section only if it is blank --
+    # a `done` spec has no open questions. The section itself is optional.
+    empty_at: tuple[tuple[str, str], ...] = ()
     description: str = ""  # longer prose for a user-declared type; the preset's lives in prose/
+
+    @property
+    def skeleton_sections(self) -> tuple[str, ...]:
+        """The `##` headings the skeleton writes, in order -- what `required_sections` and
+        `empty_at` must be drawn from, so `new` writes every section `check` will ask for."""
+        return tuple(line[3:].strip() for line in self.skeleton if line.startswith("## "))
 
     def home(self, docs_root: Path) -> Path:
         """The one directory this type's notes live in when it names a folder; the docs root otherwise."""
@@ -195,6 +208,24 @@ class Registry:
                 raise ValueError(f"type {spec.name!r}: additive without a structure whose keys would collide")
             if spec.supersession is not None and spec.supersession.status not in spec.statuses:
                 raise ValueError(f"type {spec.name!r}: supersession.status is not one of its statuses")
+            # The scaffold and the validator read the same sections, so `new` writes every heading
+            # `check` will demand and nothing `check` forbids.
+            if spec.structure is not None and spec.required_sections:
+                raise ValueError(f"type {spec.name!r}: structure and required_sections are two answers to one question")
+            if len(set(spec.required_sections)) != len(spec.required_sections):
+                raise ValueError(f"type {spec.name!r}: required_sections repeats a section")
+            written = spec.skeleton_sections
+            order = [written.index(s) for s in spec.required_sections if s in written]
+            if len(order) != len(spec.required_sections) or order != sorted(order):
+                raise ValueError(
+                    f"type {spec.name!r}: required_sections {list(spec.required_sections)} must appear "
+                    f"in the skeleton, in that order; the skeleton writes {list(written)}"
+                )
+            for section, status in spec.empty_at:
+                if section not in written or status not in spec.statuses:
+                    raise ValueError(f"type {spec.name!r}: empty_at names a section or status the type lacks: {section!r} at {status!r}")
+                if section in spec.required_sections:
+                    raise ValueError(f"type {spec.name!r}: {section!r} cannot be both required (populated) and empty_at")
 
     @property
     def enabled(self) -> dict[str, DocType]:
@@ -224,6 +255,15 @@ class Registry:
         """The drift spine: anchor fields whose entries resolve as repo paths. `affected` matches
         these, and only these, against a diff."""
         return tuple(name for name, f in self.anchor_fields.items() if f.on_spine)
+
+    @property
+    def path_fields(self) -> tuple[str, ...]:
+        """Every anchor field whose entries may be repository paths -- the spine and the
+        `docs-path` fields. `affected` matches all of them, so a note whose source note or
+        attachment changed is reported, not only one whose code did."""
+        return tuple(
+            name for name, f in self.anchor_fields.items() if f.on_spine or "docs-path" in f.resolves
+        )
 
     def required_by(self, anchor: str) -> tuple[str, ...]:
         return tuple(spec.name for spec in self.enabled.values() if anchor in spec.requires)
@@ -273,7 +313,14 @@ def standard(settings: Settings = SETTINGS) -> Registry:
             voice="imperative, literal, copy-pasteable",
             mutability="living -- rewritten in place",
             requires=("code_refs",),
+            required_sections=("Prerequisites", "Steps"),
             skeleton=(
+                "## Prerequisites",
+                "",
+                "<!-- What must be true before step one: access, tools, state. One line each. -->",
+                "",
+                "## Steps",
+                "",
                 "<!-- Imperative. Literal, copy-pasteable commands. Name the condition before the",
                 "     action where the path branches. Cheapest and least destructive step first. -->",
             ),
@@ -289,6 +336,7 @@ def standard(settings: Settings = SETTINGS) -> Registry:
             numbered=True,
             append_only=True,
             supersession=Supersession(),
+            required_sections=("Context", "Decision", "Alternatives considered", "Consequences"),
             skeleton=(
                 "## Context",
                 "",
@@ -316,6 +364,8 @@ def standard(settings: Settings = SETTINGS) -> Registry:
             default_status="proposed",
             requires=("code_refs",),
             requires_from="done",
+            required_sections=("Overview", "Behavior", "Validation"),
+            empty_at=(("Open questions", "done"),),
             skeleton=(
                 "## Overview",
                 "",
@@ -330,6 +380,11 @@ def standard(settings: Settings = SETTINGS) -> Registry:
                 "<!-- Stable identifiers so one item can be ticked off without renumbering the rest. -->",
                 "",
                 "- [ ] **V1** --",
+                "",
+                "## Open questions",
+                "",
+                "<!-- Live unknowns only, one per line. A resolved one is deleted or becomes a decision.",
+                "     Must be empty once status is done. -->",
             ),
         ),
         DocType(
@@ -378,8 +433,9 @@ STANDARD = standard()
 
 # --- serialization ------------------------------------------------------------------------------
 #
-# The TOML shape 0.3's `.doc-marshal.toml` takes. Written now so the round-trip test can run on day
-# one, and so `info --dump-toml` shows a user the worked example of the schema they will configure.
+# The TOML shape `.doc-marshal.toml` takes once configuration is read. Written now so the round-trip
+# test can run on day one, and so `info --dump-toml` shows a user the worked example of the schema
+# they will configure.
 
 
 def to_dict(registry: Registry) -> dict[str, Any]:
@@ -413,6 +469,10 @@ def to_dict(registry: Registry) -> dict[str, Any]:
         if spec.description:
             table["description"] = spec.description
         table["skeleton"] = list(spec.skeleton)
+        if spec.required_sections:
+            table["required_sections"] = list(spec.required_sections)
+        if spec.empty_at:
+            table["empty_at"] = dict(spec.empty_at)
         if spec.supersession is not None:
             table["supersession"] = {
                 "forward": spec.supersession.forward,
@@ -437,8 +497,8 @@ def to_dict(registry: Registry) -> dict[str, Any]:
 
 
 def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings = SETTINGS) -> Registry:
-    """Construct a registry from plain data -- the inverse of `to_dict`, and the constructor the 0.3
-    loader calls once it has merged a config over its preset. Strict: an unknown key is an error,
+    """Construct a registry from plain data -- the inverse of `to_dict`, and the constructor the
+    configuration loader calls once it has merged a config over its preset. Strict: an unknown key is an error,
     since a typo that validated as nothing would be exactly the silent failure this tool exists to
     remove."""
     anchors: dict[str, AnchorField] = {}
@@ -459,9 +519,11 @@ def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings =
         for key in ("default_status", "folder", "fixed_name", "requires_from"):
             if key in table:
                 kwargs[key] = table[key]
-        for key in ("statuses", "skeleton"):
+        for key in ("statuses", "skeleton", "required_sections"):
             if key in table:
                 kwargs[key] = tuple(table[key])
+        if "empty_at" in table:
+            kwargs["empty_at"] = tuple(sorted(dict(table["empty_at"]).items()))
         kwargs["requires"] = tuple(a for a in anchors if table.get(a))
         if "supersession" in table:
             kwargs["supersession"] = Supersession(**table["supersession"])
@@ -489,7 +551,7 @@ def to_toml(registry: Registry) -> str:
     data = to_dict(registry)
     lines: list[str] = [
         "# The effective doc-marshal registry, as configuration. `doc-marshal info --dump-toml`.",
-        "# Configuration is read from 0.3; this is the schema it will take.",
+        "# Configuration is read from a later release; this is the schema it will take.",
         "",
         f"extends = {_toml_value(data['extends'])}",
     ]
