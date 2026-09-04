@@ -4,7 +4,7 @@
 
 This is the **ontology**: what each type serves, how it reads, how it changes, and the frontmatter
 particular to it. Everything else -- naming, attachments, links, indexes, prose, the general
-frontmatter rules -- is `doc-marshal info --conventions`.
+frontmatter rules -- is `doc-marshal info --rules`.
 
 Examples throughout illustrate *shape*, drawn from a generic service project. Match their form,
 not their subject matter.
@@ -218,7 +218,7 @@ one about a feature that is.
 ## `nomenclature`
 
 The **vocabulary** the repo is written in: which word means which thing, and which words are ruled
-out. `doc-marshal info --conventions` §8 states the rules; this is how the type reads.
+out. `doc-marshal info --rules` §9 states what is checked; this is how the type reads.
 
 - Lives at `NOMENCLATURE.md` -- the docs root carries one, and any directory may add one that refines it.
   The filename is the type's, so `doc-marshal new nomenclature <directory>` is enough.
@@ -250,16 +250,12 @@ it does not degrade those checks, it silently disables them. What the parser hol
 - The prose cap counts the body outside the table's rows; the frontmatter is not counted, since
   a session never sees it.
 
-Boundaries the parser does not police: a second table under `## Terminology` is read as more rows,
-an `###` inside a section is ordinary content, and a `NOMENCLATURE.md` under `decisions/` is
-accepted as the vocabulary of that subtree.
-
 ---
 
 ## There is no index type
 
-Indexes are generated, never written -- `doc-marshal info --conventions` §5 states that rule and
-why. What it means for writing a note:
+Indexes are generated, never written -- `doc-marshal info --rules` §5. What it means for writing a
+note:
 
 - A note is discoverable **only** if its `summary:` is good, because the generated index shows
   nothing else. Treat that line as the most load-bearing sentence in the doc.

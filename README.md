@@ -97,17 +97,17 @@ Two of them do more than hold prose:
   three thousand characters of prose around them -- because every session pays for it.
 
 The full argument for each type is `doc-marshal info <type>`; the rules that are not per-type --
-naming, links, indexes, attachments, prose -- are `doc-marshal info --conventions`. They ship
-inside the package and are never copied into your repository, so they cannot drift from the
-version that enforces them.
+naming, frontmatter, links, the index, attachments, structure -- are `doc-marshal info --rules`.
+Every rule there is one `check` enforces. They ship inside the package and are never copied into
+your repository, so they cannot drift from the version that enforces them.
 
-## Reading the conventions without the CLI
+## Reading the rules without the CLI
 
 A reviewer on a pull request cannot run `doc-marshal info`, so this repository keeps one rendering
 of the standard preset, generated from the same source at the same version and committed back by
 CI whenever main moves:
 
-- [rendered/conventions.md](rendered/conventions.md) -- every rule that is not per-type
+- [rendered/rules.md](rendered/rules.md) -- every rule that is not per-type
 - [rendered/doc-types.md](rendered/doc-types.md) -- the five types, in full
 - [rendered/process.md](rendered/process.md) -- the update-docs process, staged
 

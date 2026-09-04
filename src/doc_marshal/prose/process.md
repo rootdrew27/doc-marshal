@@ -5,9 +5,9 @@ Reflect a **finalized** code change in documentation. Run after the work is done
 The docs root is the directory holding `.doc-marshal.toml`; `doc-marshal doctor` names it. The
 rules live in the tool and win on any conflict with this file:
 
-- `doc-marshal info --conventions` -- every rule for the tree: notes, attachments, naming,
-  frontmatter and anchors, indexes, links, numbered notes, nomenclature notes, prose. Read it in Stage 4,
-  before writing.
+- `doc-marshal info --rules` -- every rule `check` enforces that is not per-type: notes,
+  attachments, naming, frontmatter and anchors, the index, links, numbered notes, structure,
+  nomenclature notes. Read it in Stage 4, before writing.
 - `doc-marshal info` and `doc-marshal info <type>` -- the types: what each serves, its voice,
   structure, mutability and frontmatter. Read them in Stage 2, when routing.
 
@@ -27,8 +27,8 @@ leave it.
 
 ## Scope
 
-Which surfaces you may touch at all. *How* to write what you touch is the conventions; the
-procedures and approval gates are Stage 4.
+Which surfaces you may touch at all. What a note must satisfy is the rules; how to write one, and
+the approval gates, are Stage 4.
 
 | Surface | May you touch it |
 | --- | --- |
@@ -144,8 +144,8 @@ confirm the change set before writing, auto or not.
 
 ## Stage 4 -- Write
 
-**Read `doc-marshal info --conventions` now, before writing.** Do not work from memory of it, and do
-not restate its rules inside a doc.
+**Read `doc-marshal info --rules` now, before writing.** Do not work from memory of it, and do not
+restate its rules inside a doc.
 
 ### Vocabulary rule
 
@@ -166,6 +166,18 @@ cannot point at the line that makes a statement true, do not write the statement
 evidence -- it may be the thing that drifted. Never document from memory or inference; that is how
 confident-sounding drift gets in.
 
+### Style
+
+- Sentence case in headings; the H1 is the human title. Imperative mood in instructions.
+- Link inline, on first mention of a concept that has its own note, once per section. A note does
+  not end with a list of its neighbours.
+- Describe a value by its role and name the file that owns it -- "once per `worker.poll_interval`" --
+  rather than embedding the number. Runbooks are the exception: an operator needs a literal command.
+- Say what is true and what is not yet true; where the docs distinguish implemented from running in
+  production, keep the distinction.
+- A fact that came from outside the repository carries a `source` anchor, on any type, beside any
+  `code_refs` for the code that implements it.
+
 ### Creating a note
 
 Scaffold it rather than typing frontmatter from memory. The path is read from the current
@@ -176,7 +188,7 @@ doc-marshal new <type> <docs root>/<folder>/<slug>.md --summary "<one line>" --c
 doc-marshal new decision <slug> --summary "<one line>"
 ```
 
-It applies the mechanical part of the conventions -- today's date, the fields the type requires, a
+It applies the mechanical part of the rules -- today's date, the fields the type requires, a
 numbered note's number, location and title prefix, a nomenclature note's filename, and every
 section the type requires. It does not validate: the scaffold fails `doc-marshal check` until its
 required sections are written, and the `next:` line it prints is the gate. The required sections
@@ -195,8 +207,8 @@ operation:
    referenced from an agent-memory file.
 4. Re-grep for the old name. A rename that leaves a dangling reference is a failed rename.
 
-Renames need approval even in auto mode -- they are the most disruptive thing this process does --
-and nothing under `assets/` is ever renamed.
+Renames need approval even in auto mode -- they are the most disruptive thing this process does.
+Attachments under `assets/` are out of scope (Scope), so a docs run never renames one.
 
 ### Agent-memory files (`CLAUDE.md`, `AGENTS.md`)
 
@@ -211,7 +223,9 @@ other.
   is what puts the docs-root pointer in every session, so it stays.
 - A **genuinely new subsystem** gets a proposed new paragraph or section -- present it for approval,
   do not write it silently. This applies even in auto mode.
-- **Never hand-write an index**, here or anywhere -- the conventions have the rule and the reason.
+- **Never hand-write an index**, here or anywhere: no tree, folder listing or "contents of this
+  directory" section. A committed listing's only job is to agree with the filesystem, and it stops
+  doing that silently. The one index is generated (`doc-marshal info --rules` §5).
 
 ### In-code docs
 
@@ -238,9 +252,9 @@ All three steps run before you report done.
    clean. Run it anyway: the hook sees one file at a time and misses what only the finished set
    shows -- a rename's inbound links, a number collision, a link into a note written later in the run.
 
-   It enforces the conventions, so a surprising result means reading the convention rather than
-   working around the tool -- and it does not check everything the convention states, so a clean run
-   is not proof that a note follows the convention.
+   It enforces the rules, so a surprising result means reading the rule rather than working around
+   the tool. A clean run says the note's shape is right, not that its content is: the evidence rule
+   and the style below are yours to hold.
 
    **Pass the files you touched and nothing else, and fix what it reports on those files.** Anything
    it reports about a doc outside your change set falls under Non-goals: name it in the report and

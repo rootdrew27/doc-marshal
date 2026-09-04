@@ -18,7 +18,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "index": ("index", "regenerate INDEX.md; --check reports staleness without writing"),
     "affected": ("affected", "notes whose repo-path anchors name code a change touched"),
     "new": ("new", "scaffold a note the validator will accept"),
-    "info": ("info", "the effective registry; info <type>, --conventions, --process"),
+    "info": ("info", "the effective registry; info <type>, --rules, --process"),
     "init": ("init", "mark a directory as the docs root and write the integration files"),
     "doctor": ("doctor", "report the resolved engine version and flag a plugin/repo mismatch"),
     "session-context": ("session", "what a fresh session is given about the docs tree"),

@@ -1,6 +1,6 @@
 """Render the standard preset's prose into `rendered/`, for readers without the CLI.
 
-The conventions, the type arguments and the update-docs process live in the package and are
+The rules, the type arguments and the update-docs process live in the package and are
 rendered on demand by `doc-marshal info`, so a user's repository never holds a copy that can go
 stale. A reviewer on a pull request cannot run the CLI, though, so this repository keeps one
 rendering of the standard preset, derived from the same source at the same version. It is
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from doc_marshal import __version__
-from doc_marshal.info import render_conventions, render_doc_types, render_process
+from doc_marshal.info import render_doc_types, render_process, render_rules
 from doc_marshal.ontology import STANDARD
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,7 +30,7 @@ HEADER = (
 
 def render() -> dict[str, str]:
     return {
-        "conventions.md": HEADER + render_conventions(STANDARD),
+        "rules.md": HEADER + render_rules(STANDARD),
         "doc-types.md": HEADER + render_doc_types(STANDARD),
         "process.md": HEADER + render_process(),
     }

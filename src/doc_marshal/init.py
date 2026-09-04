@@ -101,7 +101,7 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
         "```bash",
         "doc-marshal info                 # the note types and their anchors, one line each",
         "doc-marshal info <type>          # one type in full: what it serves, how it reads, its skeleton",
-        "doc-marshal info --conventions   # every rule for this tree",
+        "doc-marshal info --rules         # every rule for this tree",
         "doc-marshal info --process       # how a finished code change is reflected in these docs",
         "doc-marshal check <path>         # validates a note against the rules; --all sweeps the tree",
         "doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires",

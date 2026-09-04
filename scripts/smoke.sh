@@ -7,7 +7,7 @@ set -eux
 doc-marshal --version
 doc-marshal info --types > /dev/null
 doc-marshal info --process > /dev/null
-doc-marshal info --conventions | grep -c '{{' | grep -qx 0
+doc-marshal info --rules | grep -c '{{' | grep -qx 0
 test "$(doc-marshal info --types | grep -c '^## `')" = 5
 doc-marshal info spec | grep -q 'required, in this order'
 

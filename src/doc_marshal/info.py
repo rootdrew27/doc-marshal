@@ -2,13 +2,13 @@
 
 The convention's prose -- the rules, the argument for each type, the routing guidance -- ships
 inside the package and is obtained here. It is never copied into a user's repository: no emitted
-copy means no staleness check, no ownership boundary, and no question about whether a conventions
+copy means no staleness check, no ownership boundary, and no question about whether a rules
 file inside the docs root is itself a note. Output is filtered to enabled types, so it is more
 accurate than any stored file, and it always matches the installed version.
 
     doc-marshal info                  # compact: enabled types, one line each, with anchors
     doc-marshal info decision         # one type in full: argument, skeleton, facets, statuses
-    doc-marshal info --conventions    # the rules that are not per-type
+    doc-marshal info --rules          # the rules that are not per-type
     doc-marshal info --process        # the update-docs process, staged
     doc-marshal info --format json    # the registry as data, for third parties
     doc-marshal info --dump-toml      # the registry as the configuration schema of a later release
@@ -218,9 +218,9 @@ def render_type(registry: Registry, name: str) -> str:
 # --- long-form prose ------------------------------------------------------------------------------
 
 
-def render_conventions(registry: Registry) -> str:
+def render_rules(registry: Registry) -> str:
     settings = registry.settings
-    text = prose("conventions.md")
+    text = prose("rules.md")
     substitutions = {
         "{{types_table}}": render_types_table(registry),
         "{{anchor_table}}": render_anchor_table(registry),
@@ -290,7 +290,7 @@ def main(argv: list[str]) -> int:
         prog="doc-marshal info", description="Render the effective registry and the convention's prose."
     )
     parser.add_argument("type", nargs="?", help="one type in full")
-    parser.add_argument("--conventions", action="store_true", help="the rules that are not per-type")
+    parser.add_argument("--rules", action="store_true", help="every rule check enforces that is not per-type")
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
     parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
@@ -305,8 +305,8 @@ def main(argv: list[str]) -> int:
         sys.stdout.write(render_json(registry))
     elif args.process:
         sys.stdout.write(render_process())
-    elif args.conventions:
-        sys.stdout.write(render_conventions(registry))
+    elif args.rules:
+        sys.stdout.write(render_rules(registry))
     elif args.types:
         sys.stdout.write(render_doc_types(registry))
     elif args.type:
