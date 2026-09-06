@@ -12,6 +12,8 @@ What is *not* here: why each type exists and how to route between them. That is 
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -52,8 +54,7 @@ class AnchorField:
         unknown = [kind for kind in self.resolves if kind not in RESOLVES]
         if unknown or not self.resolves:
             raise ValueError(
-                f"anchor field {self.name!r}: resolves must name one or more of {RESOLVES}, "
-                f"got {self.resolves!r}"
+                f"anchor field {self.name!r}: resolves must name one or more of {RESOLVES}, got {self.resolves!r}"
             )
 
     @property
@@ -86,6 +87,12 @@ class Structure:
     max_cell: int
     max_chars: int
 
+    def accepts(self, header: Sequence[str]) -> bool:
+        """Whether a parsed table header is this shape: the columns exactly, in order. The
+        validator, the vocabulary reader and the session renderer all ask here, so one of them
+        cannot relax the rule without the others."""
+        return tuple(header) == self.columns
+
 
 @dataclass(frozen=True)
 class Supersession:
@@ -113,7 +120,8 @@ class DocType:
     voice: str
     mutability: str
     enabled: bool = True  # `enabled = false` in config removes the type from the live registry
-    requires: tuple[str, ...] = ()  # anchor fields of which a note must carry at least one -- a minimum, not a permitted set
+    # anchor fields of which a note must carry at least one -- a minimum, not a permitted set
+    requires: tuple[str, ...] = ()
     requires_from: str | None = None  # the `status` from which `requires` is enforced; None means always
     statuses: tuple[str, ...] = ()  # allowed `status` values; empty means the type has no status
     default_status: str | None = None  # what `new` writes when --status is omitted
@@ -152,6 +160,12 @@ class DocType:
         """The one directory this type's notes live in when it names a folder; the docs root otherwise."""
         return docs_root / self.folder if self.folder else docs_root
 
+    def fixed_path(self, directory: Path) -> Path:
+        """Where a fixed-name note of this type sits in `directory`. Only a type with a `fixed_name`
+        has one; `Registry` refuses a `root_required` type without it, so every root note does."""
+        assert self.fixed_name is not None, f"type {self.name!r} claims no filename"
+        return directory / self.fixed_name
+
     @property
     def is_vocabulary_source(self) -> bool:
         """Whether other notes are scanned against this type's table: a fixed-name note with a
@@ -187,9 +201,7 @@ class Registry:
         for spec in self.types.values():
             for name in spec.requires:
                 if name not in self.anchor_fields:
-                    raise ValueError(
-                        f"type {spec.name!r} requires undeclared anchor field {name!r}"
-                    )
+                    raise ValueError(f"type {spec.name!r} requires undeclared anchor field {name!r}")
             if spec.structure is not None:
                 missing = [
                     c
@@ -216,7 +228,9 @@ class Registry:
             if spec.supersession is not None and spec.supersession.status not in spec.statuses:
                 raise ValueError(f"type {spec.name!r}: supersession.status is not one of its statuses")
             if spec.default_status is not None and spec.default_status not in spec.birth_statuses:
-                raise ValueError(f"type {spec.name!r}: default_status is the status of a replaced note; none is born so")
+                raise ValueError(
+                    f"type {spec.name!r}: default_status is the status of a replaced note; none is born so"
+                )
             # The scaffold and the validator read the same sections, so `new` writes every heading
             # `check` will demand and nothing `check` forbids.
             if spec.structure is not None and spec.required_sections:
@@ -234,9 +248,13 @@ class Registry:
                 raise ValueError(f"type {spec.name!r}: empty_at names a section twice; one status per section")
             for section, status in spec.empty_at:
                 if section not in written or status not in spec.statuses:
-                    raise ValueError(f"type {spec.name!r}: empty_at names a section or status the type lacks: {section!r} at {status!r}")
+                    raise ValueError(
+                        f"type {spec.name!r}: empty_at names a section or status the type lacks: {section!r} at {status!r}"
+                    )
                 if section in spec.required_sections:
-                    raise ValueError(f"type {spec.name!r}: {section!r} cannot be both required (populated) and empty_at")
+                    raise ValueError(
+                        f"type {spec.name!r}: {section!r} cannot be both required (populated) and empty_at"
+                    )
 
     @property
     def enabled(self) -> dict[str, DocType]:
@@ -272,9 +290,7 @@ class Registry:
         """Every anchor field whose entries may be repository paths -- the spine and the
         `docs-path` fields. `affected` matches all of them, so a note whose source note or
         attachment changed is reported, not only one whose code did."""
-        return tuple(
-            name for name, f in self.anchor_fields.items() if f.on_spine or "docs-path" in f.resolves
-        )
+        return tuple(name for name, f in self.anchor_fields.items() if f.on_spine or "docs-path" in f.resolves)
 
     def frontmatter_keys(self, spec: DocType) -> tuple[str, ...]:
         """Every key a note of this type may carry: the three every note has, every declared
@@ -311,12 +327,8 @@ def standard(settings: Settings = SETTINGS) -> Registry:
     Order is canonical: it is the order `info` lists the types in, from the most common to the least.
     """
     anchors = {
-        "code_refs": AnchorField(
-            "code_refs", "paths to the code this note describes", ("repo-path",)
-        ),
-        "source": AnchorField(
-            "source", "URLs, or paths to an attachment or another note", ("docs-path", "url")
-        ),
+        "code_refs": AnchorField("code_refs", "paths to the code this note describes", ("repo-path",)),
+        "source": AnchorField("source", "URLs, or paths to an attachment or another note", ("docs-path", "url")),
     }
     types = (
         DocType(
@@ -473,8 +485,8 @@ def to_dict(registry: Registry) -> dict[str, Any]:
             "mutability": spec.mutability,
             "enabled": spec.enabled,
         }
-        for anchor in registry.anchor_fields:
-            table[anchor] = anchor in spec.requires
+        for anchor_name in registry.anchor_fields:
+            table[anchor_name] = anchor_name in spec.requires
         if spec.statuses:
             table["statuses"] = list(spec.statuses)
         if spec.default_status is not None:
@@ -561,7 +573,7 @@ def from_dict(data: dict[str, Any], preset: str = "custom", settings: Settings =
     return Registry(preset, anchors, types, settings)
 
 
-def _only(table: dict[str, Any], allowed: set[str], where: str) -> None:
+def _only(table: dict[str, Any], allowed: AbstractSet[str], where: str) -> None:
     unknown = sorted(set(table) - allowed)
     if unknown:
         raise ValueError(f"{where}: unknown key(s) {unknown}; allowed: {sorted(allowed)}")
@@ -597,9 +609,7 @@ def _toml_key(key: str) -> str:
 
 
 def _toml_str(value: str) -> str:
-    escaped = (
-        value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
-    )
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
     return f'"{escaped}"'
 
 
@@ -613,4 +623,3 @@ def _toml_value(value: Any) -> str:
     if isinstance(value, (list, tuple)):
         return "[" + ", ".join(_toml_value(v) for v in value) + "]"
     raise TypeError(f"cannot serialize {type(value).__name__} to TOML")
-

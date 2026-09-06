@@ -22,10 +22,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from .check import cell_items, cell_text, parse_table, sections, strip_comments
 from .config import add_docs_root_option, load_registry
 from .index import index_state, render_preview
 from .info import render_session_types
+from .markdown import cell_items, cell_text, parse_table, sections, strip_comments
 from .ontology import DocType, Registry
 from .paths import (
     DocMarshalError,
@@ -49,7 +49,7 @@ def index_block(docs_root: Path, registry: Registry, label: str) -> str:
     index_name = registry.settings.index_name
     try:
         state = index_state(docs_root, registry)
-    except Exception:  # noqa: BLE001 -- a hook must not fail the session over a docs problem
+    except Exception:  # a hook must not fail the session over a docs problem
         return f"{label}/ is the documentation tree (doc-marshal). Its index could not be read."
     if not state.notes and state.problems:
         return (
@@ -87,8 +87,8 @@ def render_nomenclature(path: Path, spec: DocType) -> str:
     source = strip_comments(body if error is None else text).strip()
     if structure is None:
         return source
-    header, rows, _ = parse_table(source, structure)
-    if tuple(header) != structure.columns:
+    header, rows, _ = parse_table(source, structure.table_in)
+    if not structure.accepts(header):
         return source
     lines: list[str] = [f"**{structure.table_in}**", ""]
     for row in rows:
@@ -97,8 +97,8 @@ def render_nomenclature(path: Path, spec: DocType) -> str:
             if items := cell_items(row[column]):
                 entry += f" {column}: {', '.join(items)}."
         lines.append(entry)
-    for name, body in sections(source):
-        content = "\n".join(body).strip()
+    for name, section_lines in sections(source):
+        content = "\n".join(section_lines).strip()
         if name != structure.table_in and content:
             lines += ["", f"**{name}**", "", content]
     return "\n".join(lines)
@@ -108,7 +108,7 @@ def nomenclature_blocks(docs_root: Path, registry: Registry, label: str) -> list
     """The docs root's fixed-name, root-required notes, rendered for reading."""
     blocks: list[str] = []
     for spec in registry.root_notes:
-        path = docs_root / spec.fixed_name
+        path = spec.fixed_path(docs_root)
         if not exists_exact(docs_root, path):
             blocks.append(
                 f"{label}/{spec.fixed_name} is missing. The docs tree expects one, and notes written "

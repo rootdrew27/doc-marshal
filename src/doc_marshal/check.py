@@ -17,17 +17,29 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from functools import cached_property
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from .affected import matches, workflow_command
+from .affected import matches
+from .anchors import check_anchor
 from .config import add_docs_root_option, load_registry
 from .index import plural
-from .ontology import AnchorField, DocType, Registry, Structure
+from .markdown import (
+    body_without_code,
+    cell_items,
+    cell_text,
+    heading_lines,
+    headings,
+    parse_table,
+    sections,
+    strip_comments,
+    table_chars,
+    without_code_spans,
+)
+from .ontology import DocType, Registry
 from .paths import (
     FORBIDDEN,
     DocMarshalError,
@@ -40,65 +52,21 @@ from .paths import (
     exists_exact,
     find_docs_root,
     find_repo_root,
-    is_absolute_entry,
     is_checkable,
-    is_tracked,
-    is_url,
     iter_checkable,
     read_note,
     rel_to,
     validate_range,
 )
+from .report import Report
 from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR, Settings
+from .vocabulary import Vocabulary, build_vocabulary, check_vocabulary
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # A link or an image: the destination is either `<...>` (CommonMark's spelling for a destination
 # holding spaces) or a run without spaces or a closing paren.
 LINK_RE = re.compile(r"\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))\)")
-INLINE_CODE_RE = re.compile(r"`[^`]*`")
 WIKILINK_RE = re.compile(r"\[\[[^\]]+\]\]")
-HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
-COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-
-# How a finding is printed. The plugin's PostToolUse hook selects on these, so they are a contract
-# rather than incidental formatting.
-PREFIXES = {"warning": "warn:  ", "error": "ERROR: "}
-
-Finding = tuple[str, Path, str]  # (level, path relative to the repo root, message)
-
-
-@dataclass
-class Report:
-    """Findings, each carrying the note's path relative to `root` -- the repository root, so a
-    line reads the same in CI, in a pre-commit hook and in the plugin's hook output, whatever the
-    working directory and however the target was spelled."""
-
-    root: Path
-    findings: list[Finding] = field(default_factory=list)
-
-    def error(self, path: Path, msg: str) -> None:
-        self.findings.append(("error", rel_to(path, self.root), msg))
-
-    def warn(self, path: Path, msg: str) -> None:
-        self.findings.append(("warning", rel_to(path, self.root), msg))
-
-    def count(self, level: str) -> int:
-        return sum(1 for found, _, _ in self.findings if found == level)
-
-    def lines(self) -> list[str]:
-        """Warnings first, then errors, each prefixed for the hook to select on."""
-        return [
-            f"{PREFIXES[level]}{path}: {msg}"
-            for wanted in ("warning", "error")
-            for level, path, msg in self.findings
-            if level == wanted
-        ]
-
-    def annotations(self) -> list[str]:
-        """The findings as GitHub Actions workflow commands, so a pull request shows each one on
-        the file it names."""
-        return [workflow_command(level, path, msg) for level, path, msg in self.findings]
 
 
 @dataclass
@@ -115,7 +83,7 @@ class Scope:
     repo_root: Path
     registry: Registry
     rev_range: str | None = None
-    vocabulary: Vocabulary = field(default_factory=lambda: Vocabulary())
+    vocabulary: Vocabulary = field(default_factory=Vocabulary)
     headings_of: dict[Path, set[str]] = field(default_factory=dict)  # linked notes, read once
 
     @cached_property
@@ -133,65 +101,6 @@ class Scope:
     def touched(self, path: Path) -> bool:
         """Whether the change edited this note, as far as git can tell."""
         return self.edited is not None and path in self.edited
-
-
-def _fenced_lines(text: str) -> Iterator[tuple[str, bool]]:
-    """Each line of `text` with whether it is code: inside a fenced block, or a fence itself.
-
-    One implementation, so the link checker, the heading readers and the section reader cannot
-    disagree about where code starts.
-    """
-    in_fence = False
-    for line in text.splitlines():
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
-            yield line, True
-        else:
-            yield line, in_fence
-
-
-def _outside_fences(text: str) -> Iterator[str]:
-    """The lines of `text` not inside a fenced code block, fences themselves dropped."""
-    return (line for line, fenced in _fenced_lines(text) if not fenced)
-
-
-def _heading_lines(text: str) -> Iterator[tuple[int, str]]:
-    """Every heading outside fences as (level, text), in document order."""
-    for line in _outside_fences(text):
-        match = HEADING_RE.match(line)
-        if match:
-            yield len(match.group(1)), match.group(2).strip()
-
-
-def headings(text: str) -> set[str]:
-    """Heading anchors in GitHub's slug form, skipping fenced code blocks.
-
-    Repeated headings are disambiguated the way GitHub does it, by suffixing the later ones with
-    `-1`, `-2` and so on. Collapsing them made a *correct* link to the second `## Setup` report as
-    a missing anchor -- an error, so valid markdown failed the build.
-    """
-    anchors: set[str] = set()
-    seen: dict[str, int] = {}
-    for _, heading in _heading_lines(text):
-        slug = heading.lower()
-        slug = re.sub(r"[^\w\s-]", "", slug)
-        slug = re.sub(r"\s+", "-", slug)
-        count = seen.get(slug, 0)
-        seen[slug] = count + 1
-        anchors.add(slug if count == 0 else f"{slug}-{count}")
-    return anchors
-
-
-def body_without_code(text: str) -> str:
-    """Body with fenced blocks removed, so example links in code are not validated."""
-    return "\n".join(_outside_fences(text))
-
-
-def strip_comments(text: str) -> str:
-    """Text without its HTML comments. The one reading, shared with the session renderer: a
-    comment is for the author and the validator, so it is neither content a section is
-    populated by, prose the alias scan reads, nor text a session is shown."""
-    return COMMENT_RE.sub("", text)
 
 
 def check_freshness(path: Path, updated: object, scope: Scope, report: Report) -> None:
@@ -220,9 +129,7 @@ def check_freshness(path: Path, updated: object, scope: Scope, report: Report) -
     if not scope.touched(path) or scope.since is None or stamp >= scope.since:
         return
     window = f" (the change began on {scope.since})" if scope.since != today else ""
-    report.error(
-        path, f"edited by this change but 'updated' still reads {updated} -- bump it to {today}{window}"
-    )
+    report.error(path, f"edited by this change but 'updated' still reads {updated} -- bump it to {today}{window}")
 
 
 def audit_assets(docs_root: Path, settings: Settings, report: Report) -> None:
@@ -304,110 +211,6 @@ def check_links(path: Path, prose: str, scan: str, scope: Scope, report: Report)
                 report.error(path, f"link anchor not found in {rel_to(resolved, scope.repo_root)}: #{anchor}")
 
 
-# --- anchors ------------------------------------------------------------------------------------
-
-_KIND_ORDER = ("url", "docs-path", "repo-path", "opaque")
-
-
-def describe_anchor(anchor: AnchorField, docs_root: Path, repo_root: Path) -> str:
-    """What the field's entries may be, as prose for a message."""
-    docs_prefix = rel_to(docs_root, repo_root)
-    words = {
-        "url": "URLs",
-        "docs-path": f"repo-relative paths under {docs_prefix}/",
-        "repo-path": "repo-relative paths",
-        "opaque": "non-empty values",
-    }
-    return " or ".join(words[k] for k in _KIND_ORDER if k in anchor.resolves)
-
-
-def resolve_entry(
-    entry: str, anchor: AnchorField, docs_root: Path, repo_root: Path, registry: Registry
-) -> str | None:
-    """Why this entry fails the field's `resolves` kinds, or None when some kind accepts it.
-
-    Every path in frontmatter is written from the repo root, never from the docs root and never
-    absolute -- one path convention for every field. A `docs-path` that resolves outside the docs
-    root is rejected on purpose: code belongs in a `repo-path` field, and accepting it here would
-    let a note satisfy its anchor while staying off the drift spine.
-
-    A path must name something strictly inside the repository. `.` and its spellings resolve to
-    the root, which exists, and a note "anchored" to the whole repository is anchored to nothing
-    -- every change would touch it. A directory inside the repository is fine: a spec about a
-    package anchors to the package. Existence is checked with exact spelling (`exists_exact`), so
-    a case-insensitive filesystem cannot pass a path that CI will fail; and "spelled exactly"
-    admits no `.` or `..` segment, since the resolver and `affected` would otherwise agree on a
-    file the text does not name.
-
-    A path must also be tracked by git. A file that exists only in this checkout satisfies the
-    anchor here and nowhere else -- six of one project's notes anchored to an uncommitted config
-    file and passed for months -- so existence on disk is not the question; presence in
-    `git ls-files` is. That holds for either path kind and needs a repository to answer.
-    """
-    kinds = anchor.resolves
-    name = anchor.name
-    if "opaque" in kinds and entry.strip():
-        return None
-    if "url" in kinds and is_url(entry):
-        return None
-    path_kinds = [k for k in ("docs-path", "repo-path") if k in kinds]
-    if not path_kinds:
-        return f"{name} must be an http(s) URL: {entry}"
-    if is_absolute_entry(entry):
-        return f"{name} must be repo-relative, not absolute: {entry}"
-    # Split by hand: a path object collapses `.` segments before they can be seen.
-    if any(part in (".", "..") for part in entry.split("/")):
-        return f"{name} must be spelled exactly, from the repo root, with no . or .. segments: {entry}"
-    resolved = (repo_root / entry).resolve()
-    if resolved == repo_root or not resolved.is_relative_to(repo_root):
-        return f"{name} must name a path inside the repository, not the root itself: {entry!r}"
-    found = exists_exact(repo_root, resolved) and (
-        "repo-path" in kinds or resolved.is_relative_to(docs_root)
-    )
-    if found:
-        tracked = is_tracked(repo_root, resolved)
-        if tracked is None:
-            return f"{name} needs a git repository to confirm the path is tracked: {entry}"
-        if not tracked:
-            return (
-                f"{name} path exists but git does not track it, so it resolves in this checkout "
-                f"only -- commit it, or describe it in prose rather than anchoring to it: {entry}"
-            )
-        return None
-    if "repo-path" in kinds:
-        return f"{name} path does not exist (spelled exactly, from the repo root): {entry}"
-    if not resolved.is_relative_to(docs_root):
-        docs_prefix = rel_to(docs_root, repo_root)
-        spine = " or ".join(registry.spine) or "a repo-path field"
-        url_part = "a URL or " if "url" in kinds else ""
-        return (
-            f"{name} must be {url_part}a path under {docs_prefix}/ -- written from the repo root, "
-            f"and code paths belong in {spine} instead: {entry}"
-        )
-    return f"{name} path does not exist (spelled exactly, from the repo root): {entry}"
-
-
-def check_anchor(
-    path: Path,
-    anchor: AnchorField,
-    entries: object,
-    docs_root: Path,
-    repo_root: Path,
-    registry: Registry,
-    report: Report,
-) -> None:
-    """A declared anchor field, whenever present, is a list whose every entry resolves by its kind."""
-    if not isinstance(entries, list):
-        report.error(
-            path, f"'{anchor.name}' must be a list of {describe_anchor(anchor, docs_root, repo_root)}"
-        )
-        return
-    for entry in entries:
-        problem = resolve_entry(entry, anchor, docs_root, repo_root, registry)
-        if problem is not None:
-            report.error(path, problem)
-
-
 def check_frontmatter(
     path: Path,
     meta: Meta,
@@ -450,9 +253,7 @@ def check_frontmatter(
         return None
 
     if spec.statuses and status not in spec.statuses:
-        report.error(
-            path, f"{spec.name} 'status' must be one of {sorted(spec.statuses)}, got {status!r}"
-        )
+        report.error(path, f"{spec.name} 'status' must be one of {sorted(spec.statuses)}, got {status!r}")
 
     if spec.supersession is not None:
         rule = spec.supersession
@@ -496,7 +297,7 @@ def check_title(path: Path, spec: DocType | None, body: str, report: Report) -> 
     source of truth for it, so the two drifting apart is caught here rather than read as a
     typo. Read outside fences, where a `# comment` is code.
     """
-    levels = list(_heading_lines(body))
+    levels = list(heading_lines(body))
     titles = [text for level, text in levels if level == 1]
     if not titles:
         report.error(path, "no title -- the first heading is a single H1 naming the note")
@@ -505,7 +306,9 @@ def check_title(path: Path, spec: DocType | None, body: str, report: Report) -> 
         report.error(path, f"the first heading must be the H1 title, not '{'#' * levels[0][0]} {levels[0][1]}'")
     if len(titles) > 1:
         report.error(path, f"{len(titles)} H1 headings -- one note is one file; the second is '{titles[1]}'")
-    number = NUMBER_PREFIX_RE.match(path.stem) if spec is not None and spec.numbered else None
+    if spec is None or not spec.numbered:
+        return
+    number = NUMBER_PREFIX_RE.match(path.stem)
     if number is not None and not titles[0].startswith(number.group(1) + NUMBER_TITLE_SEPARATOR):
         report.error(
             path,
@@ -575,9 +378,7 @@ def check_lead(path: Path, spec: DocType, meta: Meta, scope: Scope, report: Repo
     )
 
 
-def check_location(
-    path: Path, spec: DocType, docs_root: Path, registry: Registry, report: Report
-) -> None:
+def check_location(path: Path, spec: DocType, docs_root: Path, registry: Registry, report: Report) -> None:
     """A type that names a folder, a numbering scheme or a filename is placed and named by it."""
     if spec.folder is not None and path.parent != spec.home(docs_root):
         where = rel_to(path.parent, docs_root)
@@ -592,104 +393,7 @@ def check_location(
         report.error(path, f"a '{spec.name}' note must be named {spec.fixed_name}")
     owner = registry.fixed_names.get(path.name)
     if owner is not None and owner != spec.name:
-        report.error(
-            path, f"{path.name} is the '{owner}' type's filename, but this declares '{spec.name}'"
-        )
-
-
-# --- structure ----------------------------------------------------------------------------------
-
-SECTION_RE = re.compile(r"^##\s+(.*)$")
-# A markdown table row: at least one pipe-delimited cell between outer pipes.
-TABLE_ROW_RE = re.compile(r"^\s*\|(.+)\|\s*$")
-SEPARATOR_CELL_RE = re.compile(r"^:?-{3,}:?$")
-# Cells naming nothing. A structured table says "no aliases" with a dash rather than a blank,
-# because a blank cell reads as an unfinished row.
-EMPTY_CELLS = frozenset({"", "-", "--", "n/a", "none"})
-
-Row = dict[str, str]  # a well-formed table row, cell by column name
-
-
-def sections(text: str) -> list[tuple[str, list[str]]]:
-    """The `##` sections of a note, each heading with the lines under it, in document order.
-
-    The one reading of where a section starts and ends: the shape check, the table reader, the
-    size cap and the session renderer all consume this rather than scanning for headings
-    themselves. A `##` inside a fenced block is content, so the raw body can be handed in. Text
-    before the first heading is dropped. Repeated headings stay repeated, so a shape check sees
-    them.
-    """
-    found: list[tuple[str, list[str]]] = []
-    for line, fenced in _fenced_lines(text):
-        match = None if fenced else SECTION_RE.match(line)
-        if match:
-            found.append((match.group(1).strip(), []))
-        elif found:
-            found[-1][1].append(line)
-    return found
-
-
-def sections_of(prose: str) -> list[str]:
-    """The `##` headings of a note, in document order."""
-    return [name for name, _ in sections(prose)]
-
-
-def cell_text(cell: str) -> str:
-    """A cell's text without the emphasis or backticks a writer wrapped it in."""
-    return cell.strip().strip("*`")
-
-
-def cell_items(cell: str) -> list[str]:
-    """A comma-separated cell as its items, none when the cell says there are none."""
-    if cell.strip().lower() in EMPTY_CELLS:
-        return []
-    return [item for item in (cell_text(part) for part in cell.split(",")) if item]
-
-
-CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
-
-
-def _cells(line: str) -> list[str]:
-    """The cells of a markdown table row, outer pipes dropped. `\\|` is a literal pipe inside a
-    cell, as GitHub reads it, not a boundary."""
-    return [cell.strip().replace("\\|", "|") for cell in CELL_SPLIT_RE.split(line.strip().strip("|"))]
-
-
-def parse_table(prose: str, structure: Structure) -> tuple[list[str], list[Row], list[list[str]]]:
-    """The table under `structure.table_in`: its header, its well-formed rows keyed by column, and
-    the rows whose cell count does not match the header.
-
-    Returns nothing when the section or its table is absent; reporting that is
-    `check_structure`'s job, and every caller wants the same tolerant read.
-    """
-    lines = next((body for name, body in sections(prose) if name == structure.table_in), [])
-    header: list[str] = []
-    rows: list[Row] = []
-    malformed: list[list[str]] = []
-    for line in lines:
-        if not TABLE_ROW_RE.match(line):
-            continue
-        cells = _cells(line)
-        if not header:
-            header = cells
-        elif all(SEPARATOR_CELL_RE.match(cell) for cell in cells):
-            continue
-        elif len(cells) == len(header):
-            rows.append(dict(zip(header, cells)))
-        else:
-            malformed.append(cells)
-    return header, rows, malformed
-
-
-def table_chars(text: str, structure: Structure) -> int:
-    """The characters the table's rows take -- header, separator and body, newlines included."""
-    return sum(
-        len(line) + 1
-        for name, lines in sections(text)
-        if name == structure.table_in
-        for line in lines
-        if TABLE_ROW_RE.match(line)
-    )
+        report.error(path, f"{path.name} is the '{owner}' type's filename, but this declares '{spec.name}'")
 
 
 def check_structure(path: Path, spec: DocType, prose: str, body: str, report: Report) -> None:
@@ -710,7 +414,7 @@ def check_structure(path: Path, spec: DocType, prose: str, body: str, report: Re
     if structure is None:
         return
 
-    found = sections_of(prose)
+    found = [name for name, _ in sections(prose)]
     if tuple(found) != structure.sections:
         report.error(
             path,
@@ -719,7 +423,7 @@ def check_structure(path: Path, spec: DocType, prose: str, body: str, report: Re
             f"{', '.join('## ' + s for s in found) or 'none'}",
         )
 
-    outside = len(body) - table_chars(body, structure)
+    outside = len(body) - table_chars(body, structure.table_in)
     if outside > structure.max_chars:
         report.error(
             path,
@@ -728,8 +432,8 @@ def check_structure(path: Path, spec: DocType, prose: str, body: str, report: Re
             f"capped at {structure.max_chars} (the table at {structure.max_rows} rows)",
         )
 
-    header, rows, malformed = parse_table(prose, structure)
-    if tuple(header) != structure.columns:
+    header, rows, malformed = parse_table(prose, structure.table_in)
+    if not structure.accepts(header):
         report.error(
             path,
             f"the table under '## {structure.table_in}' must have exactly the columns "
@@ -757,9 +461,7 @@ def check_structure(path: Path, spec: DocType, prose: str, body: str, report: Re
         else:
             keys[key.lower()] = key
         if len(definition) > structure.max_cell:
-            report.error(
-                path, f"'{key}' definition is {len(definition)} chars -- one line, max {structure.max_cell}"
-            )
+            report.error(path, f"'{key}' definition is {len(definition)} chars -- one line, max {structure.max_cell}")
     for row in rows:
         for column in structure.scanned_columns:
             for alias in cell_items(row[column]):
@@ -769,161 +471,6 @@ def check_structure(path: Path, spec: DocType, prose: str, body: str, report: Re
                         f"'{alias}' is listed under '{column}' but is also the term '{keys[alias.lower()]}' "
                         "-- a word is defined or ruled out, not both",
                     )
-
-
-# --- vocabulary ---------------------------------------------------------------------------------
-
-
-def read_terms(path: Path, spec: DocType) -> dict[str, list[str]]:
-    """A structured note's terms, each mapped to the aliases other notes are checked against.
-
-    Tolerant by design: a note whose table is malformed contributes nothing rather than raising,
-    because `check_structure` already reports the shape and one bad table must not disable the
-    vocabulary of every other.
-    """
-    structure = spec.structure
-    if structure is None:
-        return {}
-    meta, body, _, error = read_note(path)
-    if error is not None or meta is None or meta.get("type") != spec.name:
-        return {}
-    header, rows, _ = parse_table(body_without_code(body), structure)
-    if tuple(header) != structure.columns:
-        return {}
-    terms: dict[str, list[str]] = {}
-    for row in rows:
-        key = cell_text(row[structure.key_column])
-        if key:
-            terms[key] = [alias for column in structure.scanned_columns for alias in cell_items(row[column])]
-    return terms
-
-
-@dataclass
-class Vocabulary:
-    """The terms in force under each directory that holds a structured, fixed-name note.
-
-    Resolution is by containment rather than by exact directory, so a note deep in the tree
-    inherits every nomenclature note above it. `additive` is what makes merging them safe: no two
-    nomenclature notes in one chain may define the same term, so the merge cannot depend on order.
-    """
-
-    by_dir: dict[Path, dict[str, list[str]]] = field(default_factory=dict)
-
-    def aliases_for(self, path: Path) -> dict[str, str]:
-        """Every banned alias in force for a note, mapped to the term to use instead."""
-        banned: dict[str, str] = {}
-        for directory in sorted(self.by_dir, key=lambda d: len(d.parts)):
-            if not path.parent.is_relative_to(directory):
-                continue
-            for term, aliases in self.by_dir[directory].items():
-                for alias in aliases:
-                    banned[alias.lower()] = term
-        return banned
-
-
-def vocabulary_sources(docs_root: Path, spec: DocType, targets: list[Path], sweep: bool) -> list[Path]:
-    """The notes of a vocabulary type this run needs: all of them in a sweep, otherwise the ones
-    on each target's ancestor chain -- the only ones whose terms bind it, and the only ones a
-    nested target can collide with. A targeted run therefore walks no further than its own path.
-    """
-    assert spec.fixed_name is not None
-    if sweep:
-        return [path for path in targets if path.name == spec.fixed_name]
-    found: set[Path] = set()
-    for target in targets:
-        for directory in (target.parent, *target.parent.parents):
-            if not directory.is_relative_to(docs_root):
-                break
-            candidate = directory / spec.fixed_name
-            if exists_exact(docs_root, candidate):
-                found.add(candidate)
-    return sorted(found)
-
-
-def build_vocabulary(
-    docs_root: Path, registry: Registry, report: Report, targets: list[Path], sweep: bool
-) -> Vocabulary:
-    """Collect the vocabulary notes' terms, reporting collisions down each chain.
-
-    A nested note redefining an ancestor's term is an error: the point of the file is that one word
-    has one meaning, and a repo where the meaning depends on which directory you are reading from
-    has reintroduced exactly the ambiguity the vocabulary exists to remove. Reported on the nested
-    note, and only when this run named it.
-    """
-    vocabulary = Vocabulary()
-    in_scope = None if sweep else set(targets)
-    for spec in registry.enabled.values():
-        if not spec.is_vocabulary_source:
-            continue
-        notes = {path: read_terms(path, spec) for path in vocabulary_sources(docs_root, spec, targets, sweep)}
-        for path, terms in notes.items():
-            vocabulary.by_dir[path.parent] = terms
-            if not spec.additive or (in_scope is not None and path not in in_scope):
-                continue
-            for other, ancestor_terms in notes.items():
-                if other.parent == path.parent or not path.parent.is_relative_to(other.parent):
-                    continue
-                above = {term.lower() for term in ancestor_terms}
-                for term in sorted(terms):
-                    if term.lower() in above:
-                        report.error(
-                            path,
-                            f"'{term}' is already defined by {rel_to(other, docs_root)} -- a "
-                            f"nested '{spec.name}' note adds terms, it never redefines them",
-                        )
-    return vocabulary
-
-
-def alias_re(alias: str) -> re.Pattern[str]:
-    """A whole-word match for an alias, robust to aliases that start or end in a non-word character.
-
-    `\\b` misbehaves there: `\\b.env\\b` needs a word character right before the dot, so `.env` at
-    the start of a sentence never matches, and `C++` can never end at a word boundary. Lookarounds
-    ask the right question -- not touching a word character on either side -- for every alias. An
-    alias whose edge is itself punctuation must also not touch a repeat of that character, so
-    `C+++` and `..env` are not sightings of `C++` and `.env`.
-
-    A multi-word alias matches across whatever whitespace one paragraph wraps it with -- spaces,
-    tabs, at most one line break -- and never across a paragraph break. Trees wrap prose at a
-    column, and an alias split by the wrap is the same alias.
-    """
-
-    def edge(char: str) -> str:
-        return r"\w" if re.match(r"\w", char) else rf"\w{re.escape(char)}"
-
-    words = r"(?:[ \t]+\n?[ \t]*|\n[ \t]*)".join(re.escape(word) for word in alias.split())
-    return re.compile(rf"(?<![{edge(alias[0])}]){words}(?![{edge(alias[-1])}])", re.IGNORECASE)
-
-
-def check_vocabulary(
-    path: Path, spec: DocType, meta: Meta, scan: str, vocabulary: Vocabulary, report: Report
-) -> None:
-    """Prose uses the vocabulary's terms rather than the aliases it rules out.
-
-    A warning, not an error: the scan is a word match and cannot see intent, and a false positive
-    that blocks a commit would be worse than the drift it catches.
-
-    The frontmatter `summary` is scanned with the body: it is the one line every session reads.
-    `scan` is the body with its comments, fenced blocks and code spans already removed: comments
-    are notes to the author, and a banned alias is routinely the literal name of a field or an
-    API, with backticks the way you say so. Two exemptions, both structural. An append-only type
-    is skipped because its wording cannot lawfully be corrected. A vocabulary note is skipped
-    because the aliases are its content.
-    """
-    if spec.append_only or spec.is_vocabulary_source:
-        return
-    banned = vocabulary.aliases_for(path)
-    if not banned:
-        return
-    summary = meta.get("summary")
-    text = f"{summary}\n\n{scan}" if isinstance(summary, str) else scan
-    for alias in sorted(banned):
-        if alias_re(alias).search(text):
-            report.warn(
-                path,
-                f"'{alias}' is an alias the vocabulary rules out -- use "
-                f"'{banned[alias]}' instead, or put it in backticks if it is a literal name",
-            )
 
 
 # --- per-note and tree-wide ----------------------------------------------------------------------
@@ -952,7 +499,7 @@ def check_doc(path: Path, scope: Scope, report: Report) -> None:
     # spans, which quote a name rather than use it. The raw body still measures the size cap.
     plain = strip_comments(body)
     prose = body_without_code(plain)
-    scan = INLINE_CODE_RE.sub("", prose)
+    scan = without_code_spans(prose)
     check_title(path, spec, plain, report)
     if spec is not None:
         assert meta is not None  # a resolved type came from parsed frontmatter
@@ -971,7 +518,7 @@ def check_required_notes(
     it never opened. A sweep reports it, and so does a run that names the missing file itself.
     """
     for spec in registry.root_notes:
-        target = docs_root / spec.fixed_name
+        target = spec.fixed_path(docs_root)
         if exists_exact(repo_root, target):
             continue
         if in_scope is not None and not any(p.name == spec.fixed_name for p in in_scope):
@@ -983,9 +530,7 @@ def check_required_notes(
         )
 
 
-def check_numbering(
-    docs_root: Path, registry: Registry, report: Report, in_scope: set[Path] | None
-) -> None:
+def check_numbering(docs_root: Path, registry: Registry, report: Report, in_scope: set[Path] | None) -> None:
     """Within each numbered type's folder, numbers are unique.
 
     `in_scope` limits which collisions are reported: a run that touched one reference doc should
@@ -1062,7 +607,9 @@ def run(
         scope.vocabulary = build_vocabulary(docs_root, registry, report, to_check, sweep)
     for path in to_check:
         if classify(path, docs_root, settings) == FORBIDDEN:
-            report.error(path, f"{path.name} does not belong under {docs_root.name}/ -- {settings.forbidden_reason(path)}")
+            report.error(
+                path, f"{path.name} does not belong under {docs_root.name}/ -- {settings.forbidden_reason(path)}"
+            )
         else:
             check_doc(path, scope, report)
 
@@ -1080,9 +627,7 @@ def main(argv: list[str]) -> int:
         description="Validate notes against the registry. Exits 1 on any error; warnings never fail.",
     )
     parser.add_argument("paths", nargs="*", type=Path, help="notes to check")
-    parser.add_argument(
-        "--all", action="store_true", help="sweep every note under the docs root (what CI runs)"
-    )
+    parser.add_argument("--all", action="store_true", help="sweep every note under the docs root (what CI runs)")
     parser.add_argument(
         "--range",
         help="git range whose notes count as edited, e.g. main..HEAD (default: the working tree; "

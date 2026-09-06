@@ -32,6 +32,7 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .config import load_registry
@@ -51,9 +52,6 @@ from .settings import SETTINGS, Settings
 SITE_FILES = ("conf.py", "mkdocs.yml", "_config.yml", "book.toml")
 SITE_GLOBS = ("docusaurus.config.*",)
 
-# Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
-# virtualenv. A permission for the bare name alone never matches the two forms a session actually
-# uses when the package is a project dependency, and a non-interactive session cannot ask.
 # What `init` writes into the marker. The one person who will ever open this file is about to add a
 # key to it, so the blast radius of doing that is stated where they will read it.
 MARKER_TEXT = """\
@@ -61,6 +59,9 @@ MARKER_TEXT = """\
 # Configuration arrives in a later release; until then any key here makes every doc-marshal command exit 2.
 """
 
+# Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
+# virtualenv. A permission for the bare name alone never matches the two forms a session actually
+# uses when the package is a project dependency, and a non-interactive session cannot ask.
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
 
 
@@ -147,7 +148,7 @@ def merge_import(root_file: Path, line: str) -> bool:
 
 def merge_permission(settings_path: Path) -> bool:
     """Add the Bash permissions to `.claude/settings.json`, creating it if needed. True when changed."""
-    data: dict = {}
+    data: dict[str, Any] = {}
     if settings_path.is_file():
         try:
             data = json.loads(settings_path.read_text(encoding="utf-8"))
@@ -169,7 +170,7 @@ def merge_permission(settings_path: Path) -> bool:
 def scaffold_nomenclature(target: Path, registry: Registry, repo_name: str) -> Path | None:
     """The root nomenclature note, if the registry has a root-required fixed-name type and it is absent."""
     for spec in registry.root_notes:
-        path = target / spec.fixed_name
+        path = spec.fixed_path(target)
         if path.exists():
             return None
         today = date.today().isoformat()
@@ -272,9 +273,8 @@ def main(argv: list[str]) -> int:
         (target / settings.index_name).write_text(render(state.notes), encoding="utf-8")
         written.append(f"{label}/{settings.index_name}  (generated -- {len(state.notes)} {plural(len(state.notes))})")
 
-    if args.claude_code:
-        if merge_permission(repo_root / ".claude" / "settings.json"):
-            written.append(f".claude/settings.json  (allowed {', '.join(PERMISSIONS)})")
+    if args.claude_code and merge_permission(repo_root / ".claude" / "settings.json"):
+        written.append(f".claude/settings.json  (allowed {', '.join(PERMISSIONS)})")
 
     if written:
         print("wrote:")

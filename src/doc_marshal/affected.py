@@ -43,12 +43,7 @@ from .paths import (
     rel_to,
     validate_range,
 )
-
-
-def workflow_command(level: str, path: Path, msg: str) -> str:
-    """One GitHub Actions workflow command, so a pull request shows the message on the file it
-    names. `%` and newlines are what the syntax reserves."""
-    return f"::{level} file={path.as_posix()}::{msg.replace('%', '%25').replace(chr(10), '%0A')}"
+from .report import workflow_command
 
 
 def matches(ref: str, changed: set[str]) -> list[str]:
@@ -75,9 +70,7 @@ class Finding:
     hits: list[str]
 
 
-def find_affected(
-    docs_root: Path, registry: Registry, changed: set[str]
-) -> tuple[list[Finding], list[str]]:
+def find_affected(docs_root: Path, registry: Registry, changed: set[str]) -> tuple[list[Finding], list[str]]:
     """Notes whose path anchors cover a changed path, and notes whose frontmatter could not be read.
     A URL in a field that also takes paths is not a path and matches nothing."""
     findings: list[Finding] = []
@@ -87,12 +80,7 @@ def find_affected(
         if error is not None or meta is None:
             unreadable.append(f"{note}: {error}")
             continue
-        refs = [
-            ref
-            for field in registry.path_fields
-            for ref in anchor_entries(meta, field)
-            if not is_url(ref)
-        ]
+        refs = [ref for field in registry.path_fields for ref in anchor_entries(meta, field) if not is_url(ref)]
         hits = sorted({hit for ref in refs for hit in matches(ref, changed)})
         if hits:
             doc_type = meta.get("type")
@@ -106,9 +94,7 @@ def main(argv: list[str]) -> int:
         description="Report the notes whose path anchors name something a change touched.",
     )
     source = parser.add_mutually_exclusive_group()
-    source.add_argument(
-        "--range", help="git range, e.g. main..HEAD (default: branch commits plus uncommitted work)"
-    )
+    source.add_argument("--range", help="git range, e.g. main..HEAD (default: branch commits plus uncommitted work)")
     source.add_argument("--paths", nargs="+", help="repo-relative paths to match, bypassing git")
     parser.add_argument("--format", choices=("text", "github"), default="text")
     parser.add_argument("--print-range", action="store_true", help="print the resolved git range and exit")
@@ -141,9 +127,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     if not registry.path_fields:
-        print(
-            "no anchor field resolves as a path, so no note can be affected by a change to one"
-        )
+        print("no anchor field resolves as a path, so no note can be affected by a change to one")
         return 0
 
     findings, unreadable = find_affected(docs_root, registry, changed)

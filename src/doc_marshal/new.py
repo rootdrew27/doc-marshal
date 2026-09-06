@@ -30,10 +30,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .check import Report, check_location, check_naming
+from .check import check_location, check_naming
 from .config import add_docs_root_option, resolve
 from .ontology import DocType, Registry
 from .paths import DocMarshalError, find_repo_root, rel_to
+from .report import Report
 from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR
 
 
@@ -89,13 +90,16 @@ def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None
         slug = Path(given).stem
         folder = spec.home(docs_root)
         number = next_number(folder)
-        return folder / f"{number}-{slug}{NOTE_SUFFIX}", f"{number}{NUMBER_TITLE_SEPARATOR}{title or title_from_slug(slug)}"
+        return (
+            folder / f"{number}-{slug}{NOTE_SUFFIX}",
+            f"{number}{NUMBER_TITLE_SEPARATOR}{title or title_from_slug(slug)}",
+        )
     if spec.fixed_name is not None:
         # The filename belongs to the type, so a directory is enough to say where it goes -- and
         # naming the file anyway is accepted rather than rejected on a technicality.
         path = Path(given)
         if path.name != spec.fixed_name:
-            path = path / spec.fixed_name
+            path = spec.fixed_path(path)
         target = path.resolve()
         return target, title or f"{title_from_slug(target.parent.name)} {spec.name}"
     path = Path(given)
@@ -146,14 +150,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--title", help="H1 text (default: derived from the filename)")
     for name, anchor in registry.anchor_fields.items():
         parser.add_argument(
-            anchor.flag, action="append", default=[], dest=f"anchor_{name}", metavar="ENTRY",
+            anchor.flag,
+            action="append",
+            default=[],
+            dest=f"anchor_{name}",
+            metavar="ENTRY",
             help=f"{name}: {anchor.contents} (repeatable)",
         )
     parser.add_argument(
         "--status",
         help="; ".join(
-            f"{t.name}: {' | '.join(t.birth_statuses)}"
-            + (f" (default {t.default_status})" if t.default_status else "")
+            f"{t.name}: {' | '.join(t.birth_statuses)}" + (f" (default {t.default_status})" if t.default_status else "")
             for t in types.values()
             if t.statuses
         ),
@@ -171,9 +178,7 @@ def main(argv: list[str]) -> int:
 
     target, title = resolve_target(spec, args.path, docs_root, args.title)
     if target.exists():
-        raise DocMarshalError(
-            f"already exists -- edit it rather than replacing it: {rel_to(target, repo_root)}"
-        )
+        raise DocMarshalError(f"already exists -- edit it rather than replacing it: {rel_to(target, repo_root)}")
 
     status = args.status or spec.default_status
     if spec.statuses:

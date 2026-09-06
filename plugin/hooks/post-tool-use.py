@@ -22,8 +22,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _engine
 
-# The validator's line prefixes are a contract with this hook (doc_marshal.check ERROR_PREFIX and
-# WARN_PREFIX). Selecting on them here rather than importing keeps the hook independent of
+# The validator's line prefixes are a contract with this hook (the `PREFIXES` dict in
+# doc_marshal.report). Selecting on them here rather than importing keeps the hook independent of
 # which installed engine it resolved, and of that engine's Python.
 PREFIXES = ("ERROR: ", "warn:  ")
 
