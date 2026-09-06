@@ -1,7 +1,8 @@
 # doc-marshal -- design spec
 
-**Status:** agreed, unbuilt. Written 2026-09-02 from a design session held in the repository the
-prototype was developed in.
+**Status:** built through 0.3; configuration (section 4) is designed and unbuilt. Written
+2026-09-02 from a design session held in the repository the prototype was developed in, and
+revised with each release since.
 
 **Provenance:** the tooling this project extracts was a working prototype that lived as a skill kit
 in a private application repository. Every rule below has been exercised against a real 30-note
@@ -9,8 +10,8 @@ documentation tree. This document records what the extraction decided, including
 reverse the prototype.
 
 This is a *spec* in the sense the ontology uses the word: it describes work before it is built,
-and its Validation section carries items that are not yet closed. It is not a reference. When
-the code exists and disagrees with this file, the code is right and this file is stale.
+and its Validation section carries items that are not yet closed. It is not a reference. Where
+the code and this file disagree, the code is right and this file is stale.
 
 ---
 
@@ -163,13 +164,15 @@ any type and is validated whenever present.
 
 ## 4. Configuration
 
-Everything in this section is designed now and **built in 0.2**. See §14.
+Everything in this section is designed now and **built in a later release**. See §14. Until
+then the marker holds no keys, and a marker carrying any key fails every command.
 
 ### 4.1 The marker file
 
 **`.doc-marshal.toml`, inside the docs root.** It does two jobs: it marks which directory is the
-docs root, and it holds the configuration. An empty file is valid TOML, so 0.1 writes it empty and
-0.2 fills it -- nothing is renamed between releases.
+docs root, and it holds the configuration. An empty file is valid TOML, so `init` writes it with a
+comment and no keys today, and the configuration release fills it -- nothing is renamed between
+releases.
 
 TOML is read with `tomllib`, standard library from 3.11, which is the floor this package sets.
 
@@ -263,15 +266,15 @@ the preset's types furniture nobody can move.
 
 ```toml
 [rules]
-em_dash = false
 filename_pattern = "^[a-z0-9-]+$"
 summary_max = 300
 forbidden_names = []
 exclude = ["docs/legacy/**"]
 ```
 
-Rule-level configuration exists, expressed as **values**, with disabling as a legal value -- the
-same shape as §4.4, so there is one idea to learn rather than two.
+Rule-level configuration exists, expressed as **values**, with disabling as a legal value (an
+empty `forbidden_names` disables that rule) -- the same shape as §4.4, so there is one idea to
+learn rather than two.
 
 `exclude` is the incremental-adoption mechanism: it quarantines *files* visibly rather than
 weakening a *rule* everywhere. Partial adoption already half-works, because `check` accepts a file
@@ -308,9 +311,10 @@ Rendering on demand makes that entire staleness class impossible.
 
 Two consequences:
 
-- **User-declared types supply their own prose.** `serves`/`voice`/`mutability` inline; a
-  `description_file` key for anything longer, because multi-paragraph markdown inside a TOML
-  string is miserable to author and to diff.
+- **User-declared types supply their own prose.** `serves`/`voice`/`mutability` inline, and a
+  `description` string for the longer argument. The loader may later take a `description_file`
+  key instead, because multi-paragraph markdown inside a TOML string is miserable to author and
+  to diff; today only `description` exists.
 - **Humans need it on the web.** A reviewer on a pull request cannot run the CLI, and the
   conventions are the sales pitch. The canonical human rendering lives in the repository README
   and the project's docs site. `init` writes one small pointer file into the target repo -- a
@@ -334,7 +338,7 @@ installation paths.
 | --- | --- |
 | `check [paths...]` / `check --all` | validate the named notes, or sweep the tree; `--range` names the change for the freshness and lead checks; `--format github` annotates a pull request |
 | `index` | regenerate `INDEX.md`; `--check` reports staleness without writing |
-| `affected` | notes whose `repo-path` anchors name code a change touched; `--range`, `--paths`, `--format github` |
+| `affected` | notes whose path anchors -- the spine and every `docs-path` field -- name something a change touched; `--range`, `--paths`, `--format github` |
 | `new <type> <path>` | scaffold a note with its type's frontmatter and required sections; it does not validate, and the scaffold fails `check` until written |
 | `info` | the compact effective registry -- enabled types, one line each, with anchors |
 | `info <type>` | one type in full: argument, skeleton, facets, statuses |
@@ -391,9 +395,14 @@ doc-marshal/
     cli.py                         subcommand dispatch
     ontology.py                    DocType, Structure, Supersession; the standard preset
     settings.py                    the constants of Tier 3, behind one object (see §13)
-    config.py                      TOML loader, merged over a preset          [0.2]
+    config.py                      the registry in force; the TOML loader lands here later
     paths.py                       docs-root discovery, path classification, frontmatter
-    check.py index.py affected.py new.py info.py init.py doctor.py
+    check.py                       the validator: per-note and tree-wide rules, `run`, `main`
+    markdown.py                    reading markdown: fences, headings, sections, tables
+    report.py                      findings and the line prefixes the plugin hook selects on
+    anchors.py                     whether an anchor entry resolves by its field's kinds
+    vocabulary.py                  the terms in force for a note, and the alias scan
+    index.py affected.py new.py info.py init.py doctor.py
     session.py                     what a fresh session is given
     prose/
       rules.md                     rendered by `info --rules`
@@ -404,8 +413,13 @@ doc-marshal/
     skills/marshal-the-docs/SKILL.md ~20 lines, deferring to `info --process`
     hooks/hooks.json               PostToolUse validation, SessionStart injection
   .pre-commit-hooks.yaml
-  tests/
+  rendered/                        the preset's prose as `info` renders it, derived (see §5)
+  scripts/render_prose.py smoke.sh
 ```
+
+There is no `tests/` yet: CI runs `scripts/smoke.sh` end to end on each supported Python
+(decision 38). A suite on synthetic trees is still the plan, and the round-trip test (V2) is the
+first case it should hold.
 
 `DocType` is the **single internal representation**. The preset constructs it in Python -- keeping
 the dataclass docstrings, type checking, and cross-references like `Structure(max_cell=SUMMARY_MAX)`
@@ -634,7 +648,7 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 10 | Vendor-neutral `AGENTS.md`, `--claude-code` for `CLAUDE.md` plus permissions | Claude-only, abandoning most of the public audience |
 | 11 | pre-commit framework | the native hook, whose auto-staging is not worth the per-clone install step |
 | 12 | SemVer and pinning; minors may add checks | a warnings-then-errors rollout ceremony |
-| 13 | 0.1 is the extraction; config is 0.2 | building the configurable engine first |
+| 13 | 0.1 is the extraction; configuration follows the preset, in a later release | building the configurable engine first |
 | 14 | Commit-then-extract, fresh repo | `git subtree split`, which captures one of four source directories |
 | 15 | Index preview reduced to folder names and counts | full injection (uncapped), a byte cap, or a note-count threshold with degradation |
 | 16 | Uniform reduction, top level included | exempting top-level notes, reintroducing two renderings |

@@ -16,7 +16,7 @@ from .paths import DocMarshalError
 COMMANDS: dict[str, tuple[str, str]] = {
     "check": ("check", "validate the named notes, or --all to sweep the tree"),
     "index": ("index", "regenerate INDEX.md; --check reports staleness without writing"),
-    "affected": ("affected", "notes whose repo-path anchors name code a change touched"),
+    "affected": ("affected", "notes whose path anchors name something a change touched"),
     "new": ("new", "scaffold a note the validator will accept"),
     "info": ("info", "the effective registry; info <type>, --rules, --process"),
     "init": ("init", "mark a directory as the docs root and write the integration files"),
