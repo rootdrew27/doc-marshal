@@ -1,6 +1,6 @@
 """Render the standard preset's prose into `rendered/`, for readers without the CLI.
 
-The rules, the type arguments and the update-docs process live in the package and are
+The rules, the type arguments and the marshal-the-docs process live in the package and are
 rendered on demand by `doc-marshal info`, so a user's repository never holds a copy that can go
 stale. A reviewer on a pull request cannot run the CLI, though, so this repository keeps one
 rendering of the standard preset, derived from the same source at the same version. It is

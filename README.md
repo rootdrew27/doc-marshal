@@ -109,7 +109,7 @@ CI whenever main moves:
 
 - [rendered/rules.md](rendered/rules.md) -- every rule that is not per-type
 - [rendered/doc-types.md](rendered/doc-types.md) -- the five types, in full
-- [rendered/process.md](rendered/process.md) -- the update-docs process, staged
+- [rendered/process.md](rendered/process.md) -- the marshal-the-docs process, staged
 
 They are derived, never edited: the prose lives in `src/doc_marshal/prose/`.
 
@@ -171,7 +171,7 @@ the code, which by definition touches no documentation.
 The `plugin/` directory is a Claude Code plugin. Its value is two hooks no other harness provides:
 **PostToolUse** validation of each note the moment it is written, and **SessionStart** injection of
 the index preview (folder names and counts, nothing more), the root `NOMENCLATURE.md` as one line per
-term plus its prose sections, and the enabled types. It also carries a thin `update-docs` skill that defers to `doc-marshal info --process`.
+term plus its prose sections, and the enabled types. It also carries a thin `marshal-the-docs` skill for any write to the tree -- update, write from scratch, remove -- that defers to `doc-marshal info --process`.
 
 The plugin is an add-on to the package, not a second way to install it. Its hooks run the
 `doc-marshal` the project already has -- the project's virtualenv first, then PATH -- so the agent

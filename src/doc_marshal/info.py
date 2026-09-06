@@ -9,7 +9,7 @@ accurate than any stored file, and it always matches the installed version.
     doc-marshal info                  # compact: enabled types, one line each, with anchors
     doc-marshal info decision         # one type in full: argument, skeleton, facets, statuses
     doc-marshal info --rules          # the rules that are not per-type
-    doc-marshal info --process        # the update-docs process, staged
+    doc-marshal info --process        # the marshal-the-docs process, staged
     doc-marshal info --format json    # the registry as data, for third parties
     doc-marshal info --dump-toml      # the registry as the configuration schema of a later release
 """
@@ -310,7 +310,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("type", nargs="?", help="one type in full")
     parser.add_argument("--rules", action="store_true", help="every rule check enforces that is not per-type")
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
-    parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
+    parser.add_argument("--process", action="store_true", help="the marshal-the-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--dump-toml", action="store_true", help="the registry as the configuration schema of a later release")
     add_docs_root_option(parser)

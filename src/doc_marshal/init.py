@@ -102,7 +102,7 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
         "doc-marshal info                 # the note types and their anchors, one line each",
         "doc-marshal info <type>          # one type in full: what it serves, how it reads, its skeleton",
         "doc-marshal info --rules         # every rule for this tree",
-        "doc-marshal info --process       # how a finished code change is reflected in these docs",
+        "doc-marshal info --process       # how these docs are written: for a change, a subject, or a clean-up",
         "doc-marshal check <path>         # validates a note against the rules; --all sweeps the tree",
         "doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires",
         "doc-marshal affected             # the notes anchored to code a change touched",
@@ -295,7 +295,7 @@ def main(argv: list[str]) -> int:
         f"""
 next:
   doc-marshal check --all            # validates {label}/ ({__version__})
-  doc-marshal info --process         # how docs are updated after a code change
+  doc-marshal info --process         # how the docs are written, staged
 {reference}
   Pre-commit, in .pre-commit-config.yaml:
     - repo: https://github.com/rootdrew27/doc-marshal

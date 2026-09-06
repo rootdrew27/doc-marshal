@@ -12,3 +12,5 @@
 6. Handle mermaid diagrams.
 
 7. An optional `status` on `reference` and `runbook`, absent meaning `done`, for an interface still being defined or a deploy path still being built. Decided against on 2026-09-03: only `spec` carries the lifecycle for now, and a proposed reference is a spec by another name until a real tree shows otherwise.
+
+8. Split the plugin's one general skill, `marshal-the-docs`, into several specialized skills, each for one kind of write to the tree. How to split it is deferred until the general skill has run on real trees.

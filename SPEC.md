@@ -339,7 +339,7 @@ installation paths.
 | `info` | the compact effective registry -- enabled types, one line each, with anchors |
 | `info <type>` | one type in full: argument, skeleton, facets, statuses |
 | `info --rules` | every rule `check` enforces that is not per-type; the boundaries of those checks are §18 |
-| `info --process` | the update-docs process, staged |
+| `info --process` | the marshal-the-docs process, staged |
 | `info --types` | every enabled type in full, the preset's types document |
 | `info --format json` / `info --dump-toml` | the effective registry as data, and as the configuration schema |
 | `init [path] [--claude-code]` | mark a directory as the docs root and write the integration files; defaults to `docs/` |
@@ -401,7 +401,7 @@ doc-marshal/
       process.md                   rendered by `info --process`
   plugin/
     .claude-plugin/plugin.json
-    skills/update-docs/SKILL.md    ~20 lines, deferring to `info --process`
+    skills/marshal-the-docs/SKILL.md ~20 lines, deferring to `info --process`
     hooks/hooks.json               PostToolUse validation, SessionStart injection
   .pre-commit-hooks.yaml
   tests/
@@ -457,7 +457,10 @@ zero-install Claude Code tooling and no CI or pre-commit check, which is not the
 drift detector is for.
 
 **SKILL.md is thin** -- roughly twenty lines: a description good enough for skill matching, then
-an instruction to run `doc-marshal info --process` and follow it. The prototype's 274 lines of
+an instruction to run `doc-marshal info --process` and follow it. The skill is `marshal-the-docs`,
+and it covers every write to the tree -- a change to reflect, a subject to write up, notes to
+remove -- at any point in the work; the description says it is for the doc-marshal tree only, so a
+docstring or README edit does not load it (decision 63). The prototype's 274 lines of
 process prose move into the package, where they are versioned with the engine and shared with
 every other agent.
 
@@ -599,6 +602,10 @@ summary, skipping comments and following a wrap; `--range` validated as `A..B` o
 root or no engine. Git is required. A breaking change to what trees validate, so a minor bump;
 consumers pinned to `0.2.*` see none of it until they choose to.
 
+Also in 0.3: the rules document, stating only what `check` enforces (decisions 59-62), and the
+plugin skill renamed `marshal-the-docs`, with the process generalized to every write to the tree
+(decision 63).
+
 ### Later -- configuration
 
 The loader of §4, gated by the round-trip test. Brings with it `[rules]`, `exclude`, Tier 3, and
@@ -677,6 +684,7 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 60 | The boundaries of the parser and the checks are recorded in §18, not in the rules | boundary paragraphs inline in the rules, which read as rules and doubled the document's length |
 | 61 | The document, its flag, its renderer and its rendered copy are `rules`; the agent-memory files are "instructions to an agent, outside the rules"; renaming an attachment is governed by the anchors that name it, not by a prohibition | `conventions`, which reads as suggestion; "not documentation", which the tool did not mean; "never rename anything under `assets/`", which the tool does not hold |
 | 62 | The types document carries each type's registry facts, rendered from the same source as `info <type>`, and its prose is the unchecked argument for the type, said so once in the preamble | prose restating the registry per type, a second copy of every enforced fact that had already drifted on numbering and supersession |
+| 63 | The plugin skill is `marshal-the-docs`, and the process it defers to covers every write to the docs tree -- a change set, a subject with no change behind it, or anything else -- at any point in the work, with one gate (the plan) and deletion and renaming as ordinary actions the run takes itself | `update-docs`, which named the package's process after one of its uses and ran only after a finalized change; gates on renames, deletions and memory-file sections that held even in auto mode |
 
 ## 16. Carried in from the prototype review
 
@@ -714,7 +722,7 @@ Findings from reviewing the prototype, to be handled during extraction.
       with no engine installed, SessionStart says so once and PostToolUse stays silent.
 - [x] **V4** -- `doctor` reports a deliberate version mismatch between a repo pin and the installed
       engine.
-- [x] **V5** -- a real project runs a full `/update-docs` cycle against the extracted tool, with
+- [x] **V5** -- a real project runs a full `/update-docs` cycle (now `/marshal-the-docs`) against the extracted tool, with
       the thin SKILL.md, and the agent completes the process without the prose it used to carry.
       *(0.1; to be re-run once MakeRent migrates to the five-type preset.)*
 - [x] **V6** -- a fresh session's injected block is under 1000 characters on a 300-note tree.
