@@ -45,8 +45,7 @@ def render_types_table(registry: Registry) -> str:
         "| --- | --- | --- | --- | --- |",
     ]
     rows += [
-        f"| `{spec.name}` | {spec.serves} | {spec.voice} | {spec.mutability} | "
-        f"{describe_requires(spec, code=True)} |"
+        f"| `{spec.name}` | {spec.serves} | {spec.voice} | {spec.mutability} | {describe_requires(spec, code=True)} |"
         for spec in registry.enabled.values()
     ]
     return "\n".join(rows)
@@ -70,9 +69,7 @@ def render_anchor_table(registry: Registry) -> str:
     rows = ["| Field | Contents | Resolves as | Required for |", "| --- | --- | --- | --- |"]
     for name, anchor in registry.anchor_fields.items():
         required = ", ".join(f"`{t}`" for t in registry.required_by(name)) or "no type"
-        rows.append(
-            f"| `{name}` | {anchor.contents} | {', '.join(f'`{k}`' for k in anchor.resolves)} | {required} |"
-        )
+        rows.append(f"| `{name}` | {anchor.contents} | {', '.join(f'`{k}`' for k in anchor.resolves)} | {required} |")
     return "\n".join(rows)
 
 
@@ -103,8 +100,10 @@ def render_compact(registry: Registry) -> str:
     width = max((len(n) for n in types), default=4)
     serves_width = max((len(s.serves) for s in types.values()), default=6)
     lines: list[str] = [
-        f"doc-marshal {__version__} -- preset '{registry.preset}': {len(types)} types, "
-        f"{len(registry.anchor_fields)} anchor fields",
+        (
+            f"doc-marshal {__version__} -- preset '{registry.preset}': {len(types)} types, "
+            f"{len(registry.anchor_fields)} anchor fields"
+        ),
         "",
     ]
     for spec in types.values():
@@ -131,9 +130,11 @@ def render_session_types(registry: Registry) -> str:
     types = registry.enabled
     width = max((len(n) for n in types), default=4)
     lines = [
-        "Note types (`doc-marshal info <type>` for the argument; `doc-marshal info --process` before "
-        "editing docs). Scaffold a new note with `doc-marshal new <type> <path>`: it writes the "
-        "sections the type requires."
+        (
+            "Note types (`doc-marshal info <type>` for the argument; `doc-marshal info --process` before "
+            "editing docs). Scaffold a new note with `doc-marshal new <type> <path>`: it writes the "
+            "sections the type requires."
+        )
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {describe_requires(spec)}")
@@ -171,7 +172,9 @@ def type_facts(registry: Registry, spec: DocType) -> list[tuple[str, str]]:
     facts.append(("frontmatter", ", ".join(f"`{k}`" for k in registry.frontmatter_keys(spec)) + " -- no other key"))
     if spec.statuses:
         default = f"; `new` writes {spec.default_status} when --status is omitted" if spec.default_status else ""
-        born = f"; born {' | '.join(spec.birth_statuses)}, never {spec.supersession.status}" if spec.supersession else ""
+        born = (
+            f"; born {' | '.join(spec.birth_statuses)}, never {spec.supersession.status}" if spec.supersession else ""
+        )
         facts.append(("status", " | ".join(spec.statuses) + " -- required in the note" + default + born))
     if spec.folder:
         facts.append(("folder", f"{spec.folder}/ at the docs root"))
@@ -185,21 +188,35 @@ def type_facts(registry: Registry, spec: DocType) -> list[tuple[str, str]]:
         facts.append(("editing", "append-only -- never edited after acceptance"))
     if spec.supersession:
         s = spec.supersession
-        facts.append(("supersession", f"`{s.forward}` / `{s.back}` name the other note; status `{s.status}` requires `{s.back}`"))
+        facts.append(
+            ("supersession", f"`{s.forward}` / `{s.back}` name the other note; status `{s.status}` requires `{s.back}`")
+        )
     if spec.required_sections:
-        facts.append((
-            "sections",
-            ", ".join(f"## {s}" for s in spec.required_sections)
-            + " -- required, in this order, each with content; other sections allowed",
-        ))
+        facts.append(
+            (
+                "sections",
+                ", ".join(f"## {s}" for s in spec.required_sections)
+                + " -- required, in this order, each with content; other sections allowed",
+            )
+        )
     for section, status in spec.empty_at:
         facts.append(("must be empty", f"## {section} once status is {status} (the section itself is optional)"))
     facts.append(("title", "one H1, first" + (f", starting `NNNN{NUMBER_TITLE_SEPARATOR}`" if spec.numbered else "")))
     if spec.structure:
         st = spec.structure
         facts.append(("sections", ", ".join(f"## {s}" for s in st.sections) + " -- exactly, in order"))
-        facts.append(("table", f"under ## {st.table_in}, columns {' | '.join(st.columns)}; key `{st.key_column}`, scanned {', '.join(f'`{c}`' for c in st.scanned_columns)}"))
-        facts.append(("caps", f"{st.max_rows} rows, {st.max_cell} chars per {st.body_column.lower()}, {st.max_chars} chars of body outside the table"))
+        facts.append(
+            (
+                "table",
+                f"under ## {st.table_in}, columns {' | '.join(st.columns)}; key `{st.key_column}`, scanned {', '.join(f'`{c}`' for c in st.scanned_columns)}",
+            )
+        )
+        facts.append(
+            (
+                "caps",
+                f"{st.max_rows} rows, {st.max_cell} chars per {st.body_column.lower()}, {st.max_chars} chars of body outside the table",
+            )
+        )
     return facts
 
 
@@ -312,7 +329,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
     parser.add_argument("--process", action="store_true", help="the marshal-the-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    parser.add_argument("--dump-toml", action="store_true", help="the registry as the configuration schema of a later release")
+    parser.add_argument(
+        "--dump-toml", action="store_true", help="the registry as the configuration schema of a later release"
+    )
     add_docs_root_option(parser)
     args = parser.parse_args(argv)
 

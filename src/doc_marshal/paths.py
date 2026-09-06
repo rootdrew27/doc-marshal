@@ -361,7 +361,21 @@ def validate_range(repo_root: Path, rev_range: str) -> None:
 
 # Directories no marker search descends into. A name-based prune, only for the non-git fallback:
 # inside a repository, `git ls-files` already honours .gitignore.
-_PRUNE = frozenset({".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".nox", "site-packages", ".mypy_cache", ".ruff_cache", ".pytest_cache"})
+_PRUNE = frozenset(
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".tox",
+        ".nox",
+        "site-packages",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+    }
+)
 _MAX_DEPTH = 6
 
 # Names a repository commonly gives its documentation. Consulted only to make the "no marker"
@@ -531,10 +545,10 @@ def _porcelain_paths(repo_root: Path) -> set[str] | None:
         if len(entry) < 4:
             continue
         code, path = entry[:2], entry[3:]
-        if "R" in code or "C" in code:  # rename/copy: the source follows as its own field
-            if index < len(fields):
-                paths.add(fields[index])
-                index += 1
+        # rename/copy: the source follows as its own field
+        if ("R" in code or "C" in code) and index < len(fields):
+            paths.add(fields[index])
+            index += 1
         paths.add(path)
     return paths
 
@@ -562,7 +576,9 @@ def _content_changes(repo_root: Path, rev_range: str | None, pathspec: Path | No
     with an edit is a delete and an add, and the add counts. Without a range the comparison is
     the working tree against HEAD, staged or not.
     """
-    lines = _git_lines(repo_root, "diff", "--name-status", "--find-renames=100%", rev_range or "HEAD", *_pathspec(pathspec))
+    lines = _git_lines(
+        repo_root, "diff", "--name-status", "--find-renames=100%", rev_range or "HEAD", *_pathspec(pathspec)
+    )
     if lines is None:
         return None
     changed: set[str] = set()
@@ -573,9 +589,7 @@ def _content_changes(repo_root: Path, rev_range: str | None, pathspec: Path | No
     return changed
 
 
-def edited_notes(
-    repo_root: Path, rev_range: str | None = None, pathspec: Path | None = None
-) -> set[Path] | None:
+def edited_notes(repo_root: Path, rev_range: str | None = None, pathspec: Path | None = None) -> set[Path] | None:
     """Absolute paths of notes the change touched, or None when git cannot say.
 
     Without a range this is the working tree, which is what a workstation run means by "edited".

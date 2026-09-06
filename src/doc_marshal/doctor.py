@@ -144,8 +144,8 @@ def main(argv: list[str]) -> int:
         if venv_entry is None:
             problems.append("no engine in the project's virtualenv or on PATH -- the plugin's hooks run nothing")
     else:
-        exe, version = path_entry
-        print(f"on PATH:   {exe} -- {version or 'version unknown'}")
+        path_exe, version = path_entry
+        print(f"on PATH:   {path_exe} -- {version or 'version unknown'}")
         if version and normalize(version) != __version__:
             problems.append(f"PATH resolves doc-marshal {version} but this run is {__version__}")
 

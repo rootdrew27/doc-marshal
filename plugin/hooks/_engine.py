@@ -47,9 +47,7 @@ def command() -> list[str] | None:
     return None
 
 
-def run(
-    *args: str, timeout: int = 25, prefix: list[str] | None = None
-) -> subprocess.CompletedProcess[str] | None:
+def run(*args: str, timeout: int = 25, prefix: list[str] | None = None) -> subprocess.CompletedProcess[str] | None:
     """Run the engine with `args` from the project directory. None when it could not run. A caller
     that already resolved the engine passes it as `prefix` rather than resolving it twice."""
     prefix = prefix or command()

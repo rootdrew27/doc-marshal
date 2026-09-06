@@ -27,7 +27,7 @@ Source = "https://github.com/rootdrew27/doc-marshal"
 doc-marshal = "doc_marshal.cli:main"
 
 [dependency-groups]
-dev = ["tomli-w>=1.0", "pytest>=8"]
+dev = ["tomli-w>=1.0", "pytest>=8", "ruff>=0.16", "mypy>=1.19"]
 
 [build-system]
 requires = ["hatchling"]
@@ -38,3 +38,26 @@ packages = ["src/doc_marshal"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/doc_marshal", "plugin", ".pre-commit-hooks.yaml", "README.md", "SPEC.md", "LICENSE"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "scripts", "plugin/hooks"]
+
+[tool.ruff.lint]
+# DTZ is left out on purpose: `updated` is the writer's local calendar day, so `date.today()` is
+# the right call and a timezone would be a lie about where the note was written.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "ISC", "RUF"]
+ignore = [
+    "E501",   # long lines are messages and docstrings; the formatter wraps the code
+    "RUF001", "RUF002", "RUF003",  # ambiguous-unicode: prose legitimately uses these
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["doc_marshal"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src", "scripts"]
+strict = true
+warn_unreachable = true
