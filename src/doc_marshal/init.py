@@ -6,7 +6,8 @@
 
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
-- the marker, `.doc-marshal.toml`, a comment and no keys -- location, not configuration, until 0.3;
+- the marker, `.doc-marshal.toml`, a comment and no keys -- location, not configuration, until a
+  later release reads it;
 - the root `nomenclature` note, because that type is `root_required` and `check --all` errors without it;
 - the generated index, so the tree validates from its first minute;
 - one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs root. It
@@ -57,7 +58,7 @@ SITE_GLOBS = ("docusaurus.config.*",)
 # key to it, so the blast radius of doing that is stated where they will read it.
 MARKER_TEXT = """\
 # doc-marshal docs root. The file marks the directory by existing.
-# Configuration arrives in 0.3; until then any key here makes every doc-marshal command exit 2.
+# Configuration arrives in a later release; until then any key here makes every doc-marshal command exit 2.
 """
 
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
@@ -100,10 +101,10 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
         "```bash",
         "doc-marshal info                 # the note types and their anchors, one line each",
         "doc-marshal info <type>          # one type in full: what it serves, how it reads, its skeleton",
-        "doc-marshal info --conventions   # every rule for this tree",
-        "doc-marshal info --process       # how a finished code change is reflected in these docs",
+        "doc-marshal info --rules         # every rule for this tree",
+        "doc-marshal info --process       # how these docs are written: for a change, a subject, or a clean-up",
         "doc-marshal check <path>         # validates a note against the rules; --all sweeps the tree",
-        "doc-marshal new <type> <path>    # scaffolds a note the validator accepts",
+        "doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires",
         "doc-marshal affected             # the notes anchored to code a change touched",
         f"doc-marshal index                # regenerates {index}",
         "```",
@@ -242,7 +243,7 @@ def main(argv: list[str]) -> int:
     marker = target / settings.marker_name
     if not marker.exists():
         marker.write_text(MARKER_TEXT, encoding="utf-8")
-        written.append(f"{label}/{settings.marker_name}  (the marker; holds no keys until 0.3)")
+        written.append(f"{label}/{settings.marker_name}  (the marker; holds no keys until configuration lands)")
     else:
         print(f"{label}/{settings.marker_name} already exists -- filling in whatever else is missing")
 
@@ -294,7 +295,7 @@ def main(argv: list[str]) -> int:
         f"""
 next:
   doc-marshal check --all            # validates {label}/ ({__version__})
-  doc-marshal info --process         # how docs are updated after a code change
+  doc-marshal info --process         # how the docs are written, staged
 {reference}
   Pre-commit, in .pre-commit-config.yaml:
     - repo: https://github.com/rootdrew27/doc-marshal

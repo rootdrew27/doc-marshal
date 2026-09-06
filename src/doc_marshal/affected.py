@@ -1,8 +1,9 @@
-"""`doc-marshal affected`: which notes a code change may have falsified.
+"""`doc-marshal affected`: which notes a change may have falsified.
 
-The drift spine -- every anchor field whose entries resolve as repo paths -- exists so that "which
-docs does this diff touch?" is a question with an answer. This command is that answer. Without it
-the rule is only a convention: every note declares its anchor and nobody ever reads it back.
+Every anchor field whose entries may be repository paths -- the drift spine of code paths, and
+the `docs-path` fields naming attachments and other notes -- exists so that "which docs does this
+diff touch?" is a question with an answer. This command is that answer. Without it the rule is
+only a convention: every note declares its anchor and nobody ever reads it back.
 
     doc-marshal affected                       # branch commits + uncommitted work
     doc-marshal affected --range main..HEAD    # an explicit range
@@ -13,7 +14,7 @@ the rule is only a convention: every note declares its anchor and nobody ever re
 `--print-range` exists so nothing else has to re-derive the change set by hand: it resolves the
 trunk, computes the merge-base and prints `<base>..HEAD`. It prints nothing on the trunk itself.
 
-A note matches when one of its spine entries is, contains, or lies under a changed path, so naming
+A note matches when one of its path entries is, contains, or lies under a changed path, so naming
 a directory anchors every file beneath it.
 
 Exit status is 0 whether or not anything matched: an affected note is a prompt to look, not a
@@ -30,13 +31,17 @@ from pathlib import Path, PurePosixPath
 from .config import add_docs_root_option, resolve
 from .ontology import Registry
 from .paths import (
+    DocMarshalError,
     anchor_entries,
     changed_paths,
     default_range,
     find_repo_root,
+    is_absolute_entry,
+    is_url,
     iter_notes,
     read_note,
     rel_to,
+    validate_range,
 )
 
 
@@ -73,7 +78,8 @@ class Finding:
 def find_affected(
     docs_root: Path, registry: Registry, changed: set[str]
 ) -> tuple[list[Finding], list[str]]:
-    """Notes whose spine anchors cover a changed path, and notes whose frontmatter could not be read."""
+    """Notes whose path anchors cover a changed path, and notes whose frontmatter could not be read.
+    A URL in a field that also takes paths is not a path and matches nothing."""
     findings: list[Finding] = []
     unreadable: list[str] = []
     for note in iter_notes(docs_root, registry.settings):
@@ -81,7 +87,12 @@ def find_affected(
         if error is not None or meta is None:
             unreadable.append(f"{note}: {error}")
             continue
-        refs = [ref for field in registry.spine for ref in anchor_entries(meta, field)]
+        refs = [
+            ref
+            for field in registry.path_fields
+            for ref in anchor_entries(meta, field)
+            if not is_url(ref)
+        ]
         hits = sorted({hit for ref in refs for hit in matches(ref, changed)})
         if hits:
             doc_type = meta.get("type")
@@ -92,7 +103,7 @@ def find_affected(
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="doc-marshal affected",
-        description="Report the notes whose repo-path anchors name code a change touched.",
+        description="Report the notes whose path anchors name something a change touched.",
     )
     source = parser.add_mutually_exclusive_group()
     source.add_argument(
@@ -107,6 +118,8 @@ def main(argv: list[str]) -> int:
 
     docs_root, registry = resolve(args.docs_root)
     repo_root = find_repo_root(docs_root)
+    if args.range:
+        validate_range(repo_root, args.range)
 
     if args.print_range:
         resolved = args.range or default_range(repo_root)
@@ -115,6 +128,11 @@ def main(argv: list[str]) -> int:
         return 0
 
     if args.paths:
+        # Anchors are written from the repo root, so only a repo-relative path can match one; an
+        # absolute path used to match nothing and report "no note affected" as if that were true.
+        absolute = [p for p in args.paths if is_absolute_entry(p)]
+        if absolute:
+            raise DocMarshalError(f"--paths must be repo-relative, as anchors are written: {', '.join(absolute)}")
         changed = {PurePosixPath(p).as_posix() for p in args.paths}
     else:
         changed = changed_paths(repo_root, args.range)
@@ -122,10 +140,9 @@ def main(argv: list[str]) -> int:
         print("no changed paths -- nothing to match against")
         return 0
 
-    if not registry.spine:
+    if not registry.path_fields:
         print(
-            "no anchor field resolves as a repo path, so nothing is on the drift spine and no note "
-            "can be affected by a code change"
+            "no anchor field resolves as a path, so no note can be affected by a change to one"
         )
         return 0
 
@@ -137,7 +154,7 @@ def main(argv: list[str]) -> int:
                 workflow_command(
                     "notice",
                     rel_to(f.note, repo_root),
-                    f"anchored to changed code ({', '.join(f.hits)}) -- confirm this {f.doc_type} note is still true",
+                    f"anchored to a changed path ({', '.join(f.hits)}) -- confirm this {f.doc_type} note is still true",
                 )
             )
     else:

@@ -9,7 +9,7 @@ question with an answer a script can give.
 
 It ships an opinionated five-type ontology, the `standard` preset. But the engine is the product:
 every rule it enforces is read off a registry rather than hardcoded per check, and an ontology you
-declare yourself (from 0.3) is held to exactly the same standard.
+declare yourself (in a later release) is held to exactly the same standard.
 
 ```bash
 pip install doc-marshal        # or: uv tool install doc-marshal
@@ -25,9 +25,10 @@ doc-marshal info               # the effective ruleset, for a human or an agent
 Zero runtime dependencies. Python 3.11 or later. Standard library only, so it also runs from a
 checkout: `python3 -m doc_marshal`.
 
-**Supported: Claude Code on macOS and Linux.** That is the combination the plugin's hooks, the
-root import line and the smoke test exercise. The CLI, pre-commit and CI paths run anywhere Python
-does, so Windows and other agents get those and nothing tested beyond them.
+**Supported: Claude Code on macOS and Linux, inside a git repository.** That is the combination
+the plugin's hooks, the root import line and the smoke test exercise. The CLI, pre-commit and CI
+paths run anywhere Python does, so Windows and other agents get those and nothing tested beyond
+them. Git is not optional: anchors must be tracked, and the change a run is scoped to is a diff.
 
 ## The idea
 
@@ -77,6 +78,13 @@ anchored once it is `done`; it is living at every status, and the validator warn
 spec is edited by a change that touched none of its code. `decision` is append-only and anchored by
 its own content. `nomenclature` is falsified by the words the repo uses, not by a path.
 
+Each type has the shape its reader needs, and the validator holds a note to it. Every note has one
+H1, first. A `decision` carries Context, Decision, Alternatives considered and Consequences; a
+`spec` carries Overview, Behavior and Validation, and may keep Open questions until it is `done`;
+a `runbook` carries Prerequisites and Steps. Required sections are present, in order, and written;
+other sections go anywhere. A `reference` takes the shape of its subject. `doc-marshal new` writes
+the spine, and the note passes once it is written.
+
 Two of them do more than hold prose:
 
 - **`decision`** notes live in `decisions/` as `NNNN-slug.md`, are never edited after acceptance,
@@ -89,19 +97,19 @@ Two of them do more than hold prose:
   three thousand characters of prose around them -- because every session pays for it.
 
 The full argument for each type is `doc-marshal info <type>`; the rules that are not per-type --
-naming, links, indexes, attachments, prose -- are `doc-marshal info --conventions`. They ship
-inside the package and are never copied into your repository, so they cannot drift from the
-version that enforces them.
+naming, frontmatter, links, the index, attachments, structure -- are `doc-marshal info --rules`.
+Every rule there is one `check` enforces. They ship inside the package and are never copied into
+your repository, so they cannot drift from the version that enforces them.
 
-## Reading the conventions without the CLI
+## Reading the rules without the CLI
 
 A reviewer on a pull request cannot run `doc-marshal info`, so this repository keeps one rendering
 of the standard preset, generated from the same source at the same version and committed back by
 CI whenever main moves:
 
-- [rendered/conventions.md](rendered/conventions.md) -- every rule that is not per-type
+- [rendered/rules.md](rendered/rules.md) -- every rule that is not per-type
 - [rendered/doc-types.md](rendered/doc-types.md) -- the five types, in full
-- [rendered/process.md](rendered/process.md) -- the update-docs process, staged
+- [rendered/process.md](rendered/process.md) -- the marshal-the-docs process, staged
 
 They are derived, never edited: the prose lives in `src/doc_marshal/prose/`.
 
@@ -111,13 +119,16 @@ Every rule is either an error or a warning, and there is no severity configurati
 mode, and **no inline suppression** -- that is the one absolute prohibition. A hundred scattered
 suppressions are unauditable; everything configurable lives in one file that review can see.
 
-Errors: frontmatter parses and carries `type`, `updated` and `summary`; `type` names a live type;
-required anchors are present and every anchor entry resolves by its kind, spelled exactly, to
-something strictly inside the repository; an edited note's `updated` is no earlier than the day the
-change began; a type's placement holds (folder, numbering, fixed filename); `status` is one the
-type allows; links resolve, including heading anchors; no wikilinks, no absolute links; a
-`nomenclature` note's exact shape and caps; no `README.md` in the tree; no misplaced attachment.
-Everything a script can judge on shape alone is an error.
+Errors: frontmatter parses and carries `type`, `updated` and `summary` and no key the type does
+not declare; `type` names a live type; required anchors are present and every anchor entry
+resolves by its kind, spelled exactly with no dot segments, to something strictly inside the
+repository and tracked by git; an edited note's `updated` is no earlier than the day the change
+began; one H1, first, numbered where the filename is; the type's required sections, present, in
+order and written; a type's placement holds (folder, numbering, fixed filename); `status` is one
+the type allows, and a note naming its replacement says so; links and images resolve, including
+exact heading anchors; no wikilinks, no absolute links; a `nomenclature` note's exact shape, caps
+and one row per term; no `README.md`, second index or misspelled `.md` in the tree; no misplaced
+attachment. Everything a script can judge on shape alone is an error.
 
 Warnings, the two rules that judge meaning: a `done` spec edited while none of its code was, and a
 word the vocabulary rules out.
@@ -137,7 +148,7 @@ Pre-commit, in `.pre-commit-config.yaml`:
 
 ```yaml
 - repo: https://github.com/rootdrew27/doc-marshal
-  rev: v0.2.0
+  rev: v0.3.0
   hooks:
     - id: doc-marshal-check
     - id: doc-marshal-index
@@ -149,10 +160,10 @@ the code, which by definition touches no documentation.
 ```yaml
 - uses: actions/checkout@v4
   with: { fetch-depth: 0 }
-- run: uvx doc-marshal==0.2.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
-- run: uvx doc-marshal==0.2.* index --check
+- run: uvx doc-marshal==0.3.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
+- run: uvx doc-marshal==0.3.* index --check
   continue-on-error: true
-- run: uvx doc-marshal==0.2.* affected --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
+- run: uvx doc-marshal==0.3.* affected --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
 ```
 
 ### The Claude Code plugin
@@ -160,7 +171,7 @@ the code, which by definition touches no documentation.
 The `plugin/` directory is a Claude Code plugin. Its value is two hooks no other harness provides:
 **PostToolUse** validation of each note the moment it is written, and **SessionStart** injection of
 the index preview (folder names and counts, nothing more), the root `NOMENCLATURE.md` as one line per
-term plus its prose sections, and the enabled types. It also carries a thin `update-docs` skill that defers to `doc-marshal info --process`.
+term plus its prose sections, and the enabled types. It also carries a thin `marshal-the-docs` skill for any write to the tree -- update, write from scratch, remove -- that defers to `doc-marshal info --process`.
 
 The plugin is an add-on to the package, not a second way to install it. Its hooks run the
 `doc-marshal` the project already has -- the project's virtualenv first, then PATH -- so the agent
@@ -182,10 +193,10 @@ That marker is how every command finds the docs root -- never by name. A reposit
 Sphinx `docs/` and a marshal tree elsewhere without ambiguity, and `init` warns when the target
 looks like a published site. Two markers in one repository is an error.
 
-From 0.3 the marker holds the configuration: `extends = "standard"`, per-type overrides,
-`enabled = false`, `[rules]`, `exclude`. `doc-marshal info --dump-toml` shows the schema today.
-Until then it holds no keys: `init` writes it with a comment saying so, and a marker carrying any
-key fails every command with exit 2. There is no escape hatch before the loader exists.
+In a later release the marker holds the configuration: `extends = "standard"`, per-type
+overrides, `enabled = false`, `[rules]`, `exclude`. `doc-marshal info --dump-toml` shows the
+schema today. Until then it holds no keys: `init` writes it with a comment saying so, and a marker
+carrying any key fails every command with exit 2. There is no escape hatch before the loader exists.
 
 ## Design
 

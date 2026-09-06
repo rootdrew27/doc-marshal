@@ -4,4 +4,4 @@ The design this package implements is recorded in SPEC.md at the repository root
 and that file disagree, the code is right and the file is stale.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

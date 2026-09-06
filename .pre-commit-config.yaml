@@ -1,4 +1,4 @@
-# Keeps rendered/ -- the standard preset's conventions, types and process as `doc-marshal info`
+# Keeps rendered/ -- the standard preset's rules, types and process as `doc-marshal info`
 # renders them -- in step with the prose and the registry they come from. CI regenerates and
 # commits it on push to main as the backstop (.github/workflows/render.yml).
 repos:

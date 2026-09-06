@@ -112,6 +112,7 @@ def main(argv: list[str]) -> int:
     except DocMarshalError as exc:
         _, repo_root, _ = cwd_repo()
         print(f"docs root: none -- {exc.args[0].splitlines()[0]}")
+        problems.append("no docs root resolves here, so nothing is being validated")
 
     # A docs-root CLAUDE.md is what `init --claude-code` writes, and it reaches a session only
     # through the import line in the root CLAUDE.md. A nested memory file with no import is loaded
@@ -140,6 +141,8 @@ def main(argv: list[str]) -> int:
     path_entry = on_path()
     if path_entry is None:
         print("on PATH:   none" + ("" if venv_entry else " (the plugin's hooks have nothing to run)"))
+        if venv_entry is None:
+            problems.append("no engine in the project's virtualenv or on PATH -- the plugin's hooks run nothing")
     else:
         exe, version = path_entry
         print(f"on PATH:   {exe} -- {version or 'version unknown'}")
@@ -163,7 +166,7 @@ def main(argv: list[str]) -> int:
     print()
     if problems:
         for problem in problems:
-            print(f"MISMATCH: {problem}")
+            print(f"PROBLEM: {problem}")
         return 1
     print("ok: every resolvable copy of the engine agrees")
     return 0

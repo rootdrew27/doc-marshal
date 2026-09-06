@@ -1,7 +1,7 @@
 # Hooks for the pre-commit framework (https://pre-commit.com). In a consuming repository:
 #
 #   - repo: https://github.com/rootdrew27/doc-marshal
-#     rev: v0.2.0
+#     rev: v0.3.0
 #     hooks:
 #       - id: doc-marshal-check
 #       - id: doc-marshal-index

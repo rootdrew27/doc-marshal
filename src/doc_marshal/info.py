@@ -2,16 +2,16 @@
 
 The convention's prose -- the rules, the argument for each type, the routing guidance -- ships
 inside the package and is obtained here. It is never copied into a user's repository: no emitted
-copy means no staleness check, no ownership boundary, and no question about whether a conventions
+copy means no staleness check, no ownership boundary, and no question about whether a rules
 file inside the docs root is itself a note. Output is filtered to enabled types, so it is more
 accurate than any stored file, and it always matches the installed version.
 
     doc-marshal info                  # compact: enabled types, one line each, with anchors
     doc-marshal info decision         # one type in full: argument, skeleton, facets, statuses
-    doc-marshal info --conventions    # the rules that are not per-type
-    doc-marshal info --process        # the update-docs process, staged
+    doc-marshal info --rules          # the rules that are not per-type
+    doc-marshal info --process        # the marshal-the-docs process, staged
     doc-marshal info --format json    # the registry as data, for third parties
-    doc-marshal info --dump-toml      # the registry as the 0.3 configuration schema
+    doc-marshal info --dump-toml      # the registry as the configuration schema of a later release
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from . import __version__
 from .config import add_docs_root_option, resolve
 from .ontology import STANDARD, DocType, Registry, to_dict, to_toml
 from .paths import DocMarshalError
+from .settings import NUMBER_TITLE_SEPARATOR
 
 PROSE = Path(__file__).resolve().parent / "prose"
 
@@ -131,7 +132,8 @@ def render_session_types(registry: Registry) -> str:
     width = max((len(n) for n in types), default=4)
     lines = [
         "Note types (`doc-marshal info <type>` for the argument; `doc-marshal info --process` before "
-        "editing docs):"
+        "editing docs). Scaffold a new note with `doc-marshal new <type> <path>`: it writes the "
+        "sections the type requires."
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {describe_requires(spec)}")
@@ -156,21 +158,21 @@ def type_sections(text: str) -> dict[str, str]:
     return sections
 
 
-def render_type(registry: Registry, name: str) -> str:
-    spec = registry.get(name)
-    if spec is None:
-        known = ", ".join(registry.enabled)
-        raise DocMarshalError(f"no enabled type named {name!r}; the registry has: {known}")
-    lines = [f"# `{spec.name}`", ""]
+def type_facts(registry: Registry, spec: DocType) -> list[tuple[str, str]]:
+    """What the registry says about a type, as (label, fact) pairs: everything `check` enforces
+    on a note of it. Rendered aligned by `info <type>` and as a list by the types document, so
+    the prose never restates a fact the registry owns."""
     facts: list[tuple[str, str]] = [
         ("serves", spec.serves),
         ("voice", spec.voice),
         ("mutability", spec.mutability),
         ("requires", describe_requires(spec)),
     ]
+    facts.append(("frontmatter", ", ".join(f"`{k}`" for k in registry.frontmatter_keys(spec)) + " -- no other key"))
     if spec.statuses:
-        default = f" (default {spec.default_status})" if spec.default_status else ""
-        facts.append(("status", " | ".join(spec.statuses) + default))
+        default = f"; `new` writes {spec.default_status} when --status is omitted" if spec.default_status else ""
+        born = f"; born {' | '.join(spec.birth_statuses)}, never {spec.supersession.status}" if spec.supersession else ""
+        facts.append(("status", " | ".join(spec.statuses) + " -- required in the note" + default + born))
     if spec.folder:
         facts.append(("folder", f"{spec.folder}/ at the docs root"))
     if spec.numbered:
@@ -184,11 +186,30 @@ def render_type(registry: Registry, name: str) -> str:
     if spec.supersession:
         s = spec.supersession
         facts.append(("supersession", f"`{s.forward}` / `{s.back}` name the other note; status `{s.status}` requires `{s.back}`"))
+    if spec.required_sections:
+        facts.append((
+            "sections",
+            ", ".join(f"## {s}" for s in spec.required_sections)
+            + " -- required, in this order, each with content; other sections allowed",
+        ))
+    for section, status in spec.empty_at:
+        facts.append(("must be empty", f"## {section} once status is {status} (the section itself is optional)"))
+    facts.append(("title", "one H1, first" + (f", starting `NNNN{NUMBER_TITLE_SEPARATOR}`" if spec.numbered else "")))
     if spec.structure:
         st = spec.structure
         facts.append(("sections", ", ".join(f"## {s}" for s in st.sections) + " -- exactly, in order"))
         facts.append(("table", f"under ## {st.table_in}, columns {' | '.join(st.columns)}; key `{st.key_column}`, scanned {', '.join(f'`{c}`' for c in st.scanned_columns)}"))
-        facts.append(("caps", f"{st.max_rows} rows, {st.max_cell} chars per {st.body_column.lower()}, {st.max_chars} chars per file"))
+        facts.append(("caps", f"{st.max_rows} rows, {st.max_cell} chars per {st.body_column.lower()}, {st.max_chars} chars of body outside the table"))
+    return facts
+
+
+def render_type(registry: Registry, name: str) -> str:
+    spec = registry.get(name)
+    if spec is None:
+        known = ", ".join(registry.enabled)
+        raise DocMarshalError(f"no enabled type named {name!r}; the registry has: {known}")
+    lines = [f"# `{spec.name}`", ""]
+    facts = type_facts(registry, spec)
     width = max(len(k) for k, _ in facts)
     lines += [f"{k.ljust(width)}  {v}" for k, v in facts]
     lines.append("")
@@ -205,9 +226,9 @@ def render_type(registry: Registry, name: str) -> str:
 # --- long-form prose ------------------------------------------------------------------------------
 
 
-def render_conventions(registry: Registry) -> str:
+def render_rules(registry: Registry) -> str:
     settings = registry.settings
-    text = prose("conventions.md")
+    text = prose("rules.md")
     substitutions = {
         "{{types_table}}": render_types_table(registry),
         "{{anchor_table}}": render_anchor_table(registry),
@@ -226,15 +247,25 @@ def render_conventions(registry: Registry) -> str:
 
 
 def render_doc_types(registry: Registry) -> str:
-    """The preamble of doc-types.md, the generated table, then only the enabled types' sections."""
+    """The preamble of doc-types.md, the generated table, then each enabled type: the registry's
+    facts as a list, followed by the type's argument from the prose."""
     text = prose("doc-types.md")
-    head, _, _ = text.partition("{{types_table}}")
+    head, _, tail = text.partition("{{types_table}}")
+    after, _, _ = tail.partition("\n## `")
     sections = type_sections(text)
-    out = [head.rstrip(), "", render_types_table(registry), ""]
+    out = [head.rstrip(), "", render_types_table(registry), "", after.strip(), ""]
     for spec in registry.enabled.values():
+        out += [f"## `{spec.name}`", ""]
+        # The table above already gives serves, voice and mutability.
+        out += [
+            f"- **{label}:** {fact}"
+            for label, fact in type_facts(registry, spec)
+            if label not in ("serves", "voice", "mutability")
+        ]
+        out.append("")
         body = sections.get(spec.name) or spec.description
         if body:
-            out += [f"## `{spec.name}`", "", body.rstrip(), ""]
+            out += [body.rstrip(), ""]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -277,11 +308,11 @@ def main(argv: list[str]) -> int:
         prog="doc-marshal info", description="Render the effective registry and the convention's prose."
     )
     parser.add_argument("type", nargs="?", help="one type in full")
-    parser.add_argument("--conventions", action="store_true", help="the rules that are not per-type")
+    parser.add_argument("--rules", action="store_true", help="every rule check enforces that is not per-type")
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
-    parser.add_argument("--process", action="store_true", help="the update-docs process, staged")
+    parser.add_argument("--process", action="store_true", help="the marshal-the-docs process, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    parser.add_argument("--dump-toml", action="store_true", help="the registry as the 0.3 configuration schema")
+    parser.add_argument("--dump-toml", action="store_true", help="the registry as the configuration schema of a later release")
     add_docs_root_option(parser)
     args = parser.parse_args(argv)
 
@@ -292,8 +323,8 @@ def main(argv: list[str]) -> int:
         sys.stdout.write(render_json(registry))
     elif args.process:
         sys.stdout.write(render_process())
-    elif args.conventions:
-        sys.stdout.write(render_conventions(registry))
+    elif args.rules:
+        sys.stdout.write(render_rules(registry))
     elif args.types:
         sys.stdout.write(render_doc_types(registry))
     elif args.type:

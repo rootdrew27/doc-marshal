@@ -63,7 +63,7 @@ def main() -> int:
                     + "\n".join(findings)
                     + "\n\nERROR lines fail CI and must be fixed before this run reports done. "
                     "Fix them in this note only -- do not edit notes outside the change. "
-                    "`doc-marshal info --conventions` explains each rule."
+                    "`doc-marshal info --rules` explains each rule."
                 ),
             }
         },
