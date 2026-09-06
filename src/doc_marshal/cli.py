@@ -11,7 +11,7 @@ import importlib
 import sys
 
 from . import __version__
-from .paths import DocMarshalError
+from .errors import DocMarshalError
 
 COMMANDS: dict[str, tuple[str, str]] = {
     "check": ("check", "validate the named notes, or --all to sweep the tree"),

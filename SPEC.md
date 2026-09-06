@@ -396,12 +396,18 @@ doc-marshal/
     ontology.py                    DocType, Structure, Supersession; the standard preset
     settings.py                    the constants of Tier 3, behind one object (see §13)
     config.py                      the registry in force; the TOML loader lands here later
-    paths.py                       docs-root discovery, path classification, frontmatter
-    check.py                       the validator: per-note and tree-wide rules, `run`, `main`
+    errors.py                      DocMarshalError, the one exception the CLI turns into a message
+    paths.py                       path classification and the note set
+    frontmatter.py                 the frontmatter subset, parsed strictly; `read_note`
+    git.py                         `Git`, the port every git question goes through
+    discovery.py                   docs-root discovery: --docs-root, the environment, the marker
+    check.py                       the validator command: sorts targets, reads each note, runs the rules
+    note.py                        a note read once: frontmatter, live type, and the body's views
+    rules.py                       every rule as one pipeline: `NOTE_RULES`, `TREE_RULES`, `PLACEMENT_RULES`
     markdown.py                    reading markdown: fences, headings, sections, tables
     report.py                      findings and the line prefixes the plugin hook selects on
     anchors.py                     whether an anchor entry resolves by its field's kinds
-    vocabulary.py                  the terms in force for a note, and the alias scan
+    vocabulary.py                  the terms in force for a note, and the alias patterns
     index.py affected.py new.py info.py init.py doctor.py
     session.py                     what a fresh session is given
     prose/

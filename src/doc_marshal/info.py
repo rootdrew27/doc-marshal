@@ -24,8 +24,8 @@ from pathlib import Path
 
 from . import __version__
 from .config import add_docs_root_option, resolve
+from .errors import DocMarshalError
 from .ontology import STANDARD, DocType, Registry, to_dict, to_toml
-from .paths import DocMarshalError
 from .settings import NUMBER_TITLE_SEPARATOR
 
 PROSE = Path(__file__).resolve().parent / "prose"

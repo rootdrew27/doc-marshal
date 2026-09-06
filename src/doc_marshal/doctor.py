@@ -20,8 +20,10 @@ from pathlib import Path
 
 from . import __version__
 from .config import add_docs_root_option
+from .discovery import cwd_repo, find_docs_root, find_repo_root
+from .errors import DocMarshalError
 from .init import has_import, import_line
-from .paths import DocMarshalError, cwd_repo, find_docs_root, find_repo_root, rel_to
+from .paths import rel_to
 from .settings import SETTINGS
 
 VENV_DIRS = (".venv", "venv")

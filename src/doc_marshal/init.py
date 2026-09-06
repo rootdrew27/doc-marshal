@@ -36,17 +36,13 @@ from typing import Any
 
 from . import __version__
 from .config import load_registry
+from .discovery import cwd_repo, find_markers
+from .errors import DocMarshalError
+from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
 from .new import frontmatter_lines, render_note
 from .ontology import Registry
-from .paths import (
-    DocMarshalError,
-    cwd_repo,
-    find_markers,
-    iter_notes,
-    rel_to,
-    split_frontmatter,
-)
+from .paths import iter_notes, rel_to
 from .settings import SETTINGS, Settings
 
 SITE_FILES = ("conf.py", "mkdocs.yml", "_config.yml", "book.toml")

@@ -29,20 +29,12 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from .config import add_docs_root_option, resolve
+from .discovery import find_repo_root
+from .errors import DocMarshalError
+from .frontmatter import anchor_entries, read_note
+from .git import Git
 from .ontology import Registry
-from .paths import (
-    DocMarshalError,
-    anchor_entries,
-    changed_paths,
-    default_range,
-    find_repo_root,
-    is_absolute_entry,
-    is_url,
-    iter_notes,
-    read_note,
-    rel_to,
-    validate_range,
-)
+from .paths import is_absolute_entry, is_url, iter_notes, rel_to
 from .report import workflow_command
 
 
@@ -104,11 +96,12 @@ def main(argv: list[str]) -> int:
 
     docs_root, registry = resolve(args.docs_root)
     repo_root = find_repo_root(docs_root)
+    git = Git(repo_root)
     if args.range:
-        validate_range(repo_root, args.range)
+        git.validate_range(args.range)
 
     if args.print_range:
-        resolved = args.range or default_range(repo_root)
+        resolved = args.range or git.default_range()
         if resolved:
             print(resolved)
         return 0
@@ -121,7 +114,7 @@ def main(argv: list[str]) -> int:
             raise DocMarshalError(f"--paths must be repo-relative, as anchors are written: {', '.join(absolute)}")
         changed = {PurePosixPath(p).as_posix() for p in args.paths}
     else:
-        changed = changed_paths(repo_root, args.range)
+        changed = git.changed_paths(args.range)
     if not changed:
         print("no changed paths -- nothing to match against")
         return 0
