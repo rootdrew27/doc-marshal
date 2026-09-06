@@ -10,3 +10,9 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/doc_marshal/(prose/.*|ontology\.py|info\.py|settings\.py|__init__\.py)|scripts/render_prose\.py)$
+      - id: sync-version
+        name: version copies match __version__
+        entry: uv run python scripts/sync_version.py --check
+        language: system
+        pass_filenames: false
+        files: ^(src/doc_marshal/__init__\.py|plugin/\.claude-plugin/plugin\.json|README\.md|\.pre-commit-hooks\.yaml|scripts/sync_version\.py)$
