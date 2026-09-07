@@ -346,8 +346,9 @@ installation paths.
 | `info --process` | the marshal-the-docs process, staged |
 | `info --types` | every enabled type in full, the preset's types document |
 | `info --format json` / `info --dump-toml` | the effective registry as data, and as the configuration schema |
-| `init [path] [--claude-code]` | mark a directory as the docs root and write the integration files; defaults to `docs/` |
-| `doctor` | report the resolved engine version and flag a plugin/repo mismatch |
+| `init [path] [--claude-code] [--pre-commit] [--ci] [--pin X.Y.Z]` | mark a directory as the docs root and write the integration files; defaults to `docs/`; the two integration flags write the other enforcement points of §12 |
+| `doctor` | report every route to the engine and flag two facets naming different versions |
+| `upgrade <version>` | install that version and point every facet at it; `--pins`, `--dry-run` -- see §19 |
 | `session-context` | what a fresh session is given -- see §7 |
 
 `build_types` has no successor: its rendering moves inside `info`.
@@ -396,13 +397,21 @@ doc-marshal/
     ontology.py                    DocType, Structure, Supersession; the standard preset
     settings.py                    the constants of Tier 3, behind one object (see §13)
     config.py                      the registry in force; the TOML loader lands here later
-    paths.py                       docs-root discovery, path classification, frontmatter
-    check.py                       the validator: per-note and tree-wide rules, `run`, `main`
+    errors.py                      DocMarshalError, the one exception the CLI turns into a message
+    paths.py                       path classification and the note set
+    frontmatter.py                 the frontmatter subset, parsed strictly; `read_note`
+    git.py                         `Git`, the port every git question goes through
+    manager.py                     `Manager`, the port `upgrade` puts the install question to
+    integrate.py                   the four facets that name a version, read and written (§19)
+    discovery.py                   docs-root discovery: --docs-root, the environment, the marker
+    check.py                       the validator command: sorts targets, reads each note, runs the rules
+    note.py                        a note read once: frontmatter, live type, and the body's views
+    rules.py                       every rule as one pipeline: `NOTE_RULES`, `TREE_RULES`, `PLACEMENT_RULES`
     markdown.py                    reading markdown: fences, headings, sections, tables
     report.py                      findings and the line prefixes the plugin hook selects on
     anchors.py                     whether an anchor entry resolves by its field's kinds
-    vocabulary.py                  the terms in force for a note, and the alias scan
-    index.py affected.py new.py info.py init.py doctor.py
+    vocabulary.py                  the terms in force for a note, and the alias patterns
+    index.py affected.py new.py info.py init.py doctor.py upgrade.py
     session.py                     what a fresh session is given
     prose/
       rules.md                     rendered by `info --rules`
@@ -433,26 +442,53 @@ and that is discovered on day one rather than in a user's bug report. The same s
 
 ## 9. Dependency policy
 
-Runtime dependencies are permitted, and must pass three tests:
+*Revised 2026-09-06.* This section was never a zero-dependency policy, but "nothing passes today"
+held long enough to be read as one. Revisited on the decision to start taking dependencies, and
+the audit below is the substance of the revision: of every route to the engine, exactly one breaks.
 
-1. **Pure Python.** No compiled extensions.
+Runtime dependencies are permitted, and must pass four tests:
+
+1. **It installs with no compiler**, on every supported platform and Python -- pure Python, or a
+   universal wheel. Checked rather than asserted: the clean-environment wheel install runs on
+   macOS, Linux and Windows across 3.11-3.14, because what breaks this is a transitive dependency
+   rather than a direct one.
 2. **It must not replace a strictness boundary.**
-3. **It earns a decision record.**
+3. **It is not on the `check` import graph**, or is imported lazily so that it is not. `cli.py`
+   dispatches each verb through `importlib.import_module`, so a dependency is imported by the one
+   verb that needs it and never from `__init__.py` or `cli.py`. This is a cost the tree pays per
+   note rather than per session: PostToolUse runs the engine on every `Write` and `Edit`, and
+   pre-commit on every commit. A test asserts that a finished `check` leaves no third-party name
+   in `sys.modules`.
+4. **It earns a decision record.**
 
-**Nothing passes today.** The obvious candidate was replacing the hand-rolled frontmatter parser
-with PyYAML, and it fails test 2: the prototype's `parse_frontmatter` deliberately reads a
-*subset* -- scalars and dash lists -- and raises on anything richer, so a block the convention does
-not sanction fails loudly rather than validating as empty. PyYAML accepts nested maps, flow style,
-anchors, and the Norway problem where a bare `no` becomes `False`. The strictness is the
-convention, enforced at parse time. The same argument rules out a real markdown parser: the table
-and heading readers are strict subset readers, and `check_structure` depends on that.
+**Test 2 still blocks the obvious candidates.** Replacing the hand-rolled frontmatter parser with
+PyYAML fails it: `parse_frontmatter` deliberately reads a *subset* -- scalars and dash lists -- and
+raises on anything richer, so a block the convention does not sanction fails loudly rather than
+validating as empty. PyYAML accepts nested maps, flow style, anchors, and the Norway problem where
+a bare `no` becomes `False`. The strictness is the convention, enforced at parse time. The same
+argument rules out a real markdown parser: the table and heading readers are strict subset
+readers, and the structure rules depend on that. Whether test 2 survives contact with a dependency
+worth having is left to that dependency's decision record rather than settled here in the abstract.
 
 `tomli-w` is taken as a **development dependency** for the round-trip test.
 
-**Why pure-Python is load-bearing:** it keeps `python3 -m doc_marshal` working from a bare
-checkout, and keeps the install a single pure wheel with no build step on any platform -- which is
-what lets a pre-commit hook or a `uvx` call in CI resolve it in seconds. A single C extension
-ends that.
+**What a dependency does not break.** Every route to the engine but one resolves dependencies on
+its own: a project virtualenv, `uv run`, `uv tool install`, `uvx`, and pre-commit's
+`language: python`, which builds its own isolated environment from this file. The plugin's hooks
+run a resolved console script as a subprocess (section 10), so a dependency is resolved on the far
+side of a boundary the hook cannot see across, and no hook changes to permit one.
+
+**The one route it breaks** is `python3 -m doc_marshal` from a bare checkout. It was never a hook
+route -- the hooks look only for the console script -- so the cost falls on a human reading the
+README, and the replacement is better than what it replaces: `uvx doc-marshal` for someone who has
+installed nothing, and `uv run doc-marshal` from a checkout, which syncs the exact versions in
+`uv.lock`. `__main__.py` stays, and turns a missing dependency into one line naming the fix rather
+than a traceback. The README keeps its present wording until the first dependency actually lands,
+since until then it is still true.
+
+Because a route now resolves more than one thing, `doctor` reports the resolved engine's
+dependencies alongside its version. Two routes agreeing on the version and disagreeing on a
+dependency is the same class of problem as section 13's, and is invisible without it.
 
 ## 10. The Claude Code plugin
 
@@ -462,6 +498,14 @@ PATH -- so the agent validates against exactly the version the repository instal
 With no engine installed the hooks do nothing, except that SessionStart says so once in a project
 that has a docs root, since silence there would look like a clean tree. `doctor` reports what
 each route resolves and flags a mismatch.
+
+**The hooks are standard-library only, permanently, and independently of section 9.** They run on
+the user's ambient `python3` -- the one interpreter this project does not control -- so the
+dependency policy does not extend to them. Two boundaries hold the separation: a hook never
+imports `doc_marshal`, it runs the resolved console script as a subprocess; and it selects
+findings on the line prefixes `report.py` publishes rather than on an imported symbol, which keeps
+it independent of which engine it resolved and of that engine's Python. The smoke test exercises
+both, running each hook with `PATH` stripped to `/usr/bin:/bin`. *(2026-09-06.)*
 
 *Revised 2026-09-02.* An earlier draft vendored the engine into the plugin so that installing the
 plugin was the entire installation. Dropped: it presented the plugin as the product when the
@@ -627,6 +671,11 @@ the `[types.nomenclature.structure]` overrides for `max_rows` and `max_chars`. N
 marker and the SPEC say "a later release" rather than promise a version that may carry something
 else first.
 
+### Later -- setup and upgrade
+
+The integration flags on `init`, the CI pin in `doctor`, `upgrade`, and the corrected missing-engine
+message: §19. Unnumbered for the reason configuration is.
+
 ## 15. Decision log
 
 Each row is a decision taken in the design session, with the alternative it beat.
@@ -643,7 +692,7 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 5b | **No inline suppression.** The one absolute prohibition | per-line ignores, which are unauditable at scale |
 | 6 | Prose lives in the package, fetched by CLI | emitting it into the repo, with a staleness check and an ownership boundary |
 | 7 | Markdown-primary output; compact `info` injected at SessionStart | JSON-primary, which would force arguments into fields |
-| 8 | Dependency policy of three tests; nothing qualifies yet | zero-deps as dogma, or taking PyYAML because deps are allowed |
+| 8 | Dependency policy of four tests, with the hook layer exempt from it entirely | zero-deps as dogma, or taking PyYAML because deps are allowed |
 | 9 | `doc-marshal` for repo, package, module and CLI | `agent-docs` for everything -- PyPI rejects it as too similar to the existing `agentdocs` |
 | 10 | Vendor-neutral `AGENTS.md`, `--claude-code` for `CLAUDE.md` plus permissions | Claude-only, abandoning most of the public audience |
 | 11 | pre-commit framework | the native hook, whose auto-staging is not worth the per-clone install step |
@@ -699,6 +748,12 @@ Each row is a decision taken in the design session, with the alternative it beat
 | 61 | The document, its flag, its renderer and its rendered copy are `rules`; the agent-memory files are "instructions to an agent, outside the rules"; renaming an attachment is governed by the anchors that name it, not by a prohibition | `conventions`, which reads as suggestion; "not documentation", which the tool did not mean; "never rename anything under `assets/`", which the tool does not hold |
 | 62 | The types document carries each type's registry facts, rendered from the same source as `info <type>`, and its prose is the unchecked argument for the type, said so once in the preamble | prose restating the registry per type, a second copy of every enforced fact that had already drifted on numbering and supersession |
 | 63 | The plugin skill is `marshal-the-docs`, and the process it defers to covers every write to the docs tree -- a change set, a subject with no change behind it, or anything else -- at any point in the work, with one gate (the plan) and deletion and renaming as ordinary actions the run takes itself | `update-docs`, which named the package's process after one of its uses and ran only after a finalized change; gates on renames, deletions and memory-file sections that held even in auto mode |
+| 64 | Every facet that names a version names the same one, and an absent facet is legal | requiring all four, which fails a repository that skips CI against its own `doctor` and blocks setup entirely against an untagged engine |
+| 65 | `upgrade <version>` drives the install and re-execs the new engine to write the pins; `uv` driven, other managers detected, behind a port | reconciling pins after a manual install, which names the verb after work it does not do and leaves a window where pre-commit runs one engine while the agent validates against another |
+| 66 | Setup is a `uv` walkthrough in the README and `init --pre-commit --ci` in the engine; there is no setup skill | a bootstrap skill, designed, built and removed on 2026-09-07: with the integration flags, `doctor`'s four facets and `upgrade` in place, what remained for it was one install command wrapped in 74 lines that restated `init`'s own flags and would drift from them |
+| 67 | The four facets are read and written in one module, `integrate` | leaving the reader in `doctor` and the writer in `init`: two spellings of the same four files, drifting apart inside the tool whose subject is files drifting apart |
+| 68 | An untagged engine offers `init --pin X.Y.Z` rather than refusing: naming the version is the caller asserting the tag exists | refusing outright, which leaves a fork or a dev checkout unable to wire CI at all; and writing the running version anyway, which yields a `rev:` that fails on its first commit |
+| 69 | `doctor` reports a range in `pyproject.toml` as a problem, not just as a pin | accepting `>=`, which is what `uv add` writes by default and is the one facet that can move on the next resolve with nothing else moving with it |
 
 ## 16. Carried in from the prototype review
 
@@ -770,3 +825,111 @@ states only what is checked; this section is its complement.
   notes, not positions. Append-only on a `decision` is a convention the tool does not hold
   (decision 44). Vocabulary conformance in code is a review obligation: only the docs tree is
   scanned.
+
+## 19. Installation, setup and upgrade
+
+*Added 2026-09-07.* §9's audit found that dependencies were never blocked by installation, which
+leaves the question of what installation is for. This section answers it.
+
+### The version invariant
+
+**Every facet that names a version names the same one; a facet may be absent.** There are four:
+the project's environment, `pyproject.toml`, the pre-commit `rev:`, and the CI pin. Absence stays
+legal, because adopting the tree without pre-commit or CI is a supported thing to do and `repo
+pin: none` is not a problem. Disagreement is, and `doctor` already says why: an agent would
+validate against one version and CI against another.
+
+Three consequences, each easy to miss:
+
+- `repo_pins()` reads `.pre-commit-config.yaml` and `pyproject.toml`. It must learn the CI
+  workflow as well, or `--ci` writes a pin that nothing verifies.
+- `pyproject.toml` pins with `==`. A `~=` admits an environment the other facets do not, which is
+  exactly the mismatch the invariant exists to prevent.
+- An engine with no tag -- a branch, an editable checkout, a development version -- cannot satisfy
+  the pre-commit and CI facets at all. `init` writes the facets it can, and says which it skipped
+  and why, rather than writing a `rev:` that does not resolve. It reads the answer from PEP 610's
+  `direct_url.json`, which separates a distribution resolved from an index from one installed from
+  a path or a URL, and needs no network to do it. `init --pin X.Y.Z` writes them regardless, at a
+  version the caller names: naming it is the caller asserting the tag exists, which is the one
+  thing the engine cannot check offline.
+
+### `init` grows the integration flags
+
+`init --pre-commit --ci`. The wiring belongs to the engine rather than to a skill: it is versioned
+with the rules it wires, and it reaches the pre-commit, CI, Codex and Cursor users who never
+install the plugin.
+
+`--pre-commit` never parses YAML. Absent, it writes the file; present, it detects a doc-marshal
+entry by substring and prints the block to paste. Test 2 rules out a YAML reader, and the file
+belongs to the user in a way the others do not. `doctor` reports a pre-commit config that exists
+with the hook unwired.
+
+`--ci` writes GitHub Actions only, as `.github/workflows/docs.yml`, and skips with a note where
+there is no `.github/`. The workflow sets `fetch-depth: 0`: `affected` answers from a git diff,
+and the default shallow clone makes it answer *nothing* rather than fail -- a silent wrong answer
+from the tool whose whole subject is silent staleness, and the strongest argument for the engine
+owning this file instead of a README snippet. `--format github` already privileges GitHub Actions;
+the flag generalises to `--ci github|gitlab` later, the way `--agent` does in §11.
+
+### `upgrade`
+
+`doc-marshal upgrade <version>` drives the install, then re-execs the new engine to rewrite every
+pin, so the repository never sits in a state its own `doctor` fails. Rejected: reconciling the
+pins after a manual install, which leaves a window where pre-commit runs the old engine while the
+agent validates against the new one, and which names a verb after work it does not do.
+
+Only `uv` is driven. Other project managers are detected and handed the two steps to run. The
+driver sits behind a port, the way `git.py` is the port every git question goes through, so a
+second manager is additive rather than a rewrite.
+
+Two things the upgrade path has to say out loud: `pre-commit autoupdate` moves the `rev:` alone
+and breaks the invariant, so `upgrade` is the documented route; and a new engine may enforce rules
+the old one did not, so `check --all` is part of an upgrade rather than a surprise after it.
+
+### Setup is documented, not automated
+
+A bootstrap skill was designed, built and removed on 2026-09-07. The reversal is the useful part:
+**building the engine side first is what made the skill thin enough to delete.**
+
+The job was real. `init` cannot install the engine, because `init` has to be running in order to
+run, and that is the one thing nothing else here can do. But the four pieces above absorbed almost
+all of it: `init --pre-commit --ci` wires the enforcement points, `doctor` reads all four facets
+and exits 1 when two disagree, `upgrade` moves them together, and the corrected `MISSING_ENGINE`
+states the situation without handing out an install command. What was left was *read the version
+the repository already pins, then run one install command* -- against which the cost was 74 lines
+of prose, three times the `marshal-the-docs` skill it sat beside, restating `init`'s own flags in
+a file versioned apart from them. That is what decision 66 rejected a snippet-carrying skill to
+avoid, arrived at from the other direction.
+
+The remaining risk is that an agent asked to set this up improvises: installs the latest release
+rather than the pinned one, or installs into an environment the hooks cannot see. Both are real,
+and both are silent at the moment they happen. Neither is permanent -- `doctor` reports the first
+as a version mismatch and the second as no engine in the virtualenv -- so the cost is one
+recoverable wrong attempt rather than a tree that quietly is not validated. That is the trade this
+section takes, and `doctor` is what makes it affordable.
+
+**The README carries a `uv` walkthrough**: install the pinned version into the project's
+environment, `init` with the integration flags, `check --all`, `doctor`. Other project managers
+are supported and set up by hand, because everything after the install is identical -- nothing
+downstream cares which manager put the engine there.
+
+**Supported project managers are documented, not engineered around**: `uv` and pip/venv (`.venv`,
+`venv`), Poetry with `virtualenvs.in-project`, and anything on PATH. Poetry's default out-of-tree
+environment has a hashed name and no common path, so it is documented as *turn on in-project
+virtualenvs, or install to PATH* rather than probed for. A manager whose environment the hooks
+cannot see is the failure mode that looks most like success -- the engine installs, and the hooks
+still run nothing -- so it is named in the README rather than left to be discovered.
+
+**`MISSING_ENGINE` states the situation and forbids acting on it unasked.** SessionStart returns it
+as `additionalContext`, so it is read by an agent rather than printed to a human, and anything it
+says is a candidate instruction at the top of a session opened for unrelated work. It says what is
+missing, that the version to install is the one the repository already names rather than the latest
+release, and that this is context rather than a task. Its earlier advice -- `pip install
+doc-marshal` or `uv add --dev doc-marshal` -- is removed: in the restore case that is the one
+action guaranteed to break the invariant above.
+
+### Order
+
+The integration flags, the CI pin in `pins()`, `upgrade` and the corrected `MISSING_ENGINE` land
+together. Each is useful with no plugin installed at all, and building them first is what showed
+the skill was not worth its prose.

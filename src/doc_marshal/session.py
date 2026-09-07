@@ -23,18 +23,14 @@ import sys
 from pathlib import Path
 
 from .config import add_docs_root_option, load_registry
+from .discovery import find_docs_root, find_repo_root
+from .errors import DocMarshalError
+from .frontmatter import read_note
 from .index import index_state, render_preview
 from .info import render_session_types
 from .markdown import cell_items, cell_text, parse_table, sections, strip_comments
 from .ontology import DocType, Registry
-from .paths import (
-    DocMarshalError,
-    exists_exact,
-    find_docs_root,
-    find_repo_root,
-    read_note,
-    rel_to,
-)
+from .paths import exists_exact, rel_to
 
 REGENERATE = "doc-marshal index"
 

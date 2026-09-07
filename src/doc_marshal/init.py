@@ -3,6 +3,7 @@
     doc-marshal init                    # docs/
     doc-marshal init agent-docs         # any other directory
     doc-marshal init --claude-code      # CLAUDE.md instead of AGENTS.md, imported from the root
+    doc-marshal init --pre-commit --ci  # wire the commit and pull-request enforcement points
 
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
@@ -20,6 +21,12 @@ memory file on its own is loaded only once a session reads under that directory,
 line a session that never opens the docs never learns they exist. Other harnesses have no import
 syntax, so plain `init` prints the reference line for the root `AGENTS.md` and writes nothing there.
 
+`--pre-commit` and `--ci` write the other two enforcement points of section 12, at the version
+this engine is, rather than printing them for a human to paste at whichever version they read
+about. The wiring belongs to the engine because it is versioned with the rules it wires, and
+because it reaches the pre-commit, CI, Codex and Cursor users who never install the plugin. Both
+files are generated in `integrate`, which is also where `doctor` reads them back.
+
 It warns, rather than refusing, when the target looks like a published site or holds markdown
 without frontmatter: adopting the convention on an existing tree is a legitimate thing to do, and
 the marker makes the intent explicit.
@@ -36,17 +43,14 @@ from typing import Any
 
 from . import __version__
 from .config import load_registry
+from .discovery import cwd_repo, find_markers
+from .errors import DocMarshalError
+from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
+from .integrate import precommit_block, render_steps, writable, write_ci, write_precommit
 from .new import frontmatter_lines, render_note
 from .ontology import Registry
-from .paths import (
-    DocMarshalError,
-    cwd_repo,
-    find_markers,
-    iter_notes,
-    rel_to,
-    split_frontmatter,
-)
+from .paths import iter_notes, rel_to
 from .settings import SETTINGS, Settings
 
 SITE_FILES = ("conf.py", "mkdocs.yml", "_config.yml", "book.toml")
@@ -197,6 +201,18 @@ def main(argv: list[str]) -> int:
         help="write CLAUDE.md instead of AGENTS.md, import it from the root CLAUDE.md, and allow "
         "`doc-marshal` in .claude/settings.json",
     )
+    parser.add_argument(
+        "--pre-commit",
+        action="store_true",
+        help="write .pre-commit-config.yaml, or print the block to paste into the one that exists",
+    )
+    parser.add_argument("--ci", action="store_true", help="write .github/workflows/docs.yml, pinned to this version")
+    parser.add_argument(
+        "--pin",
+        metavar="X.Y.Z",
+        help="the version the integration files name, when it is not this engine's -- a dev "
+        "checkout has no tag for a `rev:` to resolve, so it names a released version instead",
+    )
     args = parser.parse_args(argv)
     settings = SETTINGS
 
@@ -276,12 +292,28 @@ def main(argv: list[str]) -> int:
     if args.claude_code and merge_permission(repo_root / ".claude" / "settings.json"):
         written.append(f".claude/settings.json  (allowed {', '.join(PERMISSIONS)})")
 
+    # One answer to "which version may these files name", shared by the writers below and by the
+    # advice printed further down: a version too unsafe to write is too unsafe to print as a
+    # snippet to paste, which is the same broken `rev:` arriving by hand instead.
+    notes: list[str] = []
+    pin = writable(args.pin)
+    for wanted, writer in ((args.pre_commit, write_precommit), (args.ci, write_ci)):
+        if not wanted:
+            continue
+        outcome = writer(repo_root, pin)
+        if outcome.written:
+            written.append(outcome.written)
+        if outcome.note:
+            notes.append(outcome.note)
+
     if written:
         print("wrote:")
         for line in written:
             print(f"  {line}")
-    else:
+    elif not notes:
         print(f"{label}/ is already initialised -- nothing to write")
+    for note in notes:
+        print(f"\n{note}")
 
     reference = (
         ""
@@ -291,24 +323,30 @@ def main(argv: list[str]) -> int:
     Documentation is a doc-marshal docs tree; {label}/{pointer_name} says what it is for.
 """
     )
+    # The two enforcement points the flags did not wire, so `init` alone still says what the rest
+    # of section 12 is. `--pre-commit` and `--ci` write these instead of printing them.
+    shown = pin or "X.Y.Z"
+    pending = ""
+    if not args.pre_commit:
+        pending += "\n  Pre-commit, in .pre-commit-config.yaml (or `init --pre-commit`):\n" + precommit_block(
+            shown, indent="    "
+        )
+    if not args.ci:
+        pending += (
+            "\n  CI, on every pull request (or `init --ci`). No paths: filter -- anchors break in\n"
+            "  the change that renames the code, which touches no documentation:\n" + render_steps(shown, indent="    ")
+        )
+    if pending and pin is None:
+        pending += (
+            "\n  X.Y.Z rather than a version: this engine did not come from a release, so the one it\n"
+            "  reports names no tag and no published wheel. Fill in a released version.\n"
+        )
     print(
         f"""
 next:
   doc-marshal check --all            # validates {label}/ ({__version__})
   doc-marshal info --process         # how the docs are written, staged
-{reference}
-  Pre-commit, in .pre-commit-config.yaml:
-    - repo: https://github.com/rootdrew27/doc-marshal
-      rev: v{__version__}
-      hooks:
-        - id: doc-marshal-check
-        - id: doc-marshal-index
-
-  CI, on every pull request (no paths: filter -- anchors break in the change that renames the code):
-    uvx doc-marshal=={__version__} check --all --format github
-    uvx doc-marshal=={__version__} index --check
-    uvx doc-marshal=={__version__} affected --range "${{{{ github.event.pull_request.base.sha }}}}..HEAD" --format github
-"""
+{reference}{pending}"""
     )
     return 0
 

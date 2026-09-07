@@ -15,8 +15,9 @@ import tomllib
 from pathlib import Path
 
 from . import __version__
+from .discovery import find_docs_root
+from .errors import DocMarshalError
 from .ontology import STANDARD, Registry
-from .paths import DocMarshalError, find_docs_root
 from .settings import SETTINGS, Settings
 
 

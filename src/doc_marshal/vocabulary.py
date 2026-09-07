@@ -1,9 +1,9 @@
-"""The vocabulary in force for a note, and the scan that holds prose to it.
+"""The vocabulary in force for a note.
 
 A structured, fixed-name type (`nomenclature` in the standard preset) defines terms and rules out
 aliases. This module reads those tables, resolves which of them bind a given note by directory
-containment, reports a nested note redefining an ancestor's term, and warns when prose uses an
-alias the vocabulary rules out.
+containment, reports a nested note redefining an ancestor's term, and compiles the alias
+patterns. The scan that holds prose to it is `check_vocabulary` in `rules`.
 """
 
 from __future__ import annotations
@@ -13,9 +13,10 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
+from .frontmatter import read_note
 from .markdown import body_without_code, cell_items, cell_text, parse_table
 from .ontology import DocType, Registry
-from .paths import Meta, exists_exact, read_note, rel_to
+from .paths import exists_exact, rel_to
 from .report import Report
 
 
@@ -140,32 +141,3 @@ def alias_re(alias: str) -> re.Pattern[str]:
 
     words = r"(?:[ \t]+\n?[ \t]*|\n[ \t]*)".join(re.escape(word) for word in alias.split())
     return re.compile(rf"(?<![{edge(alias[0])}]){words}(?![{edge(alias[-1])}])", re.IGNORECASE)
-
-
-def check_vocabulary(path: Path, spec: DocType, meta: Meta, scan: str, vocabulary: Vocabulary, report: Report) -> None:
-    """Prose uses the vocabulary's terms rather than the aliases it rules out.
-
-    A warning, not an error: the scan is a word match and cannot see intent, and a false positive
-    that blocks a commit would be worse than the drift it catches.
-
-    The frontmatter `summary` is scanned with the body: it is the one line every session reads.
-    `scan` is the body with its comments, fenced blocks and code spans already removed: comments
-    are notes to the author, and a banned alias is routinely the literal name of a field or an
-    API, with backticks the way you say so. Two exemptions, both structural. An append-only type
-    is skipped because its wording cannot lawfully be corrected. A vocabulary note is skipped
-    because the aliases are its content.
-    """
-    if spec.append_only or spec.is_vocabulary_source:
-        return
-    banned = vocabulary.aliases_for(path)
-    if not banned:
-        return
-    summary = meta.get("summary")
-    text = f"{summary}\n\n{scan}" if isinstance(summary, str) else scan
-    for alias in sorted(banned):
-        if alias_re(alias).search(text):
-            report.warn(
-                path,
-                f"'{alias}' is an alias the vocabulary rules out -- use "
-                f"'{banned[alias]}' instead, or put it in backticks if it is a literal name",
-            )
