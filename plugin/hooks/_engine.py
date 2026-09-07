@@ -24,11 +24,20 @@ VENV_DIRS = (".venv", "venv")
 _PRUNE = {".git", ".venv", "venv", "node_modules", "__pycache__", ".claude", ".github"}
 _MAX_DEPTH = 4
 
+# Returned as SessionStart `additionalContext`, so it is read by an agent rather than printed to a
+# human: anything it says arrives as a candidate instruction at the top of a session opened for
+# unrelated work. It states the situation and stops there. It deliberately carries no install
+# command -- which version belongs here is the repository's decision, and installing the latest
+# release is the one action guaranteed to put the engine out of step with the pins the repository
+# already holds (SPEC.md section 19).
 MISSING_ENGINE = (
     f"doc-marshal: this project has a docs root ({MARKER}) but no `doc-marshal` was found in "
     f"{' or '.join(f'{d}/bin' for d in VENV_DIRS)} (Scripts/ on Windows) or on PATH, so notes are not being validated as "
-    "they are written. Install it into the project (`pip install doc-marshal` or "
-    "`uv add --dev doc-marshal`); the hooks pick it up on the next session."
+    "they are written. This is context, not a task: do not install it unless the user asks. If they "
+    "do, the version to install is the one this repository already names -- the `rev:` in "
+    ".pre-commit-config.yaml, the pin in .github/workflows/, or the pyproject entry -- and not the "
+    "latest release, which would leave the engine disagreeing with every pin here. doc-marshal's "
+    "README has the steps. The hooks pick the engine up on the next session."
 )
 
 

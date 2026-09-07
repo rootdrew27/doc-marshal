@@ -75,6 +75,42 @@ doc-marshal init --claude-code | grep -q '@docs/CLAUDE.md'
 doc-marshal doctor
 (cd "$(mktemp -d)" && ! doc-marshal doctor)
 
+# The integration flags write the other two enforcement points. This engine came from a checkout,
+# so `v0.3.0` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
+version=$(doc-marshal --version | awk '{print $2}')
+doc-marshal init --pre-commit --ci | grep -q -- '--pin'
+test ! -f .pre-commit-config.yaml
+# The same applies to the blocks `init` prints for the points it did not wire: a version it cannot
+# vouch for is not printed as a snippet to paste either.
+doc-marshal init | grep -q 'rev: vX.Y.Z'
+mkdir -p .github
+doc-marshal init --pre-commit --ci --pin "$version"
+grep -q 'rev: v' .pre-commit-config.yaml
+grep -q 'fetch-depth: 0' .github/workflows/docs.yml
+grep -q 'doc-marshal==' .github/workflows/docs.yml
+# A config that already names doc-marshal is left alone rather than gaining a second entry.
+doc-marshal init --pre-commit --pin 0.3.0 | grep -q 'left alone'
+test "$(grep -c 'rev: v' .pre-commit-config.yaml)" = 1
+# doctor reads all three written facets, and a rev nothing else names is a problem.
+doc-marshal doctor | grep -q '\.pre-commit-config\.yaml pins'
+doc-marshal doctor | grep -q 'workflows/docs\.yml pins'
+sed -i.bak 's/rev: v.*/rev: v9.9.9/' .pre-commit-config.yaml && rm .pre-commit-config.yaml.bak
+! doc-marshal doctor
+doc-marshal doctor | grep -q 'DOES NOT MATCH'
+# upgrade moves every pin it wrote, and hands the install to the manager it does not drive.
+doc-marshal upgrade "$version" --pins | grep -q 'rev: v'
+doc-marshal doctor
+# A range in the dependency table is a problem even when it admits the running version: it is the
+# one facet that can move on the next resolve without anything else moving with it.
+printf '[project]\nname = "x"\ndependencies = ["doc-marshal>=0.3.0"]\n' > pyproject.toml
+! doc-marshal doctor
+doc-marshal doctor | grep -q 'a range'
+rm pyproject.toml
+doc-marshal upgrade 0.4.0 --dry-run | grep -q 'would install'
+doc-marshal upgrade 0.4.0 | grep -q -- '--pins'
+! doc-marshal upgrade 0.4 --pins
+git add -A
+
 # The plugin's hooks resolve the installed engine and report on a broken note.
 printf -- '---\ntype: decision\nstatus: bogus\nsummary: bad\n---\n# Bad\n' > docs/bad.md
 export CLAUDE_PROJECT_DIR="$repo" CLAUDE_PLUGIN_ROOT="$PLUGIN"
@@ -83,5 +119,10 @@ python3 "$PLUGIN/hooks/session-start.py" | grep -q 'Scaffold a new note'
 echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | python3 "$PLUGIN/hooks/post-tool-use.py" | grep -q "ERROR: docs/bad.md"
 # With no engine installed, SessionStart says so once and PostToolUse stays silent.
 test -n "$(PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py")"
+# It carries no install command and names no action: which version belongs here is the
+# repository's decision, and an agent reads this as context at the top of an unrelated session.
+PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'context, not a task'
+! PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'pip install'
+! PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'uv add'
 test -z "$(echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/post-tool-use.py")"
 echo "smoke: ok"

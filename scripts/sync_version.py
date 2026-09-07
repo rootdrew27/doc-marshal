@@ -1,10 +1,17 @@
 """Keep every copy of the version in step with `doc_marshal.__version__`.
 
 `__version__` is the one source: `pyproject.toml` reads it through hatch, so the wheel can never
-report a different version from the code. Three files carry a copy nothing derives -- the plugin
-manifest, the README's pre-commit and CI snippets, and the pre-commit hook file's comment -- and
-this script rewrites them from the source, or refuses a build when they disagree. Same pattern as
+report a different version from the code. Elsewhere the version is copied by hand -- the plugin
+manifest, the README's install commands, the pre-commit hook file's comment -- and this script
+rewrites those from the source, or refuses a build when they disagree. Same pattern as
 `render_prose.py`: derived, checked, never maintained by hand.
+
+The README's two integration snippets go further than a version copy: they are generated whole,
+from the same `integrate` functions `doc-marshal init --pre-commit --ci` writes files with. They
+are the same text for two audiences -- a repository that has a pre-commit config and a workflow,
+and one that does not -- so a reader who pastes one gets the block the engine would have written,
+and a flag added on one side cannot fail to appear on the other. Marked `<!-- generated: ... -->`
+in the README so the next person to edit them sees it.
 
     python scripts/sync_version.py            # rewrite the copies from __version__
     python scripts/sync_version.py --check    # exit 1 naming any copy that differs
@@ -15,7 +22,10 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
+
+from doc_marshal.integrate import precommit_block, render_steps
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "src" / "doc_marshal" / "__init__.py"
@@ -26,10 +36,19 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 # `rev:` lines and `==X.Y.*` pins may appear more than once in a file; every occurrence is a copy.
 COPIES: tuple[tuple[Path, re.Pattern[str], str], ...] = (
     (ROOT / "plugin" / ".claude-plugin" / "plugin.json", re.compile(r'("version": ")(\d+\.\d+\.\d+)(")'), "{v}"),
-    (ROOT / "README.md", re.compile(r"(rev: v)(\d+\.\d+\.\d+)()"), "{v}"),
-    (ROOT / "README.md", re.compile(r"(doc-marshal==)(\d+\.\d+)(\.\*)"), "{minor}"),
+    (ROOT / "README.md", re.compile(r"(doc-marshal==)(\d+\.\d+\.\d+)()"), "{v}"),
     (ROOT / ".pre-commit-hooks.yaml", re.compile(r"(rev: v)(\d+\.\d+\.\d+)()"), "{v}"),
 )
+
+
+# Each generated block: its marker in the README, and what the engine writes there. The `rev:` and
+# the `==X.Y.*` pins inside them need no `COPIES` entry -- they arrive with the block.
+README = ROOT / "README.md"
+BLOCKS: tuple[tuple[str, Callable[[str], str]], ...] = (
+    ("pre-commit", lambda version: precommit_block(version, indent="")),
+    ("ci", lambda version: render_steps(version, indent="")),
+)
+BLOCK = "(<!-- generated: {name} -->\n```yaml\n)(.*?)(```\n)"
 
 
 def source_version() -> str:
@@ -66,6 +85,28 @@ def sync(version: str, check: bool) -> list[str]:
     return stale
 
 
+def render_blocks(version: str, check: bool) -> list[str]:
+    """Rewrite the README's generated snippets from `integrate`, or with `check` report the ones
+    that differ. Each block is re-found in the current text, so an earlier rewrite cannot shift a
+    later block's offsets out from under it."""
+    text = README.read_text(encoding="utf-8")
+    stale: list[str] = []
+    for name, render in BLOCKS:
+        match = re.search(BLOCK.format(name=name), text, re.S)
+        if match is None:
+            stale.append(f"README.md: no `<!-- generated: {name} -->` block to write into")
+            continue
+        wanted = render(version)
+        if match.group(2) == wanted:
+            continue
+        stale.append(f"README.md: the {name} snippet is not what `doc-marshal init` writes")
+        text = text[: match.start(2)] + wanted + text[match.end(2) :]
+    if stale and not check:
+        README.write_text(text, encoding="utf-8")
+        print(f"wrote {README.relative_to(ROOT)}")
+    return stale
+
+
 def main(argv: list[str]) -> int:
     check = "--check" in argv
     if "--set" in argv:
@@ -80,10 +121,10 @@ def main(argv: list[str]) -> int:
         set_source(version)
         print(f"wrote {SOURCE.relative_to(ROOT)}")
     version = source_version()
-    stale = sync(version, check)
+    stale = sync(version, check) + render_blocks(version, check)
     if check and stale:
         print(
-            f"version copies disagree with __version__ = {version}:\n  "
+            f"derived copies disagree with the source (__version__ = {version}):\n  "
             + "\n  ".join(stale)
             + "\n-- run scripts/sync_version.py",
             file=sys.stderr,

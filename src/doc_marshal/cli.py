@@ -20,7 +20,8 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "new": ("new", "scaffold a note the validator will accept"),
     "info": ("info", "the effective registry; info <type>, --rules, --process"),
     "init": ("init", "mark a directory as the docs root and write the integration files"),
-    "doctor": ("doctor", "report the resolved engine version and flag a plugin/repo mismatch"),
+    "doctor": ("doctor", "report every route to the engine and flag two that name different versions"),
+    "upgrade": ("upgrade", "install a version and point every pin at it"),
     "session-context": ("session", "what a fresh session is given about the docs tree"),
 }
 

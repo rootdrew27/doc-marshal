@@ -15,4 +15,4 @@ repos:
         entry: uv run python scripts/sync_version.py --check
         language: system
         pass_filenames: false
-        files: ^(src/doc_marshal/__init__\.py|plugin/\.claude-plugin/plugin\.json|README\.md|\.pre-commit-hooks\.yaml|scripts/sync_version\.py)$
+        files: ^(src/doc_marshal/(__init__|integrate)\.py|plugin/\.claude-plugin/plugin\.json|README\.md|\.pre-commit-hooks\.yaml|scripts/sync_version\.py)$
