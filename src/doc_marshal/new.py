@@ -30,11 +30,15 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .check import check_location, check_naming
 from .config import add_docs_root_option, resolve
+from .discovery import find_repo_root
+from .errors import DocMarshalError
+from .git import Git
+from .note import Note
 from .ontology import DocType, Registry
-from .paths import DocMarshalError, find_repo_root, rel_to
+from .paths import rel_to
 from .report import Report
+from .rules import PLACEMENT_RULES, Scope
 from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR
 
 
@@ -116,8 +120,9 @@ def validate(target: Path, spec: DocType, docs_root: Path, repo_root: Path, regi
     if not target.is_relative_to(docs_root):
         raise DocMarshalError(f"a note must live under the docs root ({docs_root}): {target}")
     report = Report(root=repo_root)
-    check_naming(target, docs_root, registry, report)
-    check_location(target, spec, docs_root, registry, report)
+    note, scope = Note(target, meta={}, spec=spec), Scope(docs_root, registry, Git(repo_root))
+    for rule in PLACEMENT_RULES:
+        rule(note, scope, report)
     if report.findings:
         raise DocMarshalError("\n".join(msg for _, _, msg in report.findings))
 

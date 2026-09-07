@@ -15,6 +15,7 @@ declare yourself (in a later release) is held to exactly the same standard.
 pip install doc-marshal        # or: uv tool install doc-marshal
 doc-marshal init               # marks docs/ as the docs root; writes NOMENCLATURE.md, INDEX.md, AGENTS.md
 doc-marshal init --claude-code # CLAUDE.md instead, imported from the root CLAUDE.md so every session sees it
+doc-marshal init --pre-commit --ci  # write the commit and pull-request enforcement points, pinned to this version
 doc-marshal new reference docs/ledger/schema.md --summary "Fields of the ledger record." --code-ref src/ledger/schema.py
 doc-marshal check --all        # validate every note against the ontology
 doc-marshal affected           # notes whose anchors name code this branch touched
@@ -144,8 +145,14 @@ Minor releases may add checks. Pin the version at every enforcement point and bu
 | every pull request | `check --all --format github`, `index --check` | errors fail the build, each on the file it names; a stale index warns |
 | every pull request | `affected --format github` | annotates anchored notes; never fails |
 
+`doc-marshal init --pre-commit --ci` writes both, at the version of the engine that writes them.
+The snippets below are the same files for a repository that already has one; `--pre-commit` prints
+this block rather than editing a config that exists, and `--ci` skips a repository with no
+`.github/`.
+
 Pre-commit, in `.pre-commit-config.yaml`:
 
+<!-- generated: pre-commit -->
 ```yaml
 - repo: https://github.com/rootdrew27/doc-marshal
   rev: v0.3.0
@@ -155,11 +162,15 @@ Pre-commit, in `.pre-commit-config.yaml`:
 ```
 
 CI, on every pull request. No `paths:` filter: anchors break in the change that renames or deletes
-the code, which by definition touches no documentation.
+the code, which by definition touches no documentation. `fetch-depth: 0` because `affected` and
+`--range` answer from a git diff, and a shallow clone makes them answer *nothing* rather than fail.
 
+<!-- generated: ci -->
 ```yaml
 - uses: actions/checkout@v4
-  with: { fetch-depth: 0 }
+  with:
+    fetch-depth: 0
+- uses: astral-sh/setup-uv@v6
 - run: uvx doc-marshal==0.3.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
 - run: uvx doc-marshal==0.3.* index --check
   continue-on-error: true
@@ -185,6 +196,65 @@ repository's root `CLAUDE.md` with one `@docs/CLAUDE.md` line so every session s
 `doc-marshal doctor` reports a docs-root `CLAUDE.md` the root does not import. Either file says
 what the tree, its commands and its two special files are for, so a Codex or Cursor user gets the
 same process by the same route with no plugin at all.
+
+## Installing, and one version everywhere
+
+### With `uv`
+
+Four commands, from the repository root:
+
+```bash
+uv add --dev doc-marshal==0.3.0                          # into the project's .venv, where the plugin's hooks look
+uv run doc-marshal init --claude-code --pre-commit --ci  # the marker, the pointer file, and both enforcement points
+uv run doc-marshal check --all                           # the tree validates from its first minute
+uv run doc-marshal doctor                                # every route to the engine resolves the same version
+```
+
+Drop `--claude-code` for the vendor-neutral `AGENTS.md`. Drop `--pre-commit` or `--ci` and `init`
+prints that file for you to write yourself instead of writing it. A repository that is not a Python
+project has no dependency table to add to, so put the engine on PATH instead:
+`uv tool install doc-marshal==0.3.0`.
+
+Upgrading is one command, and it moves every version this repository names at once:
+
+```bash
+uv run doc-marshal upgrade 0.4.0   # install it, move every pin, then doctor and check --all
+```
+
+### Other project managers
+
+Supported, set up by hand. Everything after the install is identical -- `init`, `check`, `doctor`,
+the pre-commit hook and the CI workflow do not care which manager put the engine there -- and
+`upgrade` detects your manager and prints the two commands to run rather than running them.
+
+**The one thing to get right is where the engine lands.** The plugin's hooks run the project's own
+`.venv/` or `venv/` first, then PATH. An engine installed anywhere else leaves them running
+nothing, which reads exactly like a clean tree -- the failure mode that looks most like success.
+
+| The project uses | Install with | Hooks find it |
+| --- | --- | --- |
+| pip with a virtualenv in the tree | `pip install doc-marshal==0.3.0` | yes, `.venv/` or `venv/` |
+| Poetry with `virtualenvs.in-project true` | `poetry add --group dev doc-marshal==0.3.0` | yes, `.venv/` |
+| Poetry with the default environment | -- | **no**: the environment sits outside the repository under a hashed name. Turn on in-project virtualenvs and reinstall, or install to PATH. |
+| nothing in particular | `uv tool install doc-marshal==0.3.0` | yes, PATH |
+
+Then `doc-marshal init --claude-code --pre-commit --ci`, `check --all` and `doctor`, as above.
+
+### One version, everywhere
+
+**Every facet that names a version names the same one; a facet may be absent.** There are four:
+the project's environment, `pyproject.toml`, the pre-commit `rev:`, and the CI pin. Having no
+pre-commit config or no CI is fine, and `doctor` says so without complaint. Two of them naming
+different versions is not: an agent would validate against one version and CI against another.
+
+`doc-marshal doctor` reports every route to the engine and exits 1 when any two disagree. Run it
+after any install, and after anything that moves a version on its own -- `pre-commit autoupdate` in
+particular, which moves the `rev:` and leaves the other three facets behind. `doc-marshal upgrade`
+exists so that never happens: it drives the install and then re-runs itself as the version it just
+installed, so the repository is never left between two versions with its own `doctor` failing.
+
+A minor release may enforce checks the previous one did not (see [Design](#design)), so `upgrade`
+runs `check --all` as part of the upgrade rather than letting it surprise you after.
 
 ## The docs root is marked, not guessed
 

@@ -3,9 +3,12 @@ they agree.
 
 The stability contract (SPEC.md section 13) holds only while every route to the engine resolves
 the same version: the one on PATH, the one in the project's virtualenv that the plugin's hooks
-run, and the one the repository pins in its pre-commit config or pyproject. This command reports
-each and exits 1 on a mismatch -- an agent validating at 0.6 while CI runs 0.5 is the failure it
-exists to make visible.
+run, and the one the repository pins in its pre-commit config, its pyproject or its CI workflow.
+This command reports each and exits 1 on a mismatch -- an agent validating at 0.6 while CI runs
+0.5 is the failure it exists to make visible.
+
+The facets themselves are read in `integrate`, which also writes them, so what `doctor` checks and
+what `init` and `upgrade` write can never be two different answers (SPEC.md section 19).
 """
 
 from __future__ import annotations
@@ -20,8 +23,11 @@ from pathlib import Path
 
 from . import __version__
 from .config import add_docs_root_option
+from .discovery import cwd_repo, find_docs_root, find_repo_root
+from .errors import DocMarshalError
 from .init import has_import, import_line
-from .paths import DocMarshalError, cwd_repo, find_docs_root, find_repo_root, rel_to
+from .integrate import PRECOMMIT, PYPROJECT, is_exact, normalize, pin_matches, pins
+from .paths import rel_to
 from .settings import SETTINGS
 
 VENV_DIRS = (".venv", "venv")
@@ -52,45 +58,6 @@ def in_venv(repo_root: Path) -> tuple[Path, str | None] | None:
             if exe.is_file() and os.access(exe, os.X_OK):
                 return exe, version_of(str(exe))
     return None
-
-
-def repo_pins(repo_root: Path) -> list[tuple[str, str]]:
-    """Every version the repository pins doc-marshal to, as (where, version)."""
-    pins: list[tuple[str, str]] = []
-    config = repo_root / ".pre-commit-config.yaml"
-    if config.is_file():
-        current_repo = ""
-        for line in config.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped.startswith("- repo:"):
-                current_repo = stripped
-            elif stripped.startswith("rev:") and "doc-marshal" in current_repo:
-                pins.append((".pre-commit-config.yaml", stripped.split(":", 1)[1].strip().strip("\"'")))
-    pyproject = repo_root / "pyproject.toml"
-    if pyproject.is_file():
-        for match in re.finditer(r"doc-marshal\s*(==|~=|>=)\s*([\w.*]+)", pyproject.read_text(encoding="utf-8")):
-            pins.append(("pyproject.toml", f"{match.group(1)}{match.group(2)}"))
-    return pins
-
-
-def normalize(version: str) -> str:
-    return version.lstrip("vV")
-
-
-def pin_matches(pin: str, version: str) -> bool:
-    """Whether a pin like `==0.5.*`, `>=0.5`, `~=0.5.0` or `v0.5.0` admits `version`."""
-    pin = normalize(pin)
-    if pin.startswith("=="):
-        pattern = pin[2:]
-        if pattern.endswith(".*"):
-            return version.startswith(pattern[:-1])
-        return version == pattern
-    if pin.startswith("~="):
-        base = pin[2:].split(".")
-        return version.split(".")[: max(len(base) - 1, 1)] == base[: max(len(base) - 1, 1)]
-    if pin.startswith(">="):
-        return tuple(int(p) for p in re.findall(r"\d+", version)) >= tuple(int(p) for p in re.findall(r"\d+", pin))
-    return version == pin
 
 
 def main(argv: list[str]) -> int:
@@ -149,10 +116,12 @@ def main(argv: list[str]) -> int:
         if version and normalize(version) != __version__:
             problems.append(f"PATH resolves doc-marshal {version} but this run is {__version__}")
 
-    pins = repo_pins(repo_root)
-    if not pins:
-        print("repo pin:  none (pin with pre-commit `rev:` or `uvx doc-marshal==X.Y.*` in CI)")
-    for where, pin in pins:
+    # Every facet that names a version names the same one; a facet may be absent. Absence is not a
+    # problem -- adopting the tree without pre-commit or CI is supported -- but disagreement is.
+    repo_pins = pins(repo_root)
+    if not repo_pins:
+        print("repo pin:  none (`doc-marshal init --pre-commit --ci` writes both)")
+    for where, pin in repo_pins:
         ok = pin_matches(pin, __version__)
         print(f"repo pin:  {where} pins {pin} -- {'matches' if ok else 'DOES NOT MATCH'} the running {__version__}")
         if not ok:
@@ -161,6 +130,17 @@ def main(argv: list[str]) -> int:
             problems.append(
                 f"the project's virtualenv has {venv_entry[1]} but {where} pins {pin}: an agent "
                 "would validate against one version and CI against another"
+            )
+
+    # Agreeing today is not the whole invariant: a range in the dependency table admits versions
+    # the `rev:` and the CI pin do not, so the next resolve can move that one facet and leave the
+    # others behind. That is a property of the pin itself, not of whether the facets match now.
+    for where, pin in repo_pins:
+        if where == PYPROJECT and not is_exact(pin):
+            problems.append(
+                f"{PYPROJECT} pins {pin}, a range: the next resolve may install a version the "
+                f"{PRECOMMIT} rev and the CI pin do not name. `doc-marshal upgrade {__version__}` "
+                "moves every facet to one version"
             )
 
     print()

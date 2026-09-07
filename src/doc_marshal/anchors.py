@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .git import Git
 from .ontology import AnchorField, Registry
-from .paths import exists_exact, is_absolute_entry, is_tracked, is_url, rel_to
+from .paths import exists_exact, is_absolute_entry, is_url, rel_to
 from .report import Report
 
 _KIND_ORDER = ("url", "docs-path", "repo-path", "opaque")
@@ -28,7 +29,7 @@ def describe_anchor(anchor: AnchorField, docs_root: Path, repo_root: Path) -> st
     return " or ".join(words[k] for k in _KIND_ORDER if k in anchor.resolves)
 
 
-def resolve_entry(entry: str, anchor: AnchorField, docs_root: Path, repo_root: Path, registry: Registry) -> str | None:
+def resolve_entry(entry: str, anchor: AnchorField, docs_root: Path, git: Git, registry: Registry) -> str | None:
     """Why this entry fails the field's `resolves` kinds, or None when some kind accepts it.
 
     Every path in frontmatter is written from the repo root, never from the docs root and never
@@ -47,8 +48,10 @@ def resolve_entry(entry: str, anchor: AnchorField, docs_root: Path, repo_root: P
     A path must also be tracked by git. A file that exists only in this checkout satisfies the
     anchor here and nowhere else -- six of one project's notes anchored to an uncommitted config
     file and passed for months -- so existence on disk is not the question; presence in
-    `git ls-files` is. That holds for either path kind and needs a repository to answer.
+    `git ls-files` is. That holds for either path kind and needs a repository to answer -- `git`
+    is the port that answers, and the root every path is resolved from.
     """
+    repo_root = git.repo_root
     kinds = anchor.resolves
     name = anchor.name
     if "opaque" in kinds and entry.strip():
@@ -67,7 +70,7 @@ def resolve_entry(entry: str, anchor: AnchorField, docs_root: Path, repo_root: P
         return f"{name} must name a path inside the repository, not the root itself: {entry!r}"
     found = exists_exact(repo_root, resolved) and ("repo-path" in kinds or resolved.is_relative_to(docs_root))
     if found:
-        tracked = is_tracked(repo_root, resolved)
+        tracked = git.is_tracked(resolved)
         if tracked is None:
             return f"{name} needs a git repository to confirm the path is tracked: {entry}"
         if not tracked:
@@ -94,15 +97,15 @@ def check_anchor(
     anchor: AnchorField,
     entries: object,
     docs_root: Path,
-    repo_root: Path,
+    git: Git,
     registry: Registry,
     report: Report,
 ) -> None:
     """A declared anchor field, whenever present, is a list whose every entry resolves by its kind."""
     if not isinstance(entries, list):
-        report.error(path, f"'{anchor.name}' must be a list of {describe_anchor(anchor, docs_root, repo_root)}")
+        report.error(path, f"'{anchor.name}' must be a list of {describe_anchor(anchor, docs_root, git.repo_root)}")
         return
     for entry in entries:
-        problem = resolve_entry(entry, anchor, docs_root, repo_root, registry)
+        problem = resolve_entry(entry, anchor, docs_root, git, registry)
         if problem is not None:
             report.error(path, problem)
