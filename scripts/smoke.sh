@@ -100,6 +100,9 @@ doc-marshal doctor | grep -q 'DOES NOT MATCH'
 # upgrade moves every pin it wrote, and hands the install to the manager it does not drive.
 doc-marshal upgrade "$version" --pins | grep -q 'rev: v'
 doc-marshal doctor
+# A second run finds every pin already at the version and says so, rather than claiming there is
+# no pin to move.
+doc-marshal upgrade "$version" --pins | grep -q 'already names'
 # A range in the dependency table is a problem even when it admits the running version: it is the
 # one facet that can move on the next resolve without anything else moving with it.
 printf '[project]\nname = "x"\ndependencies = ["doc-marshal>=0.3.0"]\n' > pyproject.toml
