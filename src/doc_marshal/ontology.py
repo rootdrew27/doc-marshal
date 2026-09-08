@@ -308,7 +308,12 @@ class Profile:
         return tuple(keys)
 
     def required_by(self, anchor: str) -> tuple[str, ...]:
-        return tuple(spec.name for spec in self.enabled.values() if anchor in spec.requires)
+        """The types whose minimum names this field, each with the status from which it binds."""
+        return tuple(
+            f"`{spec.name}` once `{spec.requires_from}`" if spec.requires_from else f"`{spec.name}`"
+            for spec in self.enabled.values()
+            if anchor in spec.requires
+        )
 
 
 def standard(settings: Settings = SETTINGS) -> Profile:

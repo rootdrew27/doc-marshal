@@ -19,5 +19,5 @@
 - [NOMENCLATURE](NOMENCLATURE.md) -- `nomenclature` -- The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
 - [release](release.md) -- `runbook` -- Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish
 - [setup](setup.md) -- `runbook` -- Install doc-marshal into a repository, mark its docs tree, wire the integrations, and move every pin to a new version
-- [standard-profile](standard-profile.md) -- `reference` -- The five types of the standard profile: the reader each serves, its anchor minimum, and the lifecycle they share
+- [standard-profile](standard-profile.md) -- `reference` -- The standard profile's five types: why two carry no anchor, the lifecycle they share, and why there is no Related section
 - [type-properties](type-properties.md) -- `reference` -- Every property a type declares, what the validator enforces from it, and what the scaffolder writes from it

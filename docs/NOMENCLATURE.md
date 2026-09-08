@@ -1,12 +1,12 @@
 ---
 type: nomenclature
-updated: 2026-09-07
+updated: 2026-09-08
 summary: The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
 ---
 
 # doc-marshal shared vocabulary
 
-The words doc-marshal's code, SPEC and notes use for the parts of the product, in the register of
+The words doc-marshal's code, doctrine and notes use for the parts of the product, in the register of
 the name: a marshal enforces the law. One word per concept; the alternatives in `Avoid` are ruled
 out, not merely discouraged.
 

@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-07
+updated: 2026-09-08
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -11,15 +11,11 @@ code_refs:
 
 # Integrations
 
-An integration is a place `check` runs. There are three, and `doc-marshal init --claude-code
---pre-commit --ci` wires all of them at the version of the engine that writes them.
-
-| When | What runs | Effect |
-| --- | --- | --- |
-| every write to a note | `check --skip-non-notes <that file>`, via the plugin's PostToolUse hook | reports into the session; never blocks |
-| every `git commit` | `check` on the staged notes, then `index`, via the pre-commit framework | errors block; a regenerated index fails the hook for re-adding |
-| every pull request | `check --all --format github --range <base>..HEAD`, then `index --check` | errors fail the build, each on the file it names; a stale index warns |
-| every pull request | `drifted --range <base>..HEAD --format github` | annotates the anchored notes; never fails |
+An integration is a place `check` runs. There are three -- the plugin's write hook, the pre-commit
+framework, and CI -- and `doc-marshal init --claude-code --pre-commit --ci` wires all of them at
+the version of the engine that writes them. The table of what runs where, and with what effect, is
+the last section of `doc-marshal info --policies`, which ships with the engine; this note carries
+what the doctrine does not.
 
 ## The Claude Code plugin
 

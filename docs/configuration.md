@@ -1,6 +1,6 @@
 ---
 type: spec
-updated: 2026-09-07
+updated: 2026-09-08
 summary: Configuration as designed and unbuilt: the config file, extends, per-type merge, disabling a type, the policies table and exclude
 status: proposed
 code_refs:
@@ -87,10 +87,9 @@ heading anchors included; a type's declared properties hold; and the index is ge
 
 ## Validation
 
-- [ ] **V1** -- the round-trip test passes: the `standard` profile serializes to TOML with
-      `to_toml`, loads back through `from_dict`, and compares equal. The same item as
-      [the engine](engine.md)'s V2. If the shape cannot express
-      the shipped profile, the shape is too weak, and that is discovered before a user's report.
+This note adds no item of its own. Its one test is [the engine](engine.md)'s V2, the round-trip
+of the `standard` profile through `to_toml` and `from_dict`: if the shape cannot express the
+shipped profile, the shape is too weak, and that is discovered before a user's report.
 
 ## Open questions
 

@@ -1,6 +1,6 @@
 ---
 type: runbook
-updated: 2026-09-07
+updated: 2026-09-08
 summary: Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish
 code_refs:
   - scripts/sync_version.py
@@ -93,9 +93,6 @@ code_refs:
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
 
-9. **Move this repository's own pins to the new release**, so the tree that documents the engine
-   is validated by it:
-
-   ```bash
-   uv run doc-marshal upgrade X.Y.Z
-   ```
+This repository holds no pin of its own to move: its pre-commit hooks and `docs.yml` run the
+engine in the checkout, so the tree that documents the engine is validated by the engine under
+review.

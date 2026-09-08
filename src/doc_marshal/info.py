@@ -68,7 +68,7 @@ def render_anchor_table(profile: Profile) -> str:
     """The anchor table, field-major: what each field holds, how it resolves, who must carry it."""
     rows = ["| Field | Contents | Resolves as | Required for |", "| --- | --- | --- | --- |"]
     for name, anchor in profile.anchor_fields.items():
-        required = ", ".join(f"`{t}`" for t in profile.required_by(name)) or "no type"
+        required = ", ".join(profile.required_by(name)) or "no type"
         rows.append(f"| `{name}` | {anchor.contents} | {', '.join(f'`{k}`' for k in anchor.resolves)} | {required} |")
     return "\n".join(rows)
 

@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-07
+updated: 2026-09-08
 summary: Anchor fields: how entries resolve, which ones a change is matched against, and what every path entry must satisfy
 code_refs:
   - src/doc_marshal/ontology.py
@@ -25,12 +25,9 @@ about the field.
 | `opaque` | any non-empty value | no |
 
 A field may name several: an entry is valid when any of them accepts it. The
-[standard profile](standard-profile.md) declares two.
-
-| Field | Holds | `resolves` | Required by |
-| --- | --- | --- | --- |
-| `code_refs` | paths to the code this note describes | `repo-path` | `reference` (any-of), `runbook`, `spec` once `done` |
-| `source` | URLs, or paths to an asset or another note | `docs-path`, `url` | `reference` (any-of) |
+[standard profile](standard-profile.md) declares two, `code_refs` as `repo-path` and `source` as
+`docs-path` or `url`; `doc-marshal info --policies` renders the table of what each holds and which
+types must carry it, from the profile itself.
 
 `repo_path_fields` is the set that resolves as `repo-path` -- the code anchors, and what the
 warning about a `done` spec reads. `path_fields` is wider: every field whose entries may be

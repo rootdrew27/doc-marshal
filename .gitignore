@@ -8,4 +8,4 @@ build/
 .ruff_cache/
 
 # Worktrees
-.worktrees/
+.claude/worktrees/

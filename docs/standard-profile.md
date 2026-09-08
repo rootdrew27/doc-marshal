@@ -1,7 +1,7 @@
 ---
 type: reference
-updated: 2026-09-07
-summary: The five types of the standard profile: the reader each serves, its anchor minimum, and the lifecycle they share
+updated: 2026-09-08
+summary: The standard profile's five types: why two carry no anchor, the lifecycle they share, and why there is no Related section
 code_refs:
   - src/doc_marshal/ontology.py
 ---
@@ -11,36 +11,20 @@ code_refs:
 `standard` is the profile shipped in `src/doc_marshal/ontology.py` and the one every docs tree is
 validated against today. It declares five types and two [anchor fields](anchors.md). A type names
 the reader it serves and nothing else; its anchor minimum follows from what outside the note would
-falsify it. `doc-marshal info` lists the live types, and `doc-marshal info <type>` gives the
-argument for one.
+falsify it.
 
 ## The types
 
-The order is canonical: it is the order `info` lists them in, most common first.
-
-| Type | Serves | Anchor minimum | Voice and mutability |
-| --- | --- | --- | --- |
-| `reference` | someone looking up a fact -- decided by this repo, or observed from outside it | any of `code_refs`, `source` | flat, enumerative; mutable |
-| `runbook` | someone running a procedure | `code_refs` | imperative, copy-pasteable; mutable |
-| `decision` | someone about to reopen a settled choice | none | terse, one decision; append-only |
-| `spec` | someone reading, building or validating a feature's behaviour as a whole | `code_refs` once `done` | declarative, whole-feature; mutable at every status |
-| `nomenclature` | someone choosing what to call a thing | none | flat, definitional, opinionated; mutable |
+The types are `reference`, `runbook`, `decision`, `spec` and `nomenclature`, in that order: it is
+the order `info` lists them in, most common first. The engine renders the rest from the profile,
+so this note does not restate it: `doc-marshal info` gives each type's reader, voice, mutability
+and anchor minimum in a table, and `doc-marshal info <type>` gives one type's argument with the
+[properties](type-properties.md) it sets -- required sections, placement, lifecycle. The same
+rendering is committed for readers without the CLI as `rendered/doc-types.md`.
 
 Two types require no anchor. A `decision` is append-only and anchored by its own content; a
 `nomenclature` note is falsified by the words the repository uses, not by a path, and anchoring it
 to code would report it on every unrelated change.
-
-## What each type carries beyond frontmatter
-
-The mechanical [properties](type-properties.md) each type sets:
-
-| Type | Required sections | Placement and other properties |
-| --- | --- | --- |
-| `reference` | none | takes the shape of its subject |
-| `runbook` | Prerequisites, Steps | -- |
-| `decision` | Context, Decision, Alternatives considered, Consequences | `decisions/NNNN-slug.md`; append-only; `supersedes` / `superseded_by` |
-| `spec` | Overview, Behavior, Validation | Open questions must be empty once `done` |
-| `nomenclature` | -- | `NOMENCLATURE.md`, one required at the top of the tree; a nested one only adds terms; its body is a parsed `structure` |
 
 ## The shared lifecycle
 
