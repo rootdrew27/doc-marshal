@@ -33,7 +33,7 @@ from pathlib import Path
 from . import __version__, check, doctor
 from .discovery import cwd_repo
 from .errors import DocMarshalError
-from .integrate import normalize, set_pins
+from .integrate import PYPROJECT, normalize, pins, set_pins
 from .manager import detect
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+\S*$")
@@ -132,6 +132,10 @@ def main(argv: list[str]) -> int:
         print("wrote:")
         for line in changed:
             print(f"  {line}")
+    elif any(pin.where != PYPROJECT for pin in pins(repo_root)):
+        # Nothing changed because every rev and CI pin already names this version: the case a
+        # second run of `upgrade` lands in, which is not the case of having nothing to write.
+        print(f"every pre-commit rev and CI pin already names {version} -- nothing to move")
     else:
         print("no pre-commit rev or CI pin to move -- `doc-marshal init --pre-commit --ci` writes both")
 
