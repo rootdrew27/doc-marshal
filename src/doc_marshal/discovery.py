@@ -30,7 +30,7 @@ _PRUNE = frozenset(
 _MAX_DEPTH = 6
 
 # Names a repository commonly gives its documentation. Consulted only to make the "no config"
-# message useful -- never to pick a docs tree (see docs/configuration.md).
+# message useful -- never to pick a docs tree (see docs/cli.md).
 COMMON_DOCS_DIRS = ("docs", "doc", "agent-docs", "notes", "documentation")
 
 
