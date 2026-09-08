@@ -1,6 +1,6 @@
 # doc-marshal -- design spec
 
-**Status:** built through 0.3; configuration (section 4) is designed and unbuilt. Written
+**Status:** built through 0.4; configuration (section 4) is designed and unbuilt. Written
 2026-09-02 from a design session held in the repository the prototype was developed in, and
 revised with each release since.
 
@@ -671,10 +671,24 @@ the `[types.nomenclature.structure]` overrides for `max_rows` and `max_chars`. N
 marker and the SPEC say "a later release" rather than promise a version that may carry something
 else first.
 
-### Later -- setup and upgrade
+### 0.4 -- one version everywhere
 
-The integration flags on `init`, the CI pin in `doctor`, `upgrade`, and the corrected missing-engine
-message: §19. Unnumbered for the reason configuration is.
+Released 2026-09-07, from §19's invariant: every facet that names a version names the same one, and
+a facet may be absent. `init --pre-commit --ci` writes the two enforcement points doc-marshal owns,
+at the version of the engine that writes them, and `init --pin X.Y.Z` names the version when the
+engine cannot vouch for its own. `upgrade <version>` installs, then hands off to the new engine to
+move every pin together; only `uv` is driven, other managers are handed their steps. `doctor` reads
+the CI workflow as a fourth facet and exits 1 on a range in `pyproject.toml`, since agreeing today
+is not the invariant when the next resolve can move one facet alone. `MISSING_ENGINE` states the
+situation and points at the version the repository already pins. The README's integration
+snippets are generated from the functions `init` writes with. A bootstrap skill was built and
+removed the same day.
+
+Underneath, the engine was restructured with no behaviour change: a note is read once per path,
+the checks are ordered pipelines that `check` and `new` both iterate, and every question put to
+git goes through one port so a fake can stand in. Existing repositories will notice one thing:
+`uv add --dev doc-marshal` writes `>=0.3.0` by default, and `doctor` now exits 1 on that, naming
+`doc-marshal upgrade`. A minor bump for that reason.
 
 ## 15. Decision log
 

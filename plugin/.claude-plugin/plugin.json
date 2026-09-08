@@ -1,6 +1,6 @@
 {
   "name": "doc-marshal",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A machine-checked documentation tree for repositories whose primary reader is a coding agent. Validates every note as it is written, injects the docs index preview and shared vocabulary at session start, and ships the marshal-the-docs process, which writes to the tree by the rules.",
   "author": {
     "name": "Andrew Root"
