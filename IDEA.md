@@ -81,3 +81,7 @@
     - In a docs run, Stage 6 can state the count of files it deliberately left undocumented, which the process already asks the agent to disclose.
 
     **Relationship between 17 and 18.** Neither depends on the other; both halves of 18 reuse `matches` and `path_fields` unchanged. 17 sharpens 18: a region-level lookup at edit time tells the agent whether the function it just changed is the one the note is about, and coverage over regions rather than files is more honest about what is documented.
+
+19. Use tags in the document frontmatter, enabling filtering.
+
+20. CLI output needs to much cleaner if we expect humans to read it

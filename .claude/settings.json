@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(doc-marshal:*)",
+      "Bash(uv run doc-marshal:*)",
+      "Bash(.venv/bin/doc-marshal:*)"
+    ]
+  }
+}
