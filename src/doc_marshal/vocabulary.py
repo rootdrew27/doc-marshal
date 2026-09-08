@@ -1,9 +1,9 @@
 """The vocabulary in force for a note.
 
-A structured, fixed-name type (`nomenclature` in the standard preset) defines terms and rules out
-aliases. This module reads those tables, resolves which of them bind a given note by directory
-containment, reports a nested note redefining an ancestor's term, and compiles the alias
-patterns. The scan that holds prose to it is `check_vocabulary` in `rules`.
+A structured type with a reserved filename (`nomenclature` in the standard profile) defines terms
+and rules out aliases. This module reads those tables, resolves which of them bind a given note by
+directory containment, reports a nested note redefining an ancestor's term, and compiles the alias
+patterns. The scan that holds a note's text to it is `check_vocabulary` in `policies`.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .frontmatter import read_note
 from .markdown import body_without_code, cell_items, cell_text, parse_table
-from .ontology import DocType, Registry
+from .ontology import DocType, Profile
 from .paths import exists_exact, rel_to
 from .report import Report
 
@@ -46,7 +46,7 @@ def read_terms(path: Path, spec: DocType) -> dict[str, list[str]]:
 
 @dataclass
 class Vocabulary:
-    """The terms in force under each directory that holds a structured, fixed-name note.
+    """The terms in force under each directory that holds a structured, reserved-filename note.
 
     Resolution is by containment rather than by exact directory, so a note deep in the tree
     inherits every nomenclature note above it. `additive` is what makes merging them safe: no two
@@ -67,27 +67,25 @@ class Vocabulary:
         return banned
 
 
-def vocabulary_sources(docs_root: Path, spec: DocType, targets: list[Path], sweep: bool) -> list[Path]:
+def vocabulary_sources(docs_tree: Path, spec: DocType, targets: list[Path], sweep: bool) -> list[Path]:
     """The notes of a vocabulary type this run needs: all of them in a sweep, otherwise the ones
     on each target's ancestor chain -- the only ones whose terms bind it, and the only ones a
     nested target can collide with. A targeted run therefore walks no further than its own path.
     """
     if sweep:
-        return [path for path in targets if path.name == spec.fixed_name]
+        return [path for path in targets if path.name == spec.reserved_filename]
     found: set[Path] = set()
     for target in targets:
         for directory in (target.parent, *target.parent.parents):
-            if not directory.is_relative_to(docs_root):
+            if not directory.is_relative_to(docs_tree):
                 break
-            candidate = spec.fixed_path(directory)
-            if exists_exact(docs_root, candidate):
+            candidate = spec.reserved_path(directory)
+            if exists_exact(docs_tree, candidate):
                 found.add(candidate)
     return sorted(found)
 
 
-def build_vocabulary(
-    docs_root: Path, registry: Registry, report: Report, targets: list[Path], sweep: bool
-) -> Vocabulary:
+def build_vocabulary(docs_tree: Path, profile: Profile, report: Report, targets: list[Path], sweep: bool) -> Vocabulary:
     """Collect the vocabulary notes' terms, reporting collisions down each chain.
 
     A nested note redefining an ancestor's term is an error: the point of the file is that one word
@@ -97,10 +95,10 @@ def build_vocabulary(
     """
     vocabulary = Vocabulary()
     in_scope = None if sweep else set(targets)
-    for spec in registry.enabled.values():
+    for spec in profile.enabled.values():
         if not spec.is_vocabulary_source:
             continue
-        notes = {path: read_terms(path, spec) for path in vocabulary_sources(docs_root, spec, targets, sweep)}
+        notes = {path: read_terms(path, spec) for path in vocabulary_sources(docs_tree, spec, targets, sweep)}
         for path, terms in notes.items():
             vocabulary.by_dir[path.parent] = terms
             if not spec.additive or (in_scope is not None and path not in in_scope):
@@ -113,7 +111,7 @@ def build_vocabulary(
                     if term.lower() in above:
                         report.error(
                             path,
-                            f"'{term}' is already defined by {rel_to(other, docs_root)} -- a "
+                            f"'{term}' is already defined by {rel_to(other, docs_tree)} -- a "
                             f"nested '{spec.name}' note adds terms, it never redefines them",
                         )
     return vocabulary
@@ -130,7 +128,7 @@ def alias_re(alias: str) -> re.Pattern[str]:
     `C+++` and `..env` are not sightings of `C++` and `.env`.
 
     A multi-word alias matches across whatever whitespace one paragraph wraps it with -- spaces,
-    tabs, at most one line break -- and never across a paragraph break. Trees wrap prose at a
+    tabs, at most one line break -- and never across a paragraph break. Trees wrap text at a
     column, and an alias split by the wrap is the same alias.
 
     Cached: the same aliases bind every note under a directory, so each pattern is compiled once.

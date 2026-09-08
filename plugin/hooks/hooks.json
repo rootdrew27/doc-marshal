@@ -1,5 +1,5 @@
 {
-  "description": "doc-marshal: validate each note as it is written; inject the docs index preview and vocabulary at session start.",
+  "description": "doc-marshal: validate each note as it is written; brief the session with the docs index preview and vocabulary at session start.",
   "hooks": {
     "SessionStart": [
       {

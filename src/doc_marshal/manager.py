@@ -53,9 +53,9 @@ class Uv(Manager):
         return [f"uv add --dev doc-marshal=={version}"]
 
     def install(self, version: str) -> int:
-        # One command writes both facets it owns: the dependency table and the environment. The
-        # exact pin is the point -- `uv add doc-marshal` alone writes a range, and a range is the
-        # disagreement `doctor` exists to catch (SPEC.md section 19).
+        # One command writes both jurisdictions it owns: the dependency table and the environment.
+        # The exact pin is the point -- `uv add doc-marshal` alone writes a range, and a range is
+        # the disagreement `doctor` exists to catch (see docs/jurisdictions.md).
         argv = ["uv", "add", "--dev", f"doc-marshal=={version}"]
         print(f"$ {' '.join(argv)}")
         return subprocess.run(argv, cwd=str(self.repo_root), check=False).returncode

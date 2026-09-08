@@ -7,7 +7,7 @@
 #       - id: doc-marshal-index
 #
 # `doc-marshal-check` validates the staged notes; errors block the commit. Paths that are not notes
-# under the docs root are skipped silently, so the hook may be handed every markdown file a change
+# under the docs tree are skipped silently, so the hook may be handed every markdown file a change
 # touched. `doc-marshal-index` regenerates INDEX.md; when that changes the file the hook fails and
 # you re-add, the way formatters behave. CI holds the invariant that no pushed branch carries a
 # stale index regardless.

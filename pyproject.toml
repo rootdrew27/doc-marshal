@@ -15,8 +15,8 @@ classifiers = [
     "Topic :: Documentation",
     "Topic :: Software Development :: Quality Assurance",
 ]
-# Deliberately empty, and not by dogma -- see SPEC.md section 9 for the three tests a runtime
-# dependency has to pass, and why nothing passes them yet.
+# Deliberately empty, and not by dogma -- see docs/dependency-policy.md for the three tests a
+# runtime dependency has to pass, and why nothing passes them yet.
 dependencies = []
 
 [project.urls]
@@ -42,7 +42,7 @@ path = "src/doc_marshal/__init__.py"
 packages = ["src/doc_marshal"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/doc_marshal", "plugin", ".pre-commit-hooks.yaml", "README.md", "SPEC.md", "LICENSE"]
+include = ["src/doc_marshal", "plugin", ".pre-commit-hooks.yaml", "README.md", "LICENSE"]
 
 [tool.ruff]
 line-length = 120
@@ -55,7 +55,7 @@ src = ["src", "scripts", "plugin/hooks"]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "ISC", "RUF"]
 ignore = [
     "E501",   # long lines are messages and docstrings; the formatter wraps the code
-    "RUF001", "RUF002", "RUF003",  # ambiguous-unicode: prose legitimately uses these
+    "RUF001", "RUF002", "RUF003",  # ambiguous-unicode: the text legitimately uses these
 ]
 
 [tool.ruff.lint.isort]

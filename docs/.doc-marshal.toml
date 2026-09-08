@@ -1,2 +1,2 @@
-# doc-marshal docs root. The file marks the directory by existing.
-# Configuration arrives in a later release; until then any key here makes every doc-marshal command exit 2.
+# doc-marshal docs tree config. The file marks the directory by existing.
+# The profile's adjustments arrive in a later release; until then any key here makes every doc-marshal command exit 2.

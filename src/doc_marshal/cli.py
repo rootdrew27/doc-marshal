@@ -1,7 +1,7 @@
 """Command dispatch for `doc-marshal`.
 
 One entry point rather than a directory of scripts, because every reference to this tool -- in
-hooks, CI steps, agent-memory files and the convention's own prose -- names a verb instead of an
+hooks, CI steps, agent-memory files and the convention's own doctrine -- names a verb instead of an
 installation path. Each verb is a module with a `main(argv) -> int`; this file only routes.
 """
 
@@ -16,13 +16,13 @@ from .errors import DocMarshalError
 COMMANDS: dict[str, tuple[str, str]] = {
     "check": ("check", "validate the named notes, or --all to sweep the tree"),
     "index": ("index", "regenerate INDEX.md; --check reports staleness without writing"),
-    "affected": ("affected", "notes whose path anchors name something a change touched"),
+    "drifted": ("drifted", "notes whose path anchors name something a change touched"),
     "new": ("new", "scaffold a note the validator will accept"),
-    "info": ("info", "the effective registry; info <type>, --rules, --process"),
-    "init": ("init", "mark a directory as the docs root and write the integration files"),
+    "info": ("info", "the effective profile; info <type>, --policies, --marshalling"),
+    "init": ("init", "mark a directory as the docs tree and write the integration files"),
     "doctor": ("doctor", "report every route to the engine and flag two that name different versions"),
     "upgrade": ("upgrade", "install a version and point every pin at it"),
-    "session-context": ("session", "what a fresh session is given about the docs tree"),
+    "briefing": ("briefing", "what a fresh session is given about the docs tree"),
 }
 
 USAGE = "usage: doc-marshal <command> [options]\n       doc-marshal --version\n"

@@ -4,7 +4,7 @@
 report a different version from the code. Elsewhere the version is copied by hand -- the plugin
 manifest, the README's install commands, the pre-commit hook file's comment -- and this script
 rewrites those from the source, or refuses a build when they disagree. Same pattern as
-`render_prose.py`: derived, checked, never maintained by hand.
+`render_doctrine.py`: derived, checked, never maintained by hand.
 
 The README's two integration snippets go further than a version copy: they are generated whole,
 from the same `integrate` functions `doc-marshal init --pre-commit --ci` writes files with. They
@@ -41,8 +41,8 @@ COPIES: tuple[tuple[Path, re.Pattern[str], str], ...] = (
 )
 
 
-# Each generated block: its marker in the README, and what the engine writes there. The `rev:` and
-# the `==X.Y.*` pins inside them need no `COPIES` entry -- they arrive with the block.
+# Each generated block: the comment that names it in the README, and what the engine writes there.
+# The `rev:` and the `==X.Y.*` pins inside them need no `COPIES` entry -- they arrive with the block.
 README = ROOT / "README.md"
 BLOCKS: tuple[tuple[str, Callable[[str], str]], ...] = (
     ("pre-commit", lambda version: precommit_block(version, indent="")),

@@ -1,15 +1,15 @@
-"""`doc-marshal affected`: which notes a change may have falsified.
+"""`doc-marshal drifted`: which notes a change may have falsified.
 
-Every anchor field whose entries may be repository paths -- the drift spine of code paths, and
-the `docs-path` fields naming attachments and other notes -- exists so that "which docs does this
-diff touch?" is a question with an answer. This command is that answer. Without it the rule is
-only a convention: every note declares its anchor and nobody ever reads it back.
+Every anchor field whose entries may be repository paths -- the repo-path anchor fields naming
+code, and the `docs-path` fields naming assets and other notes -- exists so that "which docs does
+this diff touch?" is a question with an answer. This command is that answer. Without it the policy
+is only a convention: every note declares its anchor and nobody ever reads it back.
 
-    doc-marshal affected                       # branch commits + uncommitted work
-    doc-marshal affected --range main..HEAD    # an explicit range
-    doc-marshal affected --paths src/a.py      # paths given directly, no git
-    doc-marshal affected --format github       # ::notice:: annotations for CI
-    doc-marshal affected --print-range         # just the range, for git log/diff to consume
+    doc-marshal drifted                       # branch commits + uncommitted work
+    doc-marshal drifted --range main..HEAD    # an explicit range
+    doc-marshal drifted --paths src/a.py      # paths given directly, no git
+    doc-marshal drifted --format github       # ::notice:: annotations for CI
+    doc-marshal drifted --print-range         # just the range, for git log/diff to consume
 
 `--print-range` exists so nothing else has to re-derive the change set by hand: it resolves the
 trunk, computes the merge-base and prints `<base>..HEAD`. It prints nothing on the trunk itself.
@@ -17,7 +17,7 @@ trunk, computes the merge-base and prints `<base>..HEAD`. It prints nothing on t
 A note matches when one of its path entries is, contains, or lies under a changed path, so naming
 a directory anchors every file beneath it.
 
-Exit status is 0 whether or not anything matched: an affected note is a prompt to look, not a
+Exit status is 0 whether or not anything matched: a drifted note is a prompt to look, not a
 failure. `--fail-on-match` inverts that for a pre-merge gate that wants the build to stop.
 """
 
@@ -28,12 +28,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from .config import add_docs_root_option, resolve
+from .config import add_docs_tree_option, resolve
 from .discovery import find_repo_root
 from .errors import DocMarshalError
 from .frontmatter import anchor_entries, read_note
 from .git import Git
-from .ontology import Registry
+from .ontology import Profile
 from .paths import is_absolute_entry, is_url, iter_notes, rel_to
 from .report import workflow_command
 
@@ -62,17 +62,17 @@ class Finding:
     hits: list[str]
 
 
-def find_affected(docs_root: Path, registry: Registry, changed: set[str]) -> tuple[list[Finding], list[str]]:
+def find_drifted(docs_tree: Path, profile: Profile, changed: set[str]) -> tuple[list[Finding], list[str]]:
     """Notes whose path anchors cover a changed path, and notes whose frontmatter could not be read.
     A URL in a field that also takes paths is not a path and matches nothing."""
     findings: list[Finding] = []
     unreadable: list[str] = []
-    for note in iter_notes(docs_root, registry.settings):
+    for note in iter_notes(docs_tree, profile.settings):
         meta, _, _, error = read_note(note)
         if error is not None or meta is None:
             unreadable.append(f"{note}: {error}")
             continue
-        refs = [ref for field in registry.path_fields for ref in anchor_entries(meta, field) if not is_url(ref)]
+        refs = [ref for field in profile.path_fields for ref in anchor_entries(meta, field) if not is_url(ref)]
         hits = sorted({hit for ref in refs for hit in matches(ref, changed)})
         if hits:
             doc_type = meta.get("type")
@@ -82,7 +82,7 @@ def find_affected(docs_root: Path, registry: Registry, changed: set[str]) -> tup
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="doc-marshal affected",
+        prog="doc-marshal drifted",
         description="Report the notes whose path anchors name something a change touched.",
     )
     source = parser.add_mutually_exclusive_group()
@@ -91,11 +91,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--format", choices=("text", "github"), default="text")
     parser.add_argument("--print-range", action="store_true", help="print the resolved git range and exit")
     parser.add_argument("--fail-on-match", action="store_true", help="exit 1 when any note matched")
-    add_docs_root_option(parser)
+    add_docs_tree_option(parser)
     args = parser.parse_args(argv)
 
-    docs_root, registry = resolve(args.docs_root)
-    repo_root = find_repo_root(docs_root)
+    docs_tree, profile = resolve(args.docs_tree)
+    repo_root = find_repo_root(docs_tree)
     git = Git(repo_root)
     if args.range:
         git.validate_range(args.range)
@@ -108,7 +108,7 @@ def main(argv: list[str]) -> int:
 
     if args.paths:
         # Anchors are written from the repo root, so only a repo-relative path can match one; an
-        # absolute path used to match nothing and report "no note affected" as if that were true.
+        # absolute path used to match nothing and report "no note drifted" as if that were true.
         absolute = [p for p in args.paths if is_absolute_entry(p)]
         if absolute:
             raise DocMarshalError(f"--paths must be repo-relative, as anchors are written: {', '.join(absolute)}")
@@ -119,11 +119,11 @@ def main(argv: list[str]) -> int:
         print("no changed paths -- nothing to match against")
         return 0
 
-    if not registry.path_fields:
-        print("no anchor field resolves as a path, so no note can be affected by a change to one")
+    if not profile.path_fields:
+        print("no anchor field resolves as a path, so no note can drift when a change touches one")
         return 0
 
-    findings, unreadable = find_affected(docs_root, registry, changed)
+    findings, unreadable = find_drifted(docs_tree, profile, changed)
 
     if args.format == "github":
         for f in findings:

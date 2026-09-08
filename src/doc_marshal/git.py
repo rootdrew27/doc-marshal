@@ -3,7 +3,7 @@
 `Git` is the port: its public methods are every question the package puts to git -- which files
 are tracked, what a change touched, when it began, whether a `--range` is one git would read as
 the caller means. Each command builds one for the repository it runs in and hands it on (through
-`Scope` to the rules, as an argument elsewhere), so a run asks once and a fake can stand in.
+`Scope` to the policies, as an argument elsewhere), so a run asks once and a fake can stand in.
 There is deliberately no `Protocol` yet: with one implementation the class itself is the
 interface, and a fake subclasses it. Add the protocol the day a second implementation exists.
 
@@ -15,9 +15,10 @@ repository is known, to find the root a `Git` is then built on.
 Standard library only, deliberately: this runs from a bare interpreter, in CI, on a workstation,
 and from a bare checkout with no dependency resolution step.
 
-The drift spine exists so that "which docs does this diff touch?" has an answer. Answering it
-needs the diff, so the git plumbing lives here rather than in the one command that happens to
-need it first -- `check` uses the same object to tell an edited note from an untouched one.
+The repo-path anchor fields exist so that "which docs does this diff touch?" has an answer.
+Answering it needs the diff, so the git plumbing lives here rather than in the one command that
+happens to need it first -- `check` uses the same object to tell an edited note from an untouched
+one.
 """
 
 from __future__ import annotations
@@ -111,7 +112,7 @@ class Git:
 
     def listed(self) -> list[str] | None:
         """Every tracked and untracked-but-not-ignored path, relative to the root, or None outside
-        a repository. What a marker search walks instead of the filesystem."""
+        a repository. What a config search walks instead of the filesystem."""
         return self._entries("ls-files", "-z", "--cached", "--others", "--exclude-standard")
 
     @cached_property

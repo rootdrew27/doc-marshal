@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """SessionStart hook: give the session the docs index preview, the shared vocabulary and the types.
 
-Deliberately thin. *What* a session is told is the engine's decision (`doc-marshal session-context`);
+Deliberately thin. *What* a session is told is the engine's decision (`doc-marshal briefing`);
 this file only resolves an engine, runs that command, and speaks the hook's JSON. Silent when the
-project has no docs root and on any internal failure: a broken hook must not inject noise into
-every session. The one thing it says on its own is that the project has a docs root but no engine
+project has no docs tree and on any internal failure: a broken hook must not brief every session
+with noise. The one thing it says on its own is that the project has a docs tree but no engine
 to validate it with, since silence there would look like a clean tree.
 """
 
@@ -28,10 +28,10 @@ def emit(context: str) -> None:
 def main() -> int:
     prefix = _engine.command()
     if prefix is None:
-        if _engine.has_docs_root():
+        if _engine.has_docs_tree():
             emit(_engine.MISSING_ENGINE)
         return 0
-    result = _engine.run("session-context", "--quiet-if-absent", prefix=prefix)
+    result = _engine.run("briefing", "--quiet-if-absent", prefix=prefix)
     if result is None or result.returncode != 0:
         return 0
     context = result.stdout.strip()

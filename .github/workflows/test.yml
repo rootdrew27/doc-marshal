@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 
-# The test suite is built on synthetic trees (SPEC.md section 14). Until it lands, CI proves the
+# The test suite is built on synthetic trees (see docs/engine.md). Until it lands, CI proves the
 # package installs and every command runs end to end on a fresh repository, and that the plugin's
 # hooks resolve the installed engine.
 jobs:
@@ -28,8 +28,8 @@ jobs:
         env:
           PLUGIN: ${{ github.workspace }}/plugin
         run: bash scripts/smoke.sh
-      - name: rendered/ matches the prose and the registry
-        run: python scripts/render_prose.py --check
+      - name: rendered/ matches the doctrine and the profile
+        run: python scripts/render_doctrine.py --check
 
   lint:
     runs-on: ubuntu-latest

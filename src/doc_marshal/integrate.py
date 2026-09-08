@@ -1,17 +1,18 @@
 """The repository's integration files, and the version they name.
 
-Four facets name a version: the project's environment, `pyproject.toml`, the pre-commit `rev:`,
-and the CI pin. **Every facet that names a version names the same one; a facet may be absent**
-(SPEC.md section 19). `doctor` reads them, `init` writes them and `upgrade` rewrites them -- so
-reading and writing live in one module. A reader and a writer that drifted apart would put the
-disagreement this tool exists to catch inside the tool that catches it.
+Four jurisdictions name a version: the project's environment, `pyproject.toml`, the pre-commit
+`rev:`, and the CI pin. **Every jurisdiction that names a version names the same one; a
+jurisdiction may be absent** (see docs/jurisdictions.md). `doctor` reads them, `init` writes them
+and `upgrade` rewrites them -- so reading and writing live in one module. A reader and a writer
+that drifted apart would put the disagreement this tool exists to catch inside the tool that
+catches it.
 
-Two facets are not written here. The environment and `pyproject.toml` belong to the project
+Two jurisdictions are not written here. The environment and `pyproject.toml` belong to the project
 manager: `uv add --dev doc-marshal==X.Y.Z` is one command that writes both, and hand-editing a
 dependency table behind a manager's back is how a lockfile stops matching what is installed.
 
 No YAML parser. The pre-commit config and the CI workflow are read and rewritten by line, the way
-`doctor` has always read them: the dependency policy of section 9 rules out a parser for this, and
+`doctor` has always read them: docs/dependency-policy.md rules out a parser for this, and
 `.pre-commit-config.yaml` belongs to the user in a way the generated files do not -- when it
 already exists, this module prints a block to paste and touches nothing.
 """
@@ -62,7 +63,7 @@ def normalize(version: str) -> str:
 
 def is_exact(spec: str) -> bool:
     """Whether a pin admits exactly one version. `~=` and `>=` admit an environment the other
-    facets do not, which is the mismatch the invariant exists to prevent."""
+    jurisdictions do not, which is the mismatch the invariant exists to prevent."""
     spec = normalize(spec)
     return not spec.startswith(("~=", ">=", "<", "!=")) and "*" not in spec
 
@@ -112,7 +113,7 @@ def writable(pin: str | None) -> str | None:
     return __version__ if released() else None
 
 
-# --- reading the facets -------------------------------------------------------------------------
+# --- reading the jurisdictions ------------------------------------------------------------------
 
 
 def workflow_files(repo_root: Path) -> list[Path]:
@@ -202,7 +203,7 @@ def ci_steps(version: str) -> list[str]:
         "- uses: astral-sh/setup-uv@v6\n",
         f'- run: uvx {pin} check --all --format github --range "{base}..HEAD"\n',
         f"- run: uvx {pin} index --check\n  continue-on-error: true\n",
-        f'- run: uvx {pin} affected --range "{base}..HEAD" --format github\n',
+        f'- run: uvx {pin} drifted --range "{base}..HEAD" --format github\n',
     ]
 
 
@@ -225,11 +226,11 @@ def ci_text(version: str) -> str:
 #
 # No `paths:` filter: half of what this checks is whether the anchors still resolve, and those
 # break in the change that renames or deletes the code -- which by definition touches no
-# documentation. `fetch-depth: 0` because `affected` and `--range` answer from a git diff, and the
+# documentation. `fetch-depth: 0` because `drifted` and `--range` answer from a git diff, and the
 # default shallow clone makes them answer *nothing* rather than fail.
 #
 # The pin is the same version the pre-commit `rev:` and the project environment name. Change it
-# with `doc-marshal upgrade <version>`, which moves every facet at once.
+# with `doc-marshal upgrade <version>`, which moves every jurisdiction at once.
 name: docs
 
 on:
@@ -291,11 +292,11 @@ def write_ci(repo_root: Path, version: str | None) -> Outcome:
         return Outcome(note=f"{label} already exists -- left alone")
     workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text(ci_text(version), encoding="utf-8")
-    return Outcome(written=f"{label}  (check --all, index --check and affected on every pull request)")
+    return Outcome(written=f"{label}  (check --all, index --check and drifted on every pull request)")
 
 
 def set_pins(repo_root: Path, version: str) -> list[str]:
-    """Point every written facet at `version`. Returns one line per file changed.
+    """Point every written jurisdiction at `version`. Returns one line per file changed.
 
     The environment and `pyproject.toml` are not here: the project manager wrote those, in the
     step that installed this engine.

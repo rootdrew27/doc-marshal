@@ -1,7 +1,7 @@
 """Read a note's frontmatter: the subset the convention allows, parsed strictly.
 
 Pure and standard-library only. One parser for every command, so what a note declares cannot
-differ between the validator, the index builder and the session renderer -- two frontmatter
+differ between the validator, the index builder and the briefing renderer -- two frontmatter
 parsers is a gap in the convention one level down.
 """
 
@@ -44,7 +44,7 @@ def parse_frontmatter(block: str) -> Meta:
 
     Raises ValueError on anything richer, so an unparseable block fails loudly rather than
     validating as empty. This strictness is the convention, enforced at parse time -- it is why a
-    YAML library is not used (SPEC.md section 9).
+    YAML library is not used (see docs/dependency-policy.md).
     """
     result: Meta = {}
     current_list: list[str] | None = None
@@ -80,7 +80,7 @@ def read_note(path: Path) -> tuple[Meta | None, str, str, str | None]:
     """Read a note as (metadata, body, whole text, error). Exactly one of metadata/error is None.
 
     The whole text is returned alongside the body for the one reader that falls back to it: the
-    session renderer shows a note whose frontmatter will not parse verbatim rather than hiding it.
+    briefing renderer shows a note whose frontmatter will not parse verbatim rather than hiding it.
     """
     text = path.read_text(encoding="utf-8")
     block, body = split_frontmatter(text)
@@ -96,7 +96,7 @@ def anchor_entries(meta: Meta, field: str) -> list[str]:
     """The string entries of an anchor field, or nothing when the field is absent or not a list.
 
     One reading for every consumer: `check_anchor` reports a scalar as an error, and after that
-    the lead check and `affected` must agree that a scalar anchors nothing rather than one
+    the lead check and `drifted` must agree that a scalar anchors nothing rather than one
     iterating its characters and the other skipping it.
     """
     value = meta.get(field)
