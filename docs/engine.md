@@ -44,8 +44,9 @@ answer.
   never copied into a user's repository, so no copy can go stale and output is filtered to the
   enabled types.
 - `rendered/` is derived, for a reviewer on a pull request who cannot run the CLI.
-  `scripts/render_doctrine.py` writes it from the same source `info` renders; the pre-commit hook
-  regenerates it and `.github/workflows/render.yml` commits it back on every push to main.
+  `scripts/render_doctrine.py` writes it from the same source `info` renders; a local hook in this
+  repository's own `.pre-commit-config.yaml` regenerates it, and `.github/workflows/render.yml`
+  commits it back on every push to main.
 - Releases follow SemVer, and a minor release may add policies. Pinning is what makes that safe,
   and every pin is one of the four [jurisdictions](jurisdictions.md) that must name one version.
 - Whatever the effective profile results in is enforced completely: no inline suppression, no

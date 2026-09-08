@@ -14,8 +14,8 @@ code_refs:
 A docs tree adjusts the profile it is validated against by writing keys into its own
 `.doc-marshal.toml`. This note is the design of that loader. **None of it is built.** Today
 `load_profile` in `src/doc_marshal/config.py` returns the `standard` profile unchanged, and a
-config carrying any key at all is refused with exit 2 and a message naming the release the loader
-arrives in -- a configuration that validated as nothing would be exactly the silent failure this
+config carrying any key at all is refused with exit 2 and a message saying that configuration
+arrives in a later release -- a configuration that validated as nothing would be exactly the silent failure this
 tool exists to remove.
 
 The file itself already exists and is not renamed when the loader lands: `init` writes it with a
@@ -56,7 +56,10 @@ exist because ruff has thousands of prefix-namespaced codes. Types are a small n
 typo'd `[types.histry]` is a reportable unknown-type error where a `disable = ["histry"]` entry
 would be silently a no-op, and disabling needs no mechanism beyond the merge that already exists.
 
-**Weakening a shipped type is permitted.** `[types.reference] code_refs = false` is legal. "Always
+**Weakening a shipped type is permitted.** A type's table spells its anchor minimum as one
+boolean per declared anchor field, beside the properties -- `requires` and `requires_from` are how
+`DocType` holds it, not what the file writes -- so `[types.reference] code_refs = false` is legal
+and drops that field from the minimum. "Always
 enforced" is a property of the engine, not of the shipped profile: whatever effective profile
 results is enforced completely, with no severity configuration and no warn-only mode.
 
@@ -78,14 +81,15 @@ list and pre-commit passes only the staged notes; `exclude` extends that to `--a
 
 **What no configuration reaches.** There is no inline suppression: no comment in a note disables
 anything, and this is the one prohibition defended absolutely. Whatever the effective profile
-says, these hold regardless of it: frontmatter parses; `type` names a live type; a declared anchor
-is present and resolves by its `resolves` values; markdown references resolve, heading anchors
-included; a type's declared properties hold; and the index is generated rather than written.
+says, these hold regardless of it: frontmatter parses; `type` names a live type; an anchor entry
+resolves by its field's `resolves` values wherever one is present; markdown references resolve,
+heading anchors included; a type's declared properties hold; and the index is generated rather than written.
 
 ## Validation
 
 - [ ] **V1** -- the round-trip test passes: the `standard` profile serializes to TOML with
-      `to_toml`, loads back through `from_dict`, and compares equal. If the shape cannot express
+      `to_toml`, loads back through `from_dict`, and compares equal. The same item as
+      [the engine](engine.md)'s V2. If the shape cannot express
       the shipped profile, the shape is too weak, and that is discovered before a user's report.
 
 ## Open questions

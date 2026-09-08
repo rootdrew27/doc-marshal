@@ -12,7 +12,7 @@ code_refs:
 
 ## Prerequisites
 
-- `main` is green: the `test` workflow passing on its latest commit.
+- `main` is green: `.github/workflows/test.yml` passing on its latest commit.
 - A release branch off `main`. Nothing here is done on `main` directly.
 - The development group synced: `uv sync --group dev`.
 - Push rights on the repository, and PyPI's trusted publisher already configured for
@@ -67,7 +67,7 @@ code_refs:
    plugin hooks with `PATH` stripped. It is `set -eux`, so the first failing line is the last one
    printed.
 
-5. **Open a pull request** and let it go green. The `test` workflow repeats the smoke run on
+5. **Open a pull request** and let it go green. `.github/workflows/test.yml` repeats the smoke run on
    Python 3.11 through 3.14, checks `rendered/`, and runs ruff, mypy and the version check.
 
 6. **Merge to `main`.** The `render` workflow regenerates `rendered/` on the push and commits it
@@ -85,7 +85,13 @@ code_refs:
    `sync_version.py --check` passes, builds the wheel, installs it into a clean environment and
    runs `doc-marshal --version` and `info --marshalling` from there, then publishes to PyPI by
    trusted publishing -- no token is stored anywhere. A failure at the first step means step 3 was
-   skipped; re-run it, merge the fix, and move the tag.
+   skipped. Nothing was published, so fix it on a branch, merge, and move the tag onto the new
+   commit:
+
+   ```bash
+   git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z
+   git tag vX.Y.Z && git push origin vX.Y.Z
+   ```
 
 9. **Move this repository's own pins to the new release**, so the tree that documents the engine
    is validated by it:

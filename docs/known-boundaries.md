@@ -19,7 +19,8 @@ states what *is* checked; this note is its complement.
 
 - The kebab-case pattern is ASCII only, so an accented filename fails.
 - A name may begin with a digit.
-- A dotfile fails the naming policy unless it is one of the exempt non-notes.
+- A dotfile fails the naming policy unless it is one of the non-notes `doc-marshal info --policies`
+  lists, which are never validated or indexed.
 - An agent-memory file is never a note anywhere under the tree, so a nested `CLAUDE.md`, or both
   `CLAUDE.md` and `AGENTS.md` at the top of the tree, pass without comment.
 
@@ -45,6 +46,12 @@ states what *is* checked; this note is its complement.
 `new` derives the next number from the working tree, so two worktrees or two branches can hand out
 the same one. The collision surfaces on merge as the uniqueness error, and the later note is
 renumbered then.
+
+## Which notes a change reaches
+
+`drifted` answers from the anchors and nothing else, so a note whose subject a change falsified
+*without* touching a path it names does not appear. Its output is a starting set in both
+directions: a note that does appear may describe a part of the code the change never reached.
 
 ## The alias scan
 

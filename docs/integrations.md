@@ -77,8 +77,8 @@ regardless.
 
 `init --pre-commit` never parses YAML. Absent, it writes `.pre-commit-config.yaml`; present, it
 detects a doc-marshal entry by substring and prints the block to paste. The file belongs to the
-user in a way the generated ones do not, and a YAML reader is ruled out by
-`docs/dependency-policy.md`.
+user in a way the generated ones do not, and a YAML reader would have to pass the same
+strictness test that blocks a markdown parser -- see `docs/dependency-policy.md`.
 
 ## CI
 

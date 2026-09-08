@@ -19,7 +19,7 @@ to a harness's session-start event is the plugin's job.
 | --- | --- |
 | index preview | the docs tree's path, the note count, and one entry per folder with its own count -- then a pointer to `INDEX.md` for the full list and the reminder that it is generated |
 | the shared vocabulary | the root `NOMENCLATURE.md` as content: one line per term, then its remaining sections as written |
-| the types | one line per live type -- what it serves and what it must carry -- under a sentence pointing at `doc-marshal info <type>`, `info --marshalling` and `new` |
+| the compact info block | one line per live type -- what it serves and what it must carry -- under a sentence pointing at `doc-marshal info <type>`, `info --marshalling` and `new` |
 
 The index preview is a uniform reduction at every size, the top level included. `INDEX.md` grows
 linearly with the tree forever, and a summary of every note is a cost every session pays whether or

@@ -30,13 +30,18 @@ The first two are not written by the engine. `uv add --dev doc-marshal==X.Y.Z` i
 writes both, and hand-editing a dependencies table behind a manager's back is how a lockfile stops
 matching what is installed.
 
-## `==`, never a range
+## What each jurisdiction is allowed to say
 
-`pyproject.toml` pins with `==`. A `~=`, `>=`, `<`, `!=` or a `*` admits an environment the other
-three jurisdictions do not, so the next resolve can move that one jurisdiction and leave the
-others behind. `doctor` reports a range in `pyproject.toml` as a problem even when it currently
-matches the running version, because that is a property of the pin itself rather than of today's
+`pyproject.toml` pins with `==X.Y.Z`. A `~=`, `>=`, `<`, `!=` or a `*` there admits an environment
+the other three do not, so the next resolve can move that one jurisdiction and leave the others
+behind. `doctor` reports a range in `pyproject.toml` as a problem even when it currently matches
+the running version, because that is a property of the pin itself rather than of today's
 agreement.
+
+The CI pin is the deliberate exception: `init --ci` and `upgrade` write `doc-marshal==X.Y.*`, a
+minor wildcard, so a patch release reaches CI without a commit. `doctor` holds every pin to
+admitting the running version rather than to naming it exactly, and raises the range problem for
+`pyproject.toml` alone.
 
 ## An engine with no tag
 
@@ -60,8 +65,9 @@ what `doctor` checks and what `init` and `upgrade` write can never be two differ
 
 `doctor` prints the running version and where it came from, the interpreter, the docs tree, whether
 the root `CLAUDE.md` imports the docs-tree one, the engine in the project's virtualenv -- the one
-the plugin's hooks run -- the engine on PATH, and every repository pin with whether it matches. It
-exits 1 having reported any of:
+the plugin's hooks run -- the engine on PATH, and every repository pin with whether it matches. No
+integration runs it: the pull-request workflow runs `check`, `index --check` and `drifted` and
+nothing else, so a disagreement surfaces when someone asks. It exits 1 having reported any of:
 
 - no docs tree resolves here, so nothing is being validated;
 - no engine in the project's virtualenv or on PATH, so the plugin's hooks run nothing;
