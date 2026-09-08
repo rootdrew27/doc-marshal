@@ -155,7 +155,7 @@ Pre-commit, in `.pre-commit-config.yaml`:
 <!-- generated: pre-commit -->
 ```yaml
 - repo: https://github.com/rootdrew27/doc-marshal
-  rev: v0.3.0
+  rev: v0.4.0
   hooks:
     - id: doc-marshal-check
     - id: doc-marshal-index
@@ -171,10 +171,10 @@ the code, which by definition touches no documentation. `fetch-depth: 0` because
   with:
     fetch-depth: 0
 - uses: astral-sh/setup-uv@v6
-- run: uvx doc-marshal==0.3.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
-- run: uvx doc-marshal==0.3.* index --check
+- run: uvx doc-marshal==0.4.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
+- run: uvx doc-marshal==0.4.* index --check
   continue-on-error: true
-- run: uvx doc-marshal==0.3.* affected --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
+- run: uvx doc-marshal==0.4.* affected --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
 ```
 
 ### The Claude Code plugin
@@ -204,7 +204,7 @@ same process by the same route with no plugin at all.
 Four commands, from the repository root:
 
 ```bash
-uv add --dev doc-marshal==0.3.0                          # into the project's .venv, where the plugin's hooks look
+uv add --dev doc-marshal==0.4.0                          # into the project's .venv, where the plugin's hooks look
 uv run doc-marshal init --claude-code --pre-commit --ci  # the marker, the pointer file, and both enforcement points
 uv run doc-marshal check --all                           # the tree validates from its first minute
 uv run doc-marshal doctor                                # every route to the engine resolves the same version
@@ -213,7 +213,7 @@ uv run doc-marshal doctor                                # every route to the en
 Drop `--claude-code` for the vendor-neutral `AGENTS.md`. Drop `--pre-commit` or `--ci` and `init`
 prints that file for you to write yourself instead of writing it. A repository that is not a Python
 project has no dependency table to add to, so put the engine on PATH instead:
-`uv tool install doc-marshal==0.3.0`.
+`uv tool install doc-marshal==0.4.0`.
 
 Upgrading is one command, and it moves every version this repository names at once:
 
@@ -233,10 +233,10 @@ nothing, which reads exactly like a clean tree -- the failure mode that looks mo
 
 | The project uses | Install with | Hooks find it |
 | --- | --- | --- |
-| pip with a virtualenv in the tree | `pip install doc-marshal==0.3.0` | yes, `.venv/` or `venv/` |
-| Poetry with `virtualenvs.in-project true` | `poetry add --group dev doc-marshal==0.3.0` | yes, `.venv/` |
+| pip with a virtualenv in the tree | `pip install doc-marshal==0.4.0` | yes, `.venv/` or `venv/` |
+| Poetry with `virtualenvs.in-project true` | `poetry add --group dev doc-marshal==0.4.0` | yes, `.venv/` |
 | Poetry with the default environment | -- | **no**: the environment sits outside the repository under a hashed name. Turn on in-project virtualenvs and reinstall, or install to PATH. |
-| nothing in particular | `uv tool install doc-marshal==0.3.0` | yes, PATH |
+| nothing in particular | `uv tool install doc-marshal==0.4.0` | yes, PATH |
 
 Then `doc-marshal init --claude-code --pre-commit --ci`, `check --all` and `doctor`, as above.
 
