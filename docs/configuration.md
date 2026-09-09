@@ -1,7 +1,7 @@
 ---
 type: spec
 updated: 2026-09-08
-summary: Configuration as designed and unbuilt: the config file, extends, per-type merge, disabling a type, the policies table and exclude
+summary: "Configuration as designed and unbuilt: the config file, extends, per-type merge, disabling a type, the policies table and exclude"
 status: proposed
 code_refs:
   - src/doc_marshal/config.py

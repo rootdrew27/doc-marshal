@@ -27,7 +27,7 @@ Source = "https://github.com/rootdrew27/doc-marshal"
 doc-marshal = "doc_marshal.cli:main"
 
 [dependency-groups]
-dev = ["tomli-w>=1.0", "pytest>=8", "ruff>=0.16", "mypy>=1.19"]
+dev = ["pyyaml>=6", "tomli-w>=1.0", "pytest>=8", "ruff>=0.16", "mypy>=1.19"]
 
 [build-system]
 requires = ["hatchling"]

@@ -1,7 +1,7 @@
 ---
 type: runbook
 updated: 2026-09-08
-summary: Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish
+summary: "Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish"
 code_refs:
   - scripts/sync_version.py
   - scripts/render_doctrine.py
