@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# End-to-end smoke test on a fresh repository: every command runs, the five-type preset validates
+# End-to-end smoke test on a fresh repository: every command runs, the five-type profile validates
 # what it should and rejects what it should, and the plugin's hooks resolve the installed engine.
 # CI runs this on each supported Python; locally: PLUGIN=$PWD/plugin bash scripts/smoke.sh
 set -eux
 : "${PLUGIN:?set PLUGIN to the plugin directory}"
 doc-marshal --version
 doc-marshal info --types > /dev/null
-doc-marshal info --process > /dev/null
-doc-marshal info --rules | grep -c '{{' | grep -qx 0
+doc-marshal info --marshalling > /dev/null
+doc-marshal info --policies | grep -c '{{' | grep -qx 0
 test "$(doc-marshal info --types | grep -c '^## `')" = 5
 doc-marshal info spec | grep -q 'required, in this order'
 
@@ -45,9 +45,9 @@ doc-marshal check --all
 doc-marshal index && doc-marshal index --check
 git add -A && git commit -qm init
 echo "y = 2" >> src/db.py
-doc-marshal affected | grep -q use-postgres
+doc-marshal drifted | grep -q use-postgres
 git commit -qam second
-doc-marshal affected --range HEAD~1..HEAD | grep -q use-postgres
+doc-marshal drifted --range HEAD~1..HEAD | grep -q use-postgres
 ! doc-marshal check --all --range HEAD           # not A..B
 ! doc-marshal check --all --range HEAD~1...HEAD  # three dots
 doc-marshal doctor
@@ -68,19 +68,19 @@ mkdir -p docs/sub && printf 'x\n' > docs/sub/INDEX.md && printf 'x\n' > docs/Rea
 doc-marshal check --all | grep -c 'does not belong' | grep -qx 2
 rm -r docs/sub docs/Readme.md
 
-# A removed import line is a doctor problem, and so is running with no docs root at all.
+# A removed import line is a doctor problem, and so is running with no docs tree at all.
 sed -i.bak '/@docs\/CLAUDE.md/d' CLAUDE.md && rm CLAUDE.md.bak
 ! doc-marshal doctor
 doc-marshal init --claude-code | grep -q '@docs/CLAUDE.md'
 doc-marshal doctor
 (cd "$(mktemp -d)" && ! doc-marshal doctor)
 
-# The integration flags write the other two enforcement points. This engine came from a checkout,
+# The integration flags write the other two integrations. This engine came from a checkout,
 # so `v0.3.0` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
 version=$(doc-marshal --version | awk '{print $2}')
 doc-marshal init --pre-commit --ci | grep -q -- '--pin'
 test ! -f .pre-commit-config.yaml
-# The same applies to the blocks `init` prints for the points it did not wire: a version it cannot
+# The same applies to the blocks `init` prints for the ones it did not wire: a version it cannot
 # vouch for is not printed as a snippet to paste either.
 doc-marshal init | grep -q 'rev: vX.Y.Z'
 mkdir -p .github
@@ -91,7 +91,7 @@ grep -q 'doc-marshal==' .github/workflows/docs.yml
 # A config that already names doc-marshal is left alone rather than gaining a second entry.
 doc-marshal init --pre-commit --pin 0.3.0 | grep -q 'left alone'
 test "$(grep -c 'rev: v' .pre-commit-config.yaml)" = 1
-# doctor reads all three written facets, and a rev nothing else names is a problem.
+# doctor reads all three written jurisdictions, and a rev nothing else names is a problem.
 doc-marshal doctor | grep -q '\.pre-commit-config\.yaml pins'
 doc-marshal doctor | grep -q 'workflows/docs\.yml pins'
 sed -i.bak 's/rev: v.*/rev: v9.9.9/' .pre-commit-config.yaml && rm .pre-commit-config.yaml.bak
@@ -104,7 +104,7 @@ doc-marshal doctor
 # no pin to move.
 doc-marshal upgrade "$version" --pins | grep -q 'already names'
 # A range in the dependency table is a problem even when it admits the running version: it is the
-# one facet that can move on the next resolve without anything else moving with it.
+# one jurisdiction that can move on the next resolve without anything else moving with it.
 printf '[project]\nname = "x"\ndependencies = ["doc-marshal>=0.3.0"]\n' > pyproject.toml
 ! doc-marshal doctor
 doc-marshal doctor | grep -q 'a range'

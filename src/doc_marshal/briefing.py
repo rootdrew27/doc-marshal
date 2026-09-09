@@ -1,14 +1,14 @@
-"""`doc-marshal session-context`: what a fresh session is given about the docs tree.
+"""`doc-marshal briefing`: what a fresh session is given about the docs tree.
 
-Three blocks, in the order they should be read (SPEC.md section 7):
+Three blocks, in the order they should be read (see docs/briefing.md):
 
 1. The index preview -- folder names with note counts, and nothing else, ending with a pointer to
    the full index. Uniform reduction at every size, top level included: the full index grows
    linearly with the tree forever, and every session paid for it whether or not it opened a doc.
-2. The docs root's nomenclature note, as its content rather than its file: the table as one line
-   per term, then the prose sections as written. Frontmatter and HTML comments are for the
+2. The docs tree's nomenclature note, as its content rather than its file: the table as one line
+   per term, then the remaining sections as written. Frontmatter and HTML comments are for the
    validator and the author, not the session. The terms and the aliases they rule out are the
-   content; a summary of a vocabulary is a second vocabulary. Only the root note is injected -- a
+   content; a summary of a vocabulary is a second vocabulary. Only the root note is briefed -- a
    nested one governs its subtree and is read on arriving there.
 3. The compact `info` block -- the enabled types and their anchors.
 
@@ -22,29 +22,29 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import add_docs_root_option, load_registry
-from .discovery import find_docs_root, find_repo_root
+from .config import add_docs_tree_option, load_profile
+from .discovery import find_docs_tree, find_repo_root
 from .errors import DocMarshalError
 from .frontmatter import read_note
 from .index import index_state, render_preview
-from .info import render_session_types
+from .info import render_briefing_types
 from .markdown import cell_items, cell_text, parse_table, sections, strip_comments
-from .ontology import DocType, Registry
+from .ontology import DocType, Profile
 from .paths import exists_exact, rel_to
 
 REGENERATE = "doc-marshal index"
 
 
-def index_block(docs_root: Path, registry: Registry, label: str) -> str:
+def index_block(docs_tree: Path, profile: Profile, label: str) -> str:
     """The preview, with a warning ahead of it when the index no longer matches the notes.
 
     A session routing off a stale index is exactly when staleness matters, so it is computed here
     rather than left for CI to mention later. Any failure to answer counts as not stale: a broken
     hook must not manufacture a warning about the docs.
     """
-    index_name = registry.settings.index_name
+    index_name = profile.settings.index_name
     try:
-        state = index_state(docs_root, registry)
+        state = index_state(docs_tree, profile)
     except Exception:  # a hook must not fail the session over a docs problem
         return f"{label}/ is the documentation tree (doc-marshal). Its index could not be read."
     if not state.notes and state.problems:
@@ -75,7 +75,7 @@ def render_nomenclature(path: Path, spec: DocType) -> str:
     column under its own name -- read through the same parser the validator uses, so a reformatted
     table cannot leak in as text. The other sections follow as written. HTML comments are stripped throughout, and the
     frontmatter and title are not emitted at all: the block's own sentence says what this is.
-    Falls back to the body verbatim when the table is not the shape the registry expects, because
+    Falls back to the body verbatim when the table is not the shape the profile expects, because
     a malformed table is `check`'s finding and must not hide the vocabulary.
     """
     structure = spec.structure
@@ -100,55 +100,55 @@ def render_nomenclature(path: Path, spec: DocType) -> str:
     return "\n".join(lines)
 
 
-def nomenclature_blocks(docs_root: Path, registry: Registry, label: str) -> list[str]:
-    """The docs root's fixed-name, root-required notes, rendered for reading."""
+def nomenclature_blocks(docs_tree: Path, profile: Profile, label: str) -> list[str]:
+    """The docs tree's root-required notes with reserved filenames, rendered for reading."""
     blocks: list[str] = []
-    for spec in registry.root_notes:
-        path = spec.fixed_path(docs_root)
-        if not exists_exact(docs_root, path):
+    for spec in profile.root_notes:
+        path = spec.reserved_path(docs_tree)
+        if not exists_exact(docs_tree, path):
             blocks.append(
-                f"{label}/{spec.fixed_name} is missing. The docs tree expects one, and notes written "
+                f"{label}/{spec.reserved_filename} is missing. The docs tree expects one, and notes written "
                 f"without it will not share a vocabulary. `doc-marshal new {spec.name} {label}` scaffolds it."
             )
             continue
         blocks.append(
-            f"The project's shared vocabulary follows, from {label}/{spec.fixed_name}. Use these terms "
-            "in documentation and in code, and avoid the aliases they rule out. A directory with its "
-            f"own {spec.fixed_name} adds terms for its subtree.\n\n" + render_nomenclature(path, spec)
+            f"The project's shared vocabulary follows, from {label}/{spec.reserved_filename}. Use these "
+            "terms in documentation and in code, and avoid the aliases they rule out. A directory with "
+            f"its own {spec.reserved_filename} adds terms for its subtree.\n\n" + render_nomenclature(path, spec)
         )
     return blocks
 
 
-def session_context(docs_root: Path, registry: Registry) -> str:
+def briefing(docs_tree: Path, profile: Profile) -> str:
     """Everything a session is given about the docs tree, in the order it should be read."""
-    label = rel_to(docs_root, find_repo_root(docs_root)).as_posix()
+    label = rel_to(docs_tree, find_repo_root(docs_tree)).as_posix()
     blocks = [
-        index_block(docs_root, registry, label),
-        *nomenclature_blocks(docs_root, registry, label),
-        render_session_types(registry),
+        index_block(docs_tree, profile, label),
+        *nomenclature_blocks(docs_tree, profile, label),
+        render_briefing_types(profile),
     ]
     return "\n\n".join(block for block in blocks if block)
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="doc-marshal session-context",
+        prog="doc-marshal briefing",
         description="Print what a fresh session is given about the docs tree.",
     )
-    add_docs_root_option(parser)
+    add_docs_tree_option(parser)
     parser.add_argument(
         "--quiet-if-absent",
         action="store_true",
-        help="print nothing and exit 0 when there is no docs root -- for a hook installed everywhere",
+        help="print nothing and exit 0 when there is no docs tree -- for a hook installed everywhere",
     )
     args = parser.parse_args(argv)
     try:
-        docs_root = find_docs_root(args.docs_root)
+        docs_tree = find_docs_tree(args.docs_tree)
     except DocMarshalError:
         if args.quiet_if_absent:
             return 0
         raise
-    print(session_context(docs_root, load_registry(docs_root)))
+    print(briefing(docs_tree, load_profile(docs_tree)))
     return 0
 
 

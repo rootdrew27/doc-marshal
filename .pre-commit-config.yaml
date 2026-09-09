@@ -1,18 +1,35 @@
-# Keeps rendered/ -- the standard preset's rules, types and process as `doc-marshal info`
-# renders them -- in step with the prose and the registry they come from. CI regenerates and
-# commits it on push to main as the backstop (.github/workflows/render.yml).
+# Keeps every derived copy -- rendered/ and the docs tree's init files -- in step with the doctrine
+# and the profile they come from, and validates the docs tree with the engine in this checkout.
+# CI regenerates and commits rendered/ on push to main as the backstop (.github/workflows/render.yml).
+#
+# The two doc-marshal hooks are local rather than a `rev:` on this repository's own hooks file: the
+# tree that documents the engine is validated by the engine under edit, so a policy added on a
+# branch is enforced on that branch, and no version pin exists here to move at release time.
 repos:
   - repo: local
     hooks:
-      - id: render-prose
-        name: render prose into rendered/
-        entry: uv run python scripts/render_prose.py
+      - id: render-doctrine
+        name: render the derived files
+        entry: uv run python scripts/render_doctrine.py
         language: system
         pass_filenames: false
-        files: ^(src/doc_marshal/(prose/.*|ontology\.py|info\.py|settings\.py|__init__\.py)|scripts/render_prose\.py)$
+        files: ^(src/doc_marshal/(doctrine/.*|ontology\.py|info\.py|init\.py|settings\.py|__init__\.py)|scripts/render_doctrine\.py|docs/(CLAUDE\.md|\.doc-marshal\.toml))$
       - id: sync-version
         name: version copies match __version__
         entry: uv run python scripts/sync_version.py --check
         language: system
         pass_filenames: false
         files: ^(src/doc_marshal/(__init__|integrate)\.py|plugin/\.claude-plugin/plugin\.json|README\.md|\.pre-commit-hooks\.yaml|scripts/sync_version\.py)$
+      - id: doc-marshal-check
+        name: doc-marshal check
+        entry: uv run doc-marshal check --skip-non-notes
+        language: system
+        types: [markdown]
+        require_serial: true
+      - id: doc-marshal-index
+        name: doc-marshal index
+        entry: uv run doc-marshal index
+        language: system
+        types: [markdown]
+        pass_filenames: false
+        require_serial: true

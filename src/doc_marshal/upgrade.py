@@ -1,4 +1,4 @@
-"""`doc-marshal upgrade`: move every facet that names a version to the same new one.
+"""`doc-marshal upgrade`: move every jurisdiction that names a version to the same new one.
 
     doc-marshal upgrade 0.4.0          # install it, then move the pre-commit rev and the CI pin
     doc-marshal upgrade 0.4.0 --dry-run
@@ -13,11 +13,11 @@ actually does.
 
 It runs in two phases because the process that starts an upgrade is the *old* engine. Phase one
 installs and hands off to the newly installed executable; phase two -- `--pins` -- is that
-executable rewriting the facets it can now name correctly. The handoff is a subprocess rather than
-`os.execv`: the exit status has to reach a shell the same way on every platform. When no engine
-reporting the new version can be found afterwards, it stops instead of writing the pins from the
-old one -- an upgrade that visibly stopped half done beats one that reports success in the old
-version's words.
+executable rewriting the jurisdictions it can now name correctly. The handoff is a subprocess
+rather than `os.execv`: the exit status has to reach a shell the same way on every platform. When
+no engine reporting the new version can be found afterwards, it stops instead of writing the pins
+from the old one -- an upgrade that visibly stopped half done beats one that reports success in
+the old version's words.
 
 Only `uv` is driven (see `manager`). Anything else is handed its two steps and stops.
 """
@@ -44,7 +44,7 @@ AFTERWARDS = """
 Two things about upgrading this tool:
 
   `pre-commit autoupdate` moves the doc-marshal `rev:` on its own, and nothing else. That is the
-  one facet moving without the environment or the CI pin, which is exactly the disagreement
+  one jurisdiction moving without the environment or the CI pin, which is exactly the disagreement
   `doc-marshal doctor` reports. `doc-marshal upgrade <version>` is the route that moves all of them.
 
   A minor release may enforce checks the old one did not, so a tree that passed yesterday can fail
@@ -69,7 +69,7 @@ def upgraded_engine(repo_root: Path, version: str) -> Path | None:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="doc-marshal upgrade",
-        description="Install a version and point every facet that names one at it.",
+        description="Install a version and point every jurisdiction that names one at it.",
     )
     parser.add_argument("version", help="the version to move to, as X.Y.Z")
     parser.add_argument("--pins", action="store_true", help="rewrite the pins only, without installing")

@@ -1,13 +1,13 @@
 # The doc types
 
 What each type is for, how it reads, how it changes, and what it must carry. Everything that is
-not per-type -- naming, attachments, links, the index, the general frontmatter rules -- is
-`doc-marshal info --rules`.
+not per-type -- naming, assets, links, the index, the general frontmatter policies -- is
+`doc-marshal info --policies`.
 
-Under each type, the facts list is read from the registry and is what `doc-marshal check`
-enforces. The prose after it is how to write the type well; nothing in it is checked.
+Under each type, the facts list is read off the effective profile and is what `doc-marshal check`
+enforces. The text after it is how to write the type well; nothing in it is checked.
 
-A type names the reader it serves. One type per document: someone running a procedure does not
+A type names the reader it serves. One type per note: someone running a procedure does not
 want a specification in the middle of it, and someone reading how a feature behaves does not
 want a step list. Split instead, and link.
 
@@ -132,7 +132,7 @@ that hold the facts its statements rest on, and several specs may point at one r
 
 - `status` is a claim about the code, not the writing: `proposed` while nothing is built,
   `in-progress` while code and doc disagree, `done` when they agree.
-- Living at every status. When the code changes, rewrite the spec to match. When the spec moves
+- Mutable at every status. When the code changes, rewrite the spec to match. When the spec moves
   ahead of the code, set it back to `in-progress` until the code catches up; the validator warns
   when a `done` spec was edited by a change that touched none of its code, because only the
   author knows which happened.

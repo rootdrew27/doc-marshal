@@ -1,14 +1,15 @@
 """`doc-marshal doctor`: which engine is running, which ones the repository carries, and whether
 they agree.
 
-The stability contract (SPEC.md section 13) holds only while every route to the engine resolves
+The stability contract (see docs/engine.md) holds only while every route to the engine resolves
 the same version: the one on PATH, the one in the project's virtualenv that the plugin's hooks
 run, and the one the repository pins in its pre-commit config, its pyproject or its CI workflow.
 This command reports each and exits 1 on a mismatch -- an agent validating at 0.6 while CI runs
 0.5 is the failure it exists to make visible.
 
-The facets themselves are read in `integrate`, which also writes them, so what `doctor` checks and
-what `init` and `upgrade` write can never be two different answers (SPEC.md section 19).
+The jurisdictions themselves are read in `integrate`, which also writes them, so what `doctor`
+checks and what `init` and `upgrade` write can never be two different answers (see
+docs/jurisdictions.md).
 """
 
 from __future__ import annotations
@@ -22,8 +23,8 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import add_docs_root_option
-from .discovery import cwd_repo, find_docs_root, find_repo_root
+from .config import add_docs_tree_option
+from .discovery import cwd_repo, find_docs_tree, find_repo_root
 from .errors import DocMarshalError
 from .init import has_import, import_line
 from .integrate import PRECOMMIT, PYPROJECT, is_exact, normalize, pin_matches, pins
@@ -64,28 +65,28 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="doc-marshal doctor", description="Report every resolvable engine and flag a version mismatch."
     )
-    add_docs_root_option(parser)
+    add_docs_tree_option(parser)
     args = parser.parse_args(argv)
 
     problems: list[str] = []
     print(f"running:   doc-marshal {__version__} from {Path(__file__).resolve().parent}")
     print(f"python:    {sys.version.split()[0]} at {sys.executable}")
 
-    docs_root: Path | None = None
+    docs_tree: Path | None = None
     try:
-        docs_root = find_docs_root(args.docs_root)
-        repo_root = find_repo_root(docs_root)
-        print(f"docs root: {rel_to(docs_root, repo_root)}/ under {repo_root} (marker {SETTINGS.marker_name})")
+        docs_tree = find_docs_tree(args.docs_tree)
+        repo_root = find_repo_root(docs_tree)
+        print(f"docs tree: {rel_to(docs_tree, repo_root)}/ under {repo_root} (config {SETTINGS.config_name})")
     except DocMarshalError as exc:
         _, repo_root, _ = cwd_repo()
-        print(f"docs root: none -- {exc.args[0].splitlines()[0]}")
-        problems.append("no docs root resolves here, so nothing is being validated")
+        print(f"docs tree: none -- {exc.args[0].splitlines()[0]}")
+        problems.append("no docs tree resolves here, so nothing is being validated")
 
-    # A docs-root CLAUDE.md is what `init --claude-code` writes, and it reaches a session only
+    # A docs-tree CLAUDE.md is what `init --claude-code` writes, and it reaches a session only
     # through the import line in the root CLAUDE.md. A nested memory file with no import is loaded
-    # only once a session reads under the docs root, so the pointer exists and nobody sees it.
-    if docs_root is not None and (docs_root / "CLAUDE.md").is_file():
-        label = rel_to(docs_root, repo_root).as_posix()
+    # only once a session reads under the docs tree, so the pointer exists and nobody sees it.
+    if docs_tree is not None and (docs_tree / "CLAUDE.md").is_file():
+        label = rel_to(docs_tree, repo_root).as_posix()
         line = import_line(label, "CLAUDE.md")
         if has_import(repo_root / "CLAUDE.md", line):
             print(f"root file: CLAUDE.md imports {label}/CLAUDE.md (every session sees the pointer)")
@@ -116,8 +117,9 @@ def main(argv: list[str]) -> int:
         if version and normalize(version) != __version__:
             problems.append(f"PATH resolves doc-marshal {version} but this run is {__version__}")
 
-    # Every facet that names a version names the same one; a facet may be absent. Absence is not a
-    # problem -- adopting the tree without pre-commit or CI is supported -- but disagreement is.
+    # Every jurisdiction that names a version names the same one; a jurisdiction may be absent.
+    # Absence is not a problem -- adopting the tree without pre-commit or CI is supported -- but
+    # disagreement is.
     repo_pins = pins(repo_root)
     if not repo_pins:
         print("repo pin:  none (`doc-marshal init --pre-commit --ci` writes both)")
@@ -133,14 +135,15 @@ def main(argv: list[str]) -> int:
             )
 
     # Agreeing today is not the whole invariant: a range in the dependency table admits versions
-    # the `rev:` and the CI pin do not, so the next resolve can move that one facet and leave the
-    # others behind. That is a property of the pin itself, not of whether the facets match now.
+    # the `rev:` and the CI pin do not, so the next resolve can move that one jurisdiction and
+    # leave the others behind. That is a property of the pin itself, not of whether the
+    # jurisdictions match now.
     for where, pin in repo_pins:
         if where == PYPROJECT and not is_exact(pin):
             problems.append(
                 f"{PYPROJECT} pins {pin}, a range: the next resolve may install a version the "
                 f"{PRECOMMIT} rev and the CI pin do not name. `doc-marshal upgrade {__version__}` "
-                "moves every facet to one version"
+                "moves every jurisdiction to one version"
             )
 
     print()

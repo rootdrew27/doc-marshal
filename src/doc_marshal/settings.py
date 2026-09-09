@@ -1,8 +1,8 @@
 """The constants of Tier 3, behind one object.
 
 The filename pattern, the summary cap, the index and assets names, the forbidden names and the
-excluded directories are not configurable until configuration lands (SPEC.md section 13). They
-are routed through this one object anyway, so that exposing them under `[rules]` then is a schema
+excluded directories are not configurable until configuration lands (see docs/engine.md). They
+are routed through this one object anyway, so that exposing them under `[policies]` then is a schema
 addition rather than a refactor through six modules: every consumer already takes a `Settings`.
 """
 
@@ -20,23 +20,23 @@ MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 
 @dataclass(frozen=True)
 class Settings:
-    marker_name: str = ".doc-marshal.toml"
-    """The file that marks the docs root and, in a later release, holds its configuration."""
+    config_name: str = ".doc-marshal.toml"
+    """The file that marks the docs tree and, in a later release, holds its configuration."""
 
     default_docs_dir: str = "docs"
-    """Where `init` puts the docs root when not told otherwise."""
+    """Where `init` puts the docs tree when not told otherwise."""
 
-    env_var: str = "DOC_MARSHAL_DOCS_ROOT"
-    """Overrides marker discovery; `--docs-root` overrides both."""
+    env_var: str = "DOC_MARSHAL_DOCS_TREE"
+    """Overrides config discovery; `--docs-tree` overrides both."""
 
     index_name: str = "INDEX.md"
     """The one generated index. Upper-case so it does not read as a note and sorts to the top."""
 
     assets_dirname: str = "assets"
-    """The one optional attachment directory, at the docs root. Exempt from everything, at any depth."""
+    """The one optional asset directory, at the top of the docs tree. Exempt from everything, at any depth."""
 
     memory_names: frozenset[str] = frozenset({"CLAUDE.md", "AGENTS.md"})
-    """Agent-memory files: never notes, anywhere under the docs root."""
+    """Agent-memory files: never notes, anywhere under the docs tree."""
 
     excluded_dirs: frozenset[str] = frozenset({".claude", ".git", ".github", ".obsidian"})
     """Tooling and metadata directories: nothing under them is a note."""
@@ -45,25 +45,25 @@ class Settings:
     """Notes and the folders holding them: kebab-case."""
 
     summary_max: int = 200
-    """`summary` is one line -- the only prose the generated index shows."""
+    """`summary` is one line -- the only text the generated index shows."""
 
     future_slack_days: int = 1
     """An `updated` date this far ahead of today is tolerated -- a writer ahead of CI's UTC clock."""
 
     @property
     def forbidden_names(self) -> dict[str, str]:
-        """Not allowed anywhere under the docs root, in any spelling of case, each with the reason
+        """Not allowed anywhere under the docs tree, in any spelling of case, each with the reason
         reported to its author. Keyed by the lower-cased name."""
         return {
-            "readme.md": f"the generated {self.index_name} is the docs root's only front door",
+            "readme.md": f"the generated {self.index_name} is the docs tree's only front door",
             # Any index but the generated one at the root. Caught by name rather than left to be
             # validated as a note, because "missing frontmatter" would not say what to do about it.
-            self.index_name.lower(): f"the generated index is {self.index_name}, spelled so, at the docs root only",
+            self.index_name.lower(): f"the generated index is {self.index_name}, spelled so, at the top of the docs tree only",
         }
 
     def forbidden_reason(self, path: Path) -> str | None:
-        """Why a markdown file may not exist under the docs root, or None when its name is allowed.
-        The one reading of the rule: `classify` calls it to decide, the validator to explain."""
+        """Why a markdown file may not exist under the docs tree, or None when its name is allowed.
+        The one reading of the policy: `classify` calls it to decide, the validator to explain."""
         if path.suffix != NOTE_SUFFIX:
             return f"notes are {NOTE_SUFFIX} files -- rename it"
         return self.forbidden_names.get(path.name.lower())

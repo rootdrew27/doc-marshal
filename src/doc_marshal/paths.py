@@ -1,4 +1,4 @@
-"""Classify paths under the docs root and enumerate the note set.
+"""Classify paths under the docs tree and enumerate the note set.
 
 Every command asks these questions through this module, so none of them can disagree about the
 note set -- a file that is an error in one command and invisible to another is a gap in the
@@ -16,32 +16,32 @@ from .settings import MARKDOWN_SUFFIXES, NOTE_SUFFIX, SETTINGS, Settings
 
 # What `classify` returns.
 NOTE = "note"  # a note the convention governs
-ATTACHMENT = "attachment"  # under the docs root's assets/, exempt from everything
-NOT_A_NOTE = "not-a-note"  # generated output, agent-memory, tooling, the marker, non-markdown
+ASSET = "asset"  # under the docs tree's assets/, exempt from everything
+NOT_A_NOTE = "not-a-note"  # generated output, agent-memory, tooling, the config, non-markdown
 FORBIDDEN = "forbidden"  # a file the convention does not allow to exist here
 
 
-def classify(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> str:
-    """Sort a path under the docs root into exactly one kind.
+def classify(path: Path, docs_tree: Path, settings: Settings = SETTINGS) -> str:
+    """Sort a path under the docs tree into exactly one kind.
 
     One function so the validator and the index builder cannot draw the line differently. Order
     matters: `assets/` wins over everything (it is unvalidated at any depth), tooling directories
     win over the forbidden-name check (a README under `.github/` is tooling, not a stray index).
-    The marker is not markdown, so it is never a note without a special case.
+    The config is not markdown, so it is never a note without a special case.
 
     Names are judged case-insensitively, because the filesystems this runs on disagree about
     case and a `Readme.md` is the same stray index as a `README.md`. A markdown file under any
     other spelling of the suffix is forbidden rather than ignored: silently skipping `.MD` left a
-    note nobody validated. The generated index is a non-note only at the docs root, spelled
+    note nobody validated. The generated index is a non-note only at the top of the docs tree, spelled
     exactly; anywhere else, or in any other case, it is a second index and forbidden.
     """
-    if in_assets(path, docs_root, settings):
-        return ATTACHMENT
+    if in_assets(path, docs_tree, settings):
+        return ASSET
     if path.suffix.lower() not in MARKDOWN_SUFFIXES:
         return NOT_A_NOTE
-    if settings.excluded_dirs.intersection(rel_to(path, docs_root).parts):
+    if settings.excluded_dirs.intersection(rel_to(path, docs_tree).parts):
         return NOT_A_NOTE
-    if path.name == settings.index_name and path.parent == docs_root:
+    if path.name == settings.index_name and path.parent == docs_tree:
         return NOT_A_NOTE
     if path.name in settings.memory_names:
         return NOT_A_NOTE
@@ -50,26 +50,26 @@ def classify(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> str:
     return NOTE
 
 
-def in_assets(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> bool:
-    """Whether this path lies inside the docs root's `assets/` directory.
+def in_assets(path: Path, docs_tree: Path, settings: Settings = SETTINGS) -> bool:
+    """Whether this path lies inside the docs tree's `assets/` directory.
 
-    Positional by design: only the top-level `assets/` is the attachment directory. Attachments
+    Positional by design: only the top-level `assets/` is the asset directory. Assets
     keep the filename their source gave them -- a third-party document's name is how you re-find
     it and check its revision -- so nothing inside is validated, at any depth.
     """
-    if not path.is_relative_to(docs_root):
+    if not path.is_relative_to(docs_tree):
         return False
-    parts = path.relative_to(docs_root).parts
+    parts = path.relative_to(docs_tree).parts
     return len(parts) > 1 and parts[0] == settings.assets_dirname
 
 
-def is_checkable(path: Path, docs_root: Path, settings: Settings = SETTINGS) -> bool:
+def is_checkable(path: Path, docs_tree: Path, settings: Settings = SETTINGS) -> bool:
     """Whether a validation sweep should report on this path.
 
     Wider than "is a note": a forbidden file is not a note, but a sweep that skipped it silently
     would let it live in the tree unreported.
     """
-    return classify(path, docs_root, settings) in (NOTE, FORBIDDEN)
+    return classify(path, docs_tree, settings) in (NOTE, FORBIDDEN)
 
 
 def rel_to(path: Path, root: Path) -> Path:
@@ -112,26 +112,26 @@ def _sorted(paths: Iterable[Path]) -> list[Path]:
     return sorted(paths, key=lambda p: (p.parent.as_posix().lower(), p.name.lower()))
 
 
-def iter_notes(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
-    """Every note under the docs root, sorted by folder then filename."""
-    return _sorted(p for p in docs_root.rglob(f"*{NOTE_SUFFIX}") if classify(p, docs_root, settings) == NOTE)
+def iter_notes(docs_tree: Path, settings: Settings = SETTINGS) -> list[Path]:
+    """Every note under the docs tree, sorted by folder then filename."""
+    return _sorted(p for p in docs_tree.rglob(f"*{NOTE_SUFFIX}") if classify(p, docs_tree, settings) == NOTE)
 
 
-def iter_checkable(docs_root: Path, settings: Settings = SETTINGS) -> list[Path]:
+def iter_checkable(docs_tree: Path, settings: Settings = SETTINGS) -> list[Path]:
     """Every path a validation sweep should report on -- `is_checkable`, over the whole tree,
     including the markdown files whose suffix is misspelled and therefore forbidden."""
-    # The suffix is read before the file is stat'd, so an attachment-heavy tree costs one string
+    # The suffix is read before the file is stat'd, so an asset-heavy tree costs one string
     # test per non-markdown entry rather than one syscall.
     return _sorted(
         p
-        for p in docs_root.rglob("*")
-        if p.suffix.lower() in MARKDOWN_SUFFIXES and p.is_file() and is_checkable(p, docs_root, settings)
+        for p in docs_tree.rglob("*")
+        if p.suffix.lower() in MARKDOWN_SUFFIXES and p.is_file() and is_checkable(p, docs_tree, settings)
     )
 
 
 def is_url(entry: str) -> bool:
     """Whether an anchor entry is a web address rather than a path. The one reading, so the
-    validator and `affected` agree about which entries the diff is matched against."""
+    validator and `drifted` agree about which entries the diff is matched against."""
     return urlparse(entry).scheme in ("http", "https")
 
 

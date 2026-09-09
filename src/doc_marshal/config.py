@@ -1,9 +1,9 @@
-"""The registry a docs root is validated against.
+"""The effective profile a docs tree is validated against.
 
-One hardcoded ontology, `standard`, and the marker file is location rather than configuration
-(SPEC.md section 14). The loader of section 4 -- `extends`, per-type shallow merge,
-`enabled = false`, `[rules]` -- lands in a later release and replaces the body of `load_registry`
-without changing its signature. Until then a marker that carries keys is refused rather than ignored: a
+One hardcoded ontology, `standard`, and the config file is location rather than configuration.
+The loader of docs/configuration.md -- `extends`, per-type shallow merge,
+`enabled = false`, `[policies]` -- lands in a later release and replaces the body of `load_profile`
+without changing its signature. Until then a config that carries keys is refused rather than ignored: a
 configuration that validated as nothing would be exactly the silent failure this tool exists to
 remove.
 """
@@ -15,38 +15,38 @@ import tomllib
 from pathlib import Path
 
 from . import __version__
-from .discovery import find_docs_root
+from .discovery import find_docs_tree
 from .errors import DocMarshalError
-from .ontology import STANDARD, Registry
+from .ontology import STANDARD, Profile
 from .settings import SETTINGS, Settings
 
 
-def load_registry(docs_root: Path, settings: Settings = SETTINGS) -> Registry:
-    marker = docs_root / settings.marker_name
-    if marker.is_file():
+def load_profile(docs_tree: Path, settings: Settings = SETTINGS) -> Profile:
+    config = docs_tree / settings.config_name
+    if config.is_file():
         try:
-            data = tomllib.loads(marker.read_text(encoding="utf-8"))
+            data = tomllib.loads(config.read_text(encoding="utf-8"))
         except tomllib.TOMLDecodeError as exc:
-            raise DocMarshalError(f"{marker}: not valid TOML -- {exc}") from exc
+            raise DocMarshalError(f"{config}: not valid TOML -- {exc}") from exc
         if data:
             raise DocMarshalError(
-                f"{marker} holds configuration ({', '.join(sorted(data))}), which doc-marshal "
+                f"{config} holds configuration ({', '.join(sorted(data))}), which doc-marshal "
                 f"{__version__} does not read -- configuration arrives in a later release. Until "
-                "then the file marks the docs root by existing, holds no keys, and any key fails "
+                "then the file marks the docs tree by existing, holds no keys, and any key fails "
                 "every command."
             )
     return STANDARD
 
 
-DOCS_ROOT_HELP = "docs root (default: the directory holding the marker)"
+DOCS_TREE_HELP = "docs tree (default: the directory holding the config)"
 
 
-def add_docs_root_option(parser: argparse.ArgumentParser) -> None:
-    """The `--docs-root` option every command takes, spelled once."""
-    parser.add_argument("--docs-root", help=DOCS_ROOT_HELP)
+def add_docs_tree_option(parser: argparse.ArgumentParser) -> None:
+    """The `--docs-tree` option every command takes, spelled once."""
+    parser.add_argument("--docs-tree", help=DOCS_TREE_HELP)
 
 
-def resolve(explicit: str | None, settings: Settings = SETTINGS) -> tuple[Path, Registry]:
-    """The docs root and the registry in force for it -- the two things every command starts from."""
-    docs_root = find_docs_root(explicit, settings)
-    return docs_root, load_registry(docs_root, settings)
+def resolve(explicit: str | None, settings: Settings = SETTINGS) -> tuple[Path, Profile]:
+    """The docs tree and the effective profile for it -- the two things every command starts from."""
+    docs_tree = find_docs_tree(explicit, settings)
+    return docs_tree, load_profile(docs_tree, settings)

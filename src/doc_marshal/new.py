@@ -1,8 +1,8 @@
-"""`doc-marshal new`: create a note with the frontmatter and skeleton its type requires.
+"""`doc-marshal new`: create a note with the frontmatter and template its type requires.
 
 Frontmatter is mechanical -- the required fields follow from the type, `updated` is today, and a
-numbered note's number is the highest existing one plus one. Every one of those is a rule someone
-otherwise applies by hand and occasionally gets wrong, so the registry states them and this
+numbered note's number is the highest existing one plus one. Every one of those is a policy someone
+otherwise applies by hand and occasionally gets wrong, so the profile states them and this
 command applies them.
 
     doc-marshal new reference docs/ledger/schema.md \\
@@ -11,15 +11,15 @@ command applies them.
     doc-marshal new nomenclature docs/payments --summary "Vocabulary of the payments subsystem."
 
 For a numbered type, pass a bare slug: the number, the folder and the `NNNN -- ` title prefix are
-all derived. For a fixed-name type, a directory is enough.
+all derived. For a type with a reserved filename, a directory is enough.
 
 What is checked here is only what writing the file needs: a live type, a legal status, a path
-under the docs root, naming and placement. Anchors are not resolved and the type's minimum is
+under the docs tree, naming and placement. Anchors are not resolved and the type's minimum is
 not enforced -- that is `check`'s job, and the note it writes fails `check` until its required
 sections are written. The last line printed is the gate. An earlier version validated here as
-well and still wrote notes `check` rejected, because two implementations of one rule drift.
+well and still wrote notes `check` rejected, because two implementations of one policy drift.
 
-The skeleton writes every section the type requires and nothing else; a heading the type does
+The template writes every section the type requires and nothing else; a heading the type does
 not require earns its place or is deleted.
 """
 
@@ -30,15 +30,15 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .config import add_docs_root_option, resolve
+from .config import add_docs_tree_option, resolve
 from .discovery import find_repo_root
 from .errors import DocMarshalError
 from .git import Git
 from .note import Note
-from .ontology import DocType, Registry
+from .ontology import DocType, Profile
 from .paths import rel_to
+from .policies import PLACEMENT_POLICIES, Scope
 from .report import Report
-from .rules import PLACEMENT_RULES, Scope
 from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR
 
 
@@ -59,10 +59,10 @@ def next_number(folder: Path) -> str:
 
 
 def render_note(title: str, meta: list[str], spec: DocType, today: str | None = None) -> str:
-    """A complete note: frontmatter lines, H1 and the type's skeleton."""
+    """A complete note: frontmatter lines, H1 and the type's template."""
     today = today or date.today().isoformat()
-    skeleton = [line.replace("{today}", today) for line in spec.skeleton]
-    lines = ["---", *meta, "---", "", f"# {title}", "", *skeleton]
+    template = [line.replace("{today}", today) for line in spec.template]
+    lines = ["---", *meta, "---", "", f"# {title}", "", *template]
     return "\n".join([*lines, ""])
 
 
@@ -83,8 +83,8 @@ def frontmatter_lines(
     return meta
 
 
-def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None) -> tuple[Path, str]:
-    """Where the note goes and what its H1 says, from the type's placement rules.
+def resolve_target(spec: DocType, given: str, docs_tree: Path, title: str | None) -> tuple[Path, str]:
+    """Where the note goes and what its H1 says, from the type's placement policies.
 
     A relative path is read from the current directory, the way every other tool reads one; the
     numbered types take a slug instead and place it themselves. Guessing between the current
@@ -92,18 +92,18 @@ def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None
     """
     if spec.numbered:
         slug = Path(given).stem
-        folder = spec.home(docs_root)
+        folder = spec.home(docs_tree)
         number = next_number(folder)
         return (
             folder / f"{number}-{slug}{NOTE_SUFFIX}",
             f"{number}{NUMBER_TITLE_SEPARATOR}{title or title_from_slug(slug)}",
         )
-    if spec.fixed_name is not None:
+    if spec.reserved_filename is not None:
         # The filename belongs to the type, so a directory is enough to say where it goes -- and
         # naming the file anyway is accepted rather than rejected on a technicality.
         path = Path(given)
-        if path.name != spec.fixed_name:
-            path = spec.fixed_path(path)
+        if path.name != spec.reserved_filename:
+            path = spec.reserved_path(path)
         target = path.resolve()
         return target, title or f"{title_from_slug(target.parent.name)} {spec.name}"
     path = Path(given)
@@ -113,39 +113,39 @@ def resolve_target(spec: DocType, given: str, docs_root: Path, title: str | None
     return target, title or title_from_slug(target.stem)
 
 
-def validate(target: Path, spec: DocType, docs_root: Path, repo_root: Path, registry: Registry) -> None:
-    """Refuse a path the file cannot be written at: outside the docs root, misnamed, or misplaced
+def validate(target: Path, spec: DocType, docs_tree: Path, repo_root: Path, profile: Profile) -> None:
+    """Refuse a path the file cannot be written at: outside the docs tree, misnamed, or misplaced
     for its type. The same naming and placement checks `check` runs, so the two cannot disagree
     about where a note goes."""
-    if not target.is_relative_to(docs_root):
-        raise DocMarshalError(f"a note must live under the docs root ({docs_root}): {target}")
+    if not target.is_relative_to(docs_tree):
+        raise DocMarshalError(f"a note must live under the docs tree ({docs_tree}): {target}")
     report = Report(root=repo_root)
-    note, scope = Note(target, meta={}, spec=spec), Scope(docs_root, registry, Git(repo_root))
-    for rule in PLACEMENT_RULES:
-        rule(note, scope, report)
+    note, scope = Note(target, meta={}, spec=spec), Scope(docs_tree, profile, Git(repo_root))
+    for policy in PLACEMENT_POLICIES:
+        policy(note, scope, report)
     if report.findings:
         raise DocMarshalError("\n".join(msg for _, _, msg in report.findings))
 
 
 def main(argv: list[str]) -> int:
-    # The registry is needed to list the types in --help, so the docs root is resolved before the
+    # The profile is needed to list the types in --help, so the docs tree is resolved before the
     # full parser is built. The resulting error message is the same one every other command prints.
-    root_options = argparse.ArgumentParser(add_help=False)
-    add_docs_root_option(root_options)
-    docs_root, registry = resolve(root_options.parse_known_args(argv)[0].docs_root)
-    settings = registry.settings
-    types = registry.enabled
+    tree_options = argparse.ArgumentParser(add_help=False)
+    add_docs_tree_option(tree_options)
+    docs_tree, profile = resolve(tree_options.parse_known_args(argv)[0].docs_tree)
+    settings = profile.settings
+    types = profile.enabled
 
     parser = argparse.ArgumentParser(
         prog="doc-marshal new",
         description="Scaffold a note with the frontmatter and sections its type requires.",
-        parents=[root_options],
+        parents=[tree_options],
     )
     parser.add_argument("type", choices=list(types))
     parser.add_argument(
         "path",
         help="path to the new note, from the current directory; a bare slug for a numbered type; "
-        "a directory for a fixed-name type",
+        "a directory for a type with a reserved filename",
     )
     parser.add_argument(
         "--summary",
@@ -153,7 +153,7 @@ def main(argv: list[str]) -> int:
         help=f"one line, max {settings.summary_max} chars, stating what the doc is for",
     )
     parser.add_argument("--title", help="H1 text (default: derived from the filename)")
-    for name, anchor in registry.anchor_fields.items():
+    for name, anchor in profile.anchor_fields.items():
         parser.add_argument(
             anchor.flag,
             action="append",
@@ -172,7 +172,7 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    repo_root = find_repo_root(docs_root)
+    repo_root = find_repo_root(docs_tree)
     spec = types[args.type]
     today = date.today().isoformat()
 
@@ -181,7 +181,7 @@ def main(argv: list[str]) -> int:
             f"summary must be one short line (max {settings.summary_max} chars), got {len(args.summary)}"
         )
 
-    target, title = resolve_target(spec, args.path, docs_root, args.title)
+    target, title = resolve_target(spec, args.path, docs_tree, args.title)
     if target.exists():
         raise DocMarshalError(f"already exists -- edit it rather than replacing it: {rel_to(target, repo_root)}")
 
@@ -192,8 +192,8 @@ def main(argv: list[str]) -> int:
     elif args.status:
         raise DocMarshalError(f"type '{spec.name}' has no 'status' field")
 
-    anchors = {name: getattr(args, f"anchor_{name}") for name in registry.anchor_fields}
-    validate(target, spec, docs_root, repo_root, registry)
+    anchors = {name: getattr(args, f"anchor_{name}") for name in profile.anchor_fields}
+    validate(target, spec, docs_tree, repo_root, profile)
 
     meta = frontmatter_lines(args.type, args.summary, today, status, anchors)
     target.parent.mkdir(parents=True, exist_ok=True)

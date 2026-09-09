@@ -1,35 +1,35 @@
-"""`doc-marshal init`: mark a directory as the docs root and write the integration files.
+"""`doc-marshal init`: mark a directory as the docs tree and write the integration files.
 
     doc-marshal init                    # docs/
     doc-marshal init agent-docs         # any other directory
     doc-marshal init --claude-code      # CLAUDE.md instead of AGENTS.md, imported from the root
-    doc-marshal init --pre-commit --ci  # wire the commit and pull-request enforcement points
+    doc-marshal init --pre-commit --ci  # wire the commit and pull-request integrations
 
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
-- the marker, `.doc-marshal.toml`, a comment and no keys -- location, not configuration, until a
+- the config, `.doc-marshal.toml`, a comment and no keys -- location, not configuration, until a
   later release reads it;
 - the root `nomenclature` note, because that type is `root_required` and `check --all` errors without it;
 - the generated index, so the tree validates from its first minute;
-- one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs root. It
+- one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs tree. It
   says what the tree, its commands and its two special files are for -- a pointer to
-  `doc-marshal info`, never a copy of the rules, so it cannot drift.
+  `doc-marshal info`, never a copy of the policies, so it cannot drift.
 
-With `--claude-code` it also puts the pointer in every session: one `@<docs root>/CLAUDE.md`
+With `--claude-code` it also puts the pointer in every session: one `@<docs tree>/CLAUDE.md`
 import line in the repository's root `CLAUDE.md`, which Claude Code reads at start. A nested
 memory file on its own is loaded only once a session reads under that directory, so without the
 line a session that never opens the docs never learns they exist. Other harnesses have no import
 syntax, so plain `init` prints the reference line for the root `AGENTS.md` and writes nothing there.
 
-`--pre-commit` and `--ci` write the other two enforcement points of section 12, at the version
-this engine is, rather than printing them for a human to paste at whichever version they read
-about. The wiring belongs to the engine because it is versioned with the rules it wires, and
-because it reaches the pre-commit, CI, Codex and Cursor users who never install the plugin. Both
-files are generated in `integrate`, which is also where `doctor` reads them back.
+`--pre-commit` and `--ci` write the other two integrations (see docs/integrations.md), at the
+version this engine is, rather than printing them for a human to paste at whichever version they
+read about. The wiring belongs to the engine because it is versioned with the policies it wires,
+and because it reaches the pre-commit, CI, Codex and Cursor users who never install the plugin.
+Both files are generated in `integrate`, which is also where `doctor` reads them back.
 
 It warns, rather than refusing, when the target looks like a published site or holds markdown
 without frontmatter: adopting the convention on an existing tree is a legitimate thing to do, and
-the marker makes the intent explicit.
+the config makes the intent explicit.
 """
 
 from __future__ import annotations
@@ -42,25 +42,25 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .config import load_registry
-from .discovery import cwd_repo, find_markers
+from .config import load_profile
+from .discovery import cwd_repo, find_configs
 from .errors import DocMarshalError
 from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
 from .integrate import precommit_block, render_steps, writable, write_ci, write_precommit
 from .new import frontmatter_lines, render_note
-from .ontology import Registry
+from .ontology import Profile
 from .paths import iter_notes, rel_to
 from .settings import SETTINGS, Settings
 
 SITE_FILES = ("conf.py", "mkdocs.yml", "_config.yml", "book.toml")
 SITE_GLOBS = ("docusaurus.config.*",)
 
-# What `init` writes into the marker. The one person who will ever open this file is about to add a
-# key to it, so the blast radius of doing that is stated where they will read it.
-MARKER_TEXT = """\
-# doc-marshal docs root. The file marks the directory by existing.
-# Configuration arrives in a later release; until then any key here makes every doc-marshal command exit 2.
+# What `init` writes into the config. The one person who will ever open this file is about to add
+# a key to it, so the blast radius of doing that is stated where they will read it.
+CONFIG_TEXT = """\
+# doc-marshal docs tree config. The file marks the directory by existing.
+# The profile's adjustments arrive in a later release; until then any key here makes every doc-marshal command exit 2.
 """
 
 # Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
@@ -69,7 +69,7 @@ MARKER_TEXT = """\
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
 
 
-def site_markers(target: Path) -> list[str]:
+def site_files(target: Path) -> list[str]:
     """Files that mark a published-site tree: Sphinx, MkDocs, Jekyll, mdBook, Docusaurus."""
     found = [name for name in SITE_FILES if (target / name).is_file()]
     for pattern in SITE_GLOBS:
@@ -90,7 +90,7 @@ def frontmatterless(target: Path, settings: Settings) -> list[Path]:
     return hits
 
 
-def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str:
+def pointer_text(docs_label: str, settings: Settings, profile: Profile) -> str:
     """The pointer file: what the tree, its commands and its two special files are for.
 
     Descriptive on purpose. With `--claude-code` this is imported into every session, so it says
@@ -101,28 +101,30 @@ def pointer_text(docs_label: str, settings: Settings, registry: Registry) -> str
     index = settings.index_name
     lines = [
         f"`{docs_label}/` is a doc-marshal docs tree: typed markdown notes whose primary reader is a coding",
-        "agent. The rules ship in the tool, not in this file.",
+        "agent. The policies ship in the tool, not in this file.",
         "",
         "```bash",
         "doc-marshal info                 # the note types and their anchors, one line each",
-        "doc-marshal info <type>          # one type in full: what it serves, how it reads, its skeleton",
-        "doc-marshal info --rules         # every rule for this tree",
-        "doc-marshal info --process       # how these docs are written: for a change, a subject, or a clean-up",
-        "doc-marshal check <path>         # validates a note against the rules; --all sweeps the tree",
+        "doc-marshal info <type>          # one type in full: what it serves, how it reads, its template",
+        "doc-marshal info --policies      # every policy for this tree",
+        "doc-marshal info --marshalling   # how these docs are written: for a change, a subject, or a clean-up",
+        "doc-marshal check <path>         # validates a note against the policies; --all sweeps the tree",
         "doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires",
-        "doc-marshal affected             # the notes anchored to code a change touched",
+        "doc-marshal drifted              # the notes anchored to code a change touched",
         f"doc-marshal index                # regenerates {index}",
         "```",
         "",
         f"- `{index}` -- generated routing surface: one line per note with its type and summary.",
     ]
-    for spec in registry.root_notes:
-        lines.append(f"- `{spec.fixed_name}` -- the shared vocabulary for docs and code, and the aliases it rules out.")
+    for spec in profile.root_notes:
+        lines.append(
+            f"- `{spec.reserved_filename}` -- the shared vocabulary for docs and code, and the aliases it rules out."
+        )
     return "\n".join(lines) + "\n"
 
 
 def import_line(docs_label: str, pointer_name: str) -> str:
-    """The Claude Code memory import that pulls the docs-root pointer into every session."""
+    """The Claude Code memory import that pulls the docs-tree pointer into every session."""
     return f"@{docs_label}/{pointer_name}"
 
 
@@ -171,10 +173,10 @@ def merge_permission(settings_path: Path) -> bool:
     return True
 
 
-def scaffold_nomenclature(target: Path, registry: Registry, repo_name: str) -> Path | None:
-    """The root nomenclature note, if the registry has a root-required fixed-name type and it is absent."""
-    for spec in registry.root_notes:
-        path = spec.fixed_path(target)
+def scaffold_nomenclature(target: Path, profile: Profile, repo_name: str) -> Path | None:
+    """The root nomenclature note, if the profile has a root-required reserved-filename type and it is absent."""
+    for spec in profile.root_notes:
+        path = spec.reserved_path(target)
         if path.exists():
             return None
         today = date.today().isoformat()
@@ -190,10 +192,10 @@ def scaffold_nomenclature(target: Path, registry: Registry, repo_name: str) -> P
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="doc-marshal init", description="Mark a directory as the docs root and wire it up."
+        prog="doc-marshal init", description="Mark a directory as the docs tree and wire it up."
     )
     parser.add_argument(
-        "path", nargs="?", help=f"the docs root to mark (default: {SETTINGS.default_docs_dir}/ at the repo root)"
+        "path", nargs="?", help=f"the docs tree to mark (default: {SETTINGS.default_docs_dir}/ at the repo root)"
     )
     parser.add_argument(
         "--claude-code",
@@ -220,27 +222,27 @@ def main(argv: list[str]) -> int:
     given = Path(args.path) if args.path else Path(settings.default_docs_dir)
     target = (given if given.is_absolute() else repo_root / given).resolve()
     if not target.is_relative_to(repo_root):
-        raise DocMarshalError(f"the docs root must lie inside the repository ({repo_root}): {target}")
+        raise DocMarshalError(f"the docs tree must lie inside the repository ({repo_root}): {target}")
     if target == repo_root:
-        raise DocMarshalError("the docs root must be a directory inside the repository, not the repository itself")
+        raise DocMarshalError("the docs tree must be a directory inside the repository, not the repository itself")
     label = rel_to(target, repo_root).as_posix()
 
-    others = [m for m in find_markers(repo_root, cwd, settings, stop_at=toplevel) if m.parent != target]
+    others = [m for m in find_configs(repo_root, cwd, settings, stop_at=toplevel) if m.parent != target]
     if others:
         listing = ", ".join(f"{rel_to(m.parent, repo_root)}/" for m in others)
         raise DocMarshalError(
-            f"a {settings.marker_name} marker already exists at {listing}, and one repository has "
-            "one docs root. Remove it first if the tree is moving."
+            f"a {settings.config_name} config already exists at {listing}, and one repository has "
+            "one docs tree. Remove it first if the tree is moving."
         )
 
     warnings: list[str] = []
     if target.is_dir():
-        found = site_markers(target)
+        found = site_files(target)
         if found:
             warnings.append(
                 f"{label}/ looks like a published documentation site -- it holds "
                 f"{', '.join(found)}. doc-marshal will validate every markdown file under it as a "
-                "note. If the site is human-authored, put the docs root somewhere else: "
+                "note. If the site is human-authored, put the docs tree somewhere else: "
                 "`doc-marshal init <other path>`."
             )
         loose = frontmatterless(target, settings)
@@ -257,28 +259,28 @@ def main(argv: list[str]) -> int:
 
     written: list[str] = []
     target.mkdir(parents=True, exist_ok=True)
-    marker = target / settings.marker_name
-    if not marker.exists():
-        marker.write_text(MARKER_TEXT, encoding="utf-8")
-        written.append(f"{label}/{settings.marker_name}  (the marker; holds no keys until configuration lands)")
+    config = target / settings.config_name
+    if not config.exists():
+        config.write_text(CONFIG_TEXT, encoding="utf-8")
+        written.append(f"{label}/{settings.config_name}  (the config; holds no keys until configuration lands)")
     else:
-        print(f"{label}/{settings.marker_name} already exists -- filling in whatever else is missing")
+        print(f"{label}/{settings.config_name} already exists -- filling in whatever else is missing")
 
-    registry = load_registry(target, settings)
-    nomenclature = scaffold_nomenclature(target, registry, repo_root.name)
+    profile = load_profile(target, settings)
+    nomenclature = scaffold_nomenclature(target, profile, repo_root.name)
     if nomenclature is not None:
         written.append(f"{label}/{nomenclature.name}  (the shared vocabulary -- fill in the terms this project uses)")
 
     pointer_name = "CLAUDE.md" if args.claude_code else "AGENTS.md"
     pointer = target / pointer_name
     if not pointer.exists():
-        pointer.write_text(pointer_text(label, settings, registry), encoding="utf-8")
-        written.append(f"{label}/{pointer_name}  (a pointer to `doc-marshal info`, not a copy of the rules)")
+        pointer.write_text(pointer_text(label, settings, profile), encoding="utf-8")
+        written.append(f"{label}/{pointer_name}  (a pointer to `doc-marshal info`, not a copy of the policies)")
     line = import_line(label, pointer_name)
     if args.claude_code and merge_import(repo_root / pointer_name, line):
         written.append(f"{pointer_name}  (imports {label}/{pointer_name} into every session: `{line}`)")
 
-    state = index_state(target, registry)
+    state = index_state(target, profile)
     if state.problems:
         print(
             f"warn:  {settings.index_name} not generated -- these notes cannot be indexed yet:\n  "
@@ -323,8 +325,8 @@ def main(argv: list[str]) -> int:
     Documentation is a doc-marshal docs tree; {label}/{pointer_name} says what it is for.
 """
     )
-    # The two enforcement points the flags did not wire, so `init` alone still says what the rest
-    # of section 12 is. `--pre-commit` and `--ci` write these instead of printing them.
+    # The two integrations the flags did not wire, so `init` alone still says what the rest of the
+    # integrations are. `--pre-commit` and `--ci` write these instead of printing them.
     shown = pin or "X.Y.Z"
     pending = ""
     if not args.pre_commit:
@@ -345,7 +347,7 @@ def main(argv: list[str]) -> int:
         f"""
 next:
   doc-marshal check --all            # validates {label}/ ({__version__})
-  doc-marshal info --process         # how the docs are written, staged
+  doc-marshal info --marshalling     # how the docs are written, staged
 {reference}{pending}"""
     )
     return 0

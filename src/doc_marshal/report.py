@@ -3,7 +3,7 @@
 One `Report` per run, shared by `check`, `new` and the vocabulary builder, so a finding reads the
 same wherever it was raised: level, path relative to the repository root, message. The two
 spellings of a line -- the hook's prefix and the GitHub workflow command -- live here too, so
-`affected` and `check` cannot drift apart.
+`drifted` and `check` cannot drift apart.
 """
 
 from __future__ import annotations

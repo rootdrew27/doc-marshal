@@ -1,7 +1,7 @@
 """Reading markdown: fences, headings, comments, code spans, `##` sections and table rows.
 
-Nothing here knows the registry or reports a finding. These are the one reading of each shape,
-consumed by the validator, the vocabulary reader and the session renderer, so no two of them can disagree about
+Nothing here knows the profile or reports a finding. These are the one reading of each shape,
+consumed by the validator, the vocabulary reader and the briefing renderer, so no two of them can disagree about
 where code starts, where a section ends or what a table row holds.
 """
 
@@ -19,7 +19,7 @@ INLINE_CODE_RE = re.compile(r"`[^`]*`")
 def _fenced_lines(text: str) -> Iterator[tuple[str, bool]]:
     """Each line of `text` with whether it is code: inside a fenced block, or a fence itself.
 
-    One implementation, so the link checker, the heading readers and the section reader cannot
+    One implementation, so the link check, the heading readers and the section reader cannot
     disagree about where code starts.
     """
     in_fence = False
@@ -69,9 +69,9 @@ def body_without_code(text: str) -> str:
 
 
 def strip_comments(text: str) -> str:
-    """Text without its HTML comments. The one reading, shared with the session renderer: a
+    """Text without its HTML comments. The one reading, shared with the briefing renderer: a
     comment is for the author and the validator, so it is neither content a section is
-    populated by, prose the alias scan reads, nor text a session is shown."""
+    populated by, body the alias scan reads, nor text a briefing is shown."""
     return COMMENT_RE.sub("", text)
 
 
@@ -98,7 +98,7 @@ def sections(text: str) -> list[tuple[str, list[str]]]:
     """The `##` sections of a note, each heading with the lines under it, in document order.
 
     The one reading of where a section starts and ends: the shape check, the table reader, the
-    size cap and the session renderer all consume this rather than scanning for headings
+    size cap and the briefing renderer all consume this rather than scanning for headings
     themselves. A `##` inside a fenced block is content, so the raw body can be handed in. Text
     before the first heading is dropped. Repeated headings stay repeated, so a shape check sees
     them.
@@ -134,14 +134,14 @@ def _cells(line: str) -> list[str]:
     return [cell.strip().replace("\\|", "|") for cell in CELL_SPLIT_RE.split(line.strip().strip("|"))]
 
 
-def parse_table(prose: str, section: str) -> tuple[list[str], list[Row], list[list[str]]]:
+def parse_table(text: str, section: str) -> tuple[list[str], list[Row], list[list[str]]]:
     """The table under `## {section}`: its header, its well-formed rows keyed by column, and the
     rows whose cell count does not match the header.
 
     Returns nothing when the section or its table is absent; reporting that is
     `check_structure`'s job, and every caller wants the same tolerant read.
     """
-    lines = next((body for name, body in sections(prose) if name == section), [])
+    lines = next((body for name, body in sections(text) if name == section), [])
     header: list[str] = []
     rows: list[Row] = []
     malformed: list[list[str]] = []

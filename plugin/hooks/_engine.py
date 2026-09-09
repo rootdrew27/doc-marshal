@@ -4,7 +4,7 @@ The plugin is an add-on to the package, not a distribution of it. It carries no 
 engine, so a project is validated by exactly the version it installed -- the one its CI and
 pre-commit hooks run -- and never by a second version that happened to arrive with the plugin.
 With no engine installed the hooks do nothing, except that the session-start hook says so once
-in a project that has a docs root (`MISSING_ENGINE`), because silence there would look like a
+in a project that has a docs tree (`MISSING_ENGINE`), because silence there would look like a
 clean tree.
 
 Standard library only: this runs on a bare `python3`.
@@ -19,7 +19,7 @@ from pathlib import Path
 
 PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
 PROJECT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
-MARKER = ".doc-marshal.toml"
+CONFIG = ".doc-marshal.toml"
 VENV_DIRS = (".venv", "venv")
 _PRUNE = {".git", ".venv", "venv", "node_modules", "__pycache__", ".claude", ".github"}
 _MAX_DEPTH = 4
@@ -29,9 +29,9 @@ _MAX_DEPTH = 4
 # unrelated work. It states the situation and stops there. It deliberately carries no install
 # command -- which version belongs here is the repository's decision, and installing the latest
 # release is the one action guaranteed to put the engine out of step with the pins the repository
-# already holds (SPEC.md section 19).
+# already holds (see docs/jurisdictions.md).
 MISSING_ENGINE = (
-    f"doc-marshal: this project has a docs root ({MARKER}) but no `doc-marshal` was found in "
+    f"doc-marshal: this project has a docs tree ({CONFIG}) but no `doc-marshal` was found in "
     f"{' or '.join(f'{d}/bin' for d in VENV_DIRS)} (Scripts/ on Windows) or on PATH, so notes are not being validated as "
     "they are written. This is context, not a task: do not install it unless the user asks. If they "
     "do, the version to install is the one this repository already names -- the `rev:` in "
@@ -75,8 +75,8 @@ def run(*args: str, timeout: int = 25, prefix: list[str] | None = None) -> subpr
         return None
 
 
-def has_docs_root() -> bool:
-    """Whether the project carries a docs-root marker. Cheap on purpose: `git ls-files`, or a
+def has_docs_tree() -> bool:
+    """Whether the project carries a docs-tree config. Cheap on purpose: `git ls-files`, or a
     shallow walk outside git. Only consulted when no engine is installed to ask properly."""
     try:
         listed = subprocess.run(
@@ -90,10 +90,10 @@ def has_docs_root() -> bool:
     except (OSError, subprocess.SubprocessError):
         listed = None
     if listed is not None and listed.returncode == 0:
-        return any(Path(entry).name == MARKER for entry in listed.stdout.split("\0") if entry)
+        return any(Path(entry).name == CONFIG for entry in listed.stdout.split("\0") if entry)
     for dirpath, dirnames, filenames in os.walk(PROJECT):
         depth = len(Path(dirpath).relative_to(PROJECT).parts)
         dirnames[:] = [d for d in dirnames if d not in _PRUNE and depth < _MAX_DEPTH]
-        if MARKER in filenames:
+        if CONFIG in filenames:
             return True
     return False
