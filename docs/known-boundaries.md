@@ -1,7 +1,7 @@
 ---
 type: reference
-updated: 2026-09-07
-summary: What the policies do not see: the limits of the naming, frontmatter, links, numbering, alias and vocabulary checks
+updated: 2026-09-08
+summary: "What the policies do not see: the limits of the naming, frontmatter, links, numbering, alias and vocabulary checks"
 code_refs:
   - src/doc_marshal/policies.py
   - src/doc_marshal/markdown.py
@@ -33,6 +33,8 @@ states what *is* checked; this note is its complement.
   specific thing it was.
 - A flow list, `key: [a, b]`, is read as a scalar string. Where the field is an anchor, the error
   reported is that it is not a list.
+- A quoted value is unescaped for `\"` and `\\` only, and a single-quoted `''` is not unescaped
+  at all, so any other escape a hand-written value carries reaches the generated index verbatim.
 - `https://` with nothing after it passes as a URL.
 
 ## Links

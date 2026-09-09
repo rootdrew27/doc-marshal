@@ -1,7 +1,7 @@
 ---
 type: reference
 updated: 2026-09-08
-summary: The standard profile's five types: why two carry no anchor, the lifecycle they share, and why there is no Related section
+summary: "The standard profile's five types: why two carry no anchor, the lifecycle they share, and why there is no Related section"
 code_refs:
   - src/doc_marshal/ontology.py
 ---

@@ -52,8 +52,11 @@ reports each.
 
 ## 4. Frontmatter
 
-Every note opens with a YAML block of scalars and dash-item lists. Three fields are required on
-every type:
+Every note opens with a YAML block of scalars and dash-item lists. It is YAML, not merely
+`key: value` lines: a value a plain scalar cannot hold is quoted -- one carrying a `: `, ending in
+a colon, opening with an indicator character, or carrying a ` #` -- and unquoted it is an error,
+not a note only this engine can read. A summary is the usual case, and `new` quotes it for you.
+Three fields are required on every type:
 
 | Field | Policy |
 | --- | --- |

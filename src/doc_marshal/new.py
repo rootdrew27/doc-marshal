@@ -33,6 +33,7 @@ from pathlib import Path
 from .config import add_docs_tree_option, resolve
 from .discovery import find_repo_root
 from .errors import DocMarshalError
+from .frontmatter import quote_scalar
 from .git import Git
 from .note import Note
 from .ontology import DocType, Profile
@@ -73,13 +74,16 @@ def frontmatter_lines(
     status: str | None = None,
     anchors: dict[str, list[str]] | None = None,
 ) -> list[str]:
-    meta = [f"type: {doc_type}", f"updated: {today}", f"summary: {summary}"]
+    # Everything that came from the command line is written through `quote_scalar`: a summary
+    # carrying `: ` is ordinary English and unremarkable to this package's parser, and invalid YAML
+    # to every other reader of the tree.
+    meta = [f"type: {doc_type}", f"updated: {today}", f"summary: {quote_scalar(summary)}"]
     if status:
         meta.append(f"status: {status}")
     for field_name, values in (anchors or {}).items():
         if values:
             meta.append(f"{field_name}:")
-            meta += [f"  - {value}" for value in values]
+            meta += [f"  - {quote_scalar(value)}" for value in values]
     return meta
 
 

@@ -1,7 +1,7 @@
 ---
 type: reference
-updated: 2026-09-07
-summary: One line per module of the package, per plugin file and per script: what each one owns
+updated: 2026-09-08
+summary: "One line per module of the package, per plugin file and per script: what each one owns"
 code_refs:
   - src/doc_marshal
   - plugin
@@ -56,7 +56,7 @@ by `cli.py`, so no verb pays for another's imports.
 | --- | --- |
 | `render_doctrine.py` | writing `rendered/` from the doctrine and the profile; `--check` reports a stale copy |
 | `sync_version.py` | every hand-copied version and the README's generated snippets; `--check`, `--set X.Y.Z` |
-| `smoke.sh` | the end-to-end run on a fresh repository, including both plugin hooks with `PATH` stripped |
+| `smoke.sh` | the end-to-end run on a fresh repository, including both plugin hooks with `PATH` stripped and the differential check that reads every note a second time with PyYAML |
 
 ## What is not here
 

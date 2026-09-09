@@ -64,6 +64,85 @@ rm docs/decisions/0002-untitled.md
 printf -- '---\ntype: reference\nupdated: 2026-09-03\nsummary: t\nsource:\n  - https://x.example\ncode-refs:\n  - src/db.py\n---\n# T\n\ntext\n' > docs/typo.md
 doc-marshal check docs/typo.md | grep -q "unknown frontmatter key 'code-refs'"
 rm docs/typo.md
+# A summary carrying `: ` is ordinary English and not a plain YAML scalar, so `new` writes it
+# quoted and an unquoted one is an error here rather than in whatever reads the tree next.
+doc-marshal new reference docs/limits --source https://x.example --summary "Limits: what the vendor imposes."
+grep -qx 'summary: "Limits: what the vendor imposes."' docs/limits.md
+
+# The subset is a subset, checked rather than claimed: every note in a tree parses under a real
+# YAML parser too, and to the same values once YAML's own typing is undone. A subset parser polices
+# the inside of the subset and cannot see its outer boundary -- a value read one way here and
+# another by every other reader of the tree is the class this catches. PyYAML is a development
+# library (docs/dependency-policy.md); the import order below is the assertion that the engine
+# itself never reaches for it.
+differential() {
+  python3 - "$1" <<'EOF'
+import pathlib
+import sys
+
+import doc_marshal.check  # noqa: F401  -- the check verb's import graph, before yaml is anywhere
+
+assert "yaml" not in sys.modules, "the engine imported yaml -- it is a development library"
+
+import yaml
+
+from doc_marshal.frontmatter import parse_frontmatter, split_frontmatter
+
+
+def same(ours, theirs):
+    """Whether one value read both ways is the same value. YAML types a plain scalar -- a date, a
+    float, the Norway problem -- where the subset parser keeps the text, so compare on the text."""
+    if isinstance(ours, list):
+        theirs = [] if theirs is None else theirs
+        return isinstance(theirs, list) and len(ours) == len(theirs) and all(map(same, ours, theirs))
+    return ours == ("" if theirs is None else str(theirs))
+
+
+problems, notes = [], sorted(pathlib.Path(sys.argv[1]).rglob("*.md"))
+for path in notes:
+    block, _ = split_frontmatter(path.read_text())
+    if block is None:
+        continue
+    try:
+        ours = parse_frontmatter(block)
+    except ValueError:
+        continue  # the subset is deliberately the narrower of the two; that is not a divergence
+    try:
+        theirs = yaml.safe_load(block)
+    except yaml.YAMLError as exc:
+        problems.append(f"{path}: a YAML parser refuses it -- {str(exc).splitlines()[0]}")
+        continue
+    if not isinstance(theirs, dict) or set(theirs) != set(ours):
+        problems.append(f"{path}: keys differ -- {sorted(ours)} here, {theirs!r} in YAML")
+        continue
+    problems += [
+        f"{path}: {key!r} reads as {value!r} here and {theirs[key]!r} in YAML"
+        for key, value in ours.items()
+        if not same(value, theirs[key])
+    ]
+print("\n".join(problems), file=sys.stderr)
+print(f"differential: {len(notes)} note(s) read both ways, {len(problems)} divergence(s)")
+sys.exit(1 if problems else 0)
+EOF
+}
+differential docs
+# And it fails when it should. `no` is a plain scalar the subset parser will never refuse and YAML
+# will always read as False -- the Norway problem, one of the two reasons a YAML library does not
+# replace this parser -- so it stays a divergence however strict the parser later becomes.
+planted=$(mktemp -d)
+printf -- '---\ntype: spec\nupdated: 2026-09-03\nsummary: t\nstatus: no\n---\n# T\n' > "$planted/note.md"
+! differential "$planted"
+differential "$planted" 2>&1 | grep -q "'status' reads as 'no' here and False in YAML"
+rm -r "$planted"
+rm docs/limits.md
+printf -- '---\ntype: reference\nupdated: 2026-09-03\nsummary: Limits: what the vendor imposes\n---\n# T\n\ntext\n' > docs/plain.md
+doc-marshal check docs/plain.md | grep -q "must be quoted"
+rm docs/plain.md
+# The space after the colon is not decoration either: `type:spec` is a key and a value to a parser
+# that splits on the colon, and a plain scalar -- not a mapping -- to YAML.
+printf -- '---\ntype:spec\nupdated: 2026-09-03\nsummary: t\n---\n# T\n\ntext\n' > docs/tight.md
+doc-marshal check docs/tight.md | grep -q "expected a space after the colon"
+rm docs/tight.md
 mkdir -p docs/sub && printf 'x\n' > docs/sub/INDEX.md && printf 'x\n' > docs/Readme.md
 doc-marshal check --all | grep -c 'does not belong' | grep -qx 2
 rm -r docs/sub docs/Readme.md

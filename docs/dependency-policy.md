@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-07
+updated: 2026-09-08
 summary: The tests a runtime library must pass before this package takes one, and the one route into the engine that taking one breaks
 code_refs:
   - pyproject.toml
@@ -29,6 +29,14 @@ raises on anything richer, so a block the convention does not sanction fails lou
 validating as empty. PyYAML accepts nested mappings, flow style, anchors, and the Norway problem
 where a bare `no` becomes `False`. The strictness is the convention, enforced at parse time.
 
+A subset parser polices the inside of its subset and cannot see the outer boundary. It accepted,
+for a while, a summary carrying an unquoted `: ` -- ordinary English, and a nested mapping to every
+real YAML parser, which refused those notes wherever the tree was read from outside this package.
+The boundary is now enforced on both sides in `frontmatter.py`, and `scripts/smoke.sh` reads every
+note a second time with PyYAML and compares the two readings, so "the subset is a subset" is
+checked on every run rather than asserted here. That is what a development library buys without
+any of test 2's cost.
+
 **A real markdown parser.** The same argument. The heading, section and table readers in
 `markdown.py` are strict subset readers, and the structure and vocabulary policies depend on
 exactly what they refuse.
@@ -36,9 +44,11 @@ exactly what they refuse.
 Whether test 2 survives contact with a library worth having is left to that library's decision
 note rather than settled in the abstract.
 
-`tomli-w` is taken as a development library, for the round-trip test between the profile and its
-TOML form. It sits in the `dev` group beside `pytest`, `ruff` and `mypy`, and is never imported at
-runtime.
+`tomli-w` and `pyyaml` are taken as development libraries -- the first for the round-trip test
+between the profile and its TOML form, the second for the differential check above. They sit in the
+`dev` group beside `pytest`, `ruff` and `mypy`, and neither is imported at runtime: the differential
+check imports the `check` verb first and asserts that no `yaml` arrived with it, and CI installs
+PyYAML alongside the package rather than as part of it.
 
 ## The hooks are standard-library only, permanently
 

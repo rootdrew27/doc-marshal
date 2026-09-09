@@ -14,6 +14,11 @@ from pathlib import Path
 # line like `---nope` close the block, silently truncating the frontmatter after it.
 CLOSE_RE = re.compile(r"^---[ \t]*$", re.MULTILINE)
 
+# The characters a plain (unquoted) YAML scalar may not open with. `-`, `?` and `:` are indicators
+# only where a space follows them, so `--pins` and `0.4.0-rc1` stay plain; the rest always are.
+SPACED_INDICATORS = "-?:"
+INDICATORS = ",[]{}#&*!|>'\"%@`"
+
 Meta = dict[str, "str | list[str]"]
 
 
@@ -27,16 +32,62 @@ def split_frontmatter(text: str) -> tuple[str | None, str]:
     return text[4 : close.start()], text[close.end() :]
 
 
-def _unquote(value: str) -> str:
-    """Strip one *matched* pair of surrounding quotes.
+def unquotable(value: str) -> str | None:
+    """Why a YAML parser will not read `value` back as itself unquoted, or None when it will.
 
-    Stripping quote characters unconditionally corrupts any value that merely ends in one:
+    The parser here reads a plain scalar to the end of its line whatever it holds, so a summary
+    carrying `: ` round-trips through every doc-marshal command untouched. Every other reader of
+    the tree -- an editor's markdown preview, a static site generator, a CI step in another
+    language -- runs a real YAML parser, which reads that same line as a nested mapping and refuses
+    the note. The convention is what YAML allows, enforced on both sides: `quote_scalar` writes
+    such a value quoted, and `parse_frontmatter` rejects it unquoted rather than passing on a note
+    only this package can read.
+    """
+    if not value:
+        return None
+    if value[0] in INDICATORS or (value[0] in SPACED_INDICATORS and value[1:2] in ("", " ")):
+        return f"it opens with {value[0]!r}"
+    if ": " in value or value.endswith(":"):
+        return "it carries ': ', which reads as a nested mapping"
+    if " #" in value:
+        return "it carries ' #', which opens a comment"
+    return None
+
+
+def quote_scalar(value: str) -> str:
+    """`value` as a frontmatter scalar: plain where YAML reads it back unchanged, quoted where not."""
+    if unquotable(value) is None:
+        return value
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _is_quoted(value: str) -> bool:
+    """Whether `value` carries a *matched* pair of surrounding quotes.
+
+    Reading an unmatched one as quoted corrupts any value that merely ends in a quote:
     `it is not "done"` loses its closing quote and keeps the opening one, and the damage lands
     verbatim in the generated index.
     """
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
-    return value
+    return len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'"
+
+
+def _unquote(value: str) -> str:
+    """Strip one matched pair of surrounding quotes, and the escapes inside a double-quoted value."""
+    if not _is_quoted(value):
+        return value
+    inner = value[1:-1]
+    # Single-quoted YAML holds its content literally; double-quoted spells `"` and `\` with a
+    # backslash, which is how `quote_scalar` writes a value carrying either.
+    return re.sub(r'\\(["\\])', r"\1", inner) if value[0] == '"' else inner
+
+
+def _read_value(value: str, lineno: int, what: str) -> str:
+    """One scalar, rejected where a YAML parser would not read it back as written."""
+    value = value.strip()
+    problem = None if _is_quoted(value) else unquotable(value)
+    if problem is not None:
+        raise ValueError(f"line {lineno}: {what} must be quoted -- {problem}")
+    return _unquote(value)
 
 
 def parse_frontmatter(block: str) -> Meta:
@@ -58,15 +109,19 @@ def parse_frontmatter(block: str) -> Meta:
                 raise ValueError(f"line {lineno}: expected a '- ' list item, got {line!r}")
             if current_list is None:
                 raise ValueError(f"line {lineno}: list item with no preceding key")
-            current_list.append(_unquote(item[2:].strip()))
+            current_list.append(_read_value(item[2:], lineno, "list item"))
             continue
         if ":" not in line:
             raise ValueError(f"line {lineno}: expected 'key: value', got {line!r}")
         key, _, value = line.partition(":")
+        # The space is not decoration. `type:spec` partitions here into a key and a value, and is a
+        # plain scalar -- not a mapping -- to every YAML parser, which then refuses the block.
+        if value and not value.startswith((" ", "\t")):
+            raise ValueError(f"line {lineno}: expected a space after the colon, got {line!r}")
         key = key.strip()
         if key in result:
             raise ValueError(f"line {lineno}: duplicate key {key!r}")
-        value = _unquote(value.strip())
+        value = _read_value(value, lineno, f"the value of {key!r}")
         if value:
             result[key] = value
             current_list = None

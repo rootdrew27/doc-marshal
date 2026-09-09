@@ -1,7 +1,7 @@
 ---
 type: spec
-updated: 2026-09-07
-summary: What doc-marshal is: an engine that reads every policy off an effective profile, ships its doctrine in the package, and holds one version everywhere
+updated: 2026-09-08
+summary: "What doc-marshal is: an engine that reads every policy off an effective profile, ships its doctrine in the package, and holds one version everywhere"
 status: done
 code_refs:
   - src/doc_marshal
