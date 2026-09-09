@@ -5,5 +5,16 @@
       "Bash(uv run doc-marshal:*)",
       "Bash(.venv/bin/doc-marshal:*)"
     ]
+  },
+  "enabledPlugins": {
+    "doc-marshal@doc-marshal": true
+  },
+  "extraKnownMarketplaces": {
+    "doc-marshal": {
+      "source": {
+        "source": "github",
+        "repo": "rootdrew27/doc-marshal"
+      }
+    }
   }
 }

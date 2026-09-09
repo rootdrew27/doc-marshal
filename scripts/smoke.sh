@@ -15,8 +15,10 @@ repo=$(mktemp -d)
 cd "$repo"
 git init -q . && git config user.email ci@example.com && git config user.name ci
 printf '# Repo\n' > CLAUDE.md
-doc-marshal init --claude-code
+doc-marshal init --claude-code --no-plugin
 grep -qx '@docs/CLAUDE.md' CLAUDE.md
+doc-marshal init --claude-code --no-plugin | grep -q 'claude plugin install doc-marshal@doc-marshal'
+doc-marshal init --claude-code --no-plugin | grep -q 'marketplace add'
 grep -q 'doc-marshal info' docs/CLAUDE.md
 mkdir -p src && echo "x = 1" > src/db.py
 
@@ -150,7 +152,7 @@ rm -r docs/sub docs/Readme.md
 # A removed import line is a doctor problem, and so is running with no docs tree at all.
 sed -i.bak '/@docs\/CLAUDE.md/d' CLAUDE.md && rm CLAUDE.md.bak
 ! doc-marshal doctor
-doc-marshal init --claude-code | grep -q '@docs/CLAUDE.md'
+doc-marshal init --claude-code --no-plugin | grep -q '@docs/CLAUDE.md'
 doc-marshal doctor
 (cd "$(mktemp -d)" && ! doc-marshal doctor)
 
@@ -159,9 +161,10 @@ doc-marshal doctor
 version=$(doc-marshal --version | awk '{print $2}')
 doc-marshal init --pre-commit --ci | grep -q -- '--pin'
 test ! -f .pre-commit-config.yaml
-# The same applies to the blocks `init` prints for the ones it did not wire: a version it cannot
-# vouch for is not printed as a snippet to paste either.
-doc-marshal init | grep -q 'rev: vX.Y.Z'
+# An integration no flag asked for is named, never printed: a config block to paste is noise at
+# best, and at a version this engine cannot vouch for it is the same broken `rev:` arriving by hand.
+doc-marshal init | grep -q 'doc-marshal init --pre-commit'
+! doc-marshal init | grep -q 'rev: v'
 mkdir -p .github
 doc-marshal init --pre-commit --ci --pin "$version"
 grep -q 'rev: v' .pre-commit-config.yaml

@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-07
+updated: 2026-09-08
 summary: The four places that name an engine version, why absence is legal and disagreement is not, and what doctor and upgrade do about it
 code_refs:
   - src/doc_marshal/integrate.py
@@ -51,8 +51,9 @@ answer from PEP 610's `direct_url.json`, which a distribution installed from a p
 carries and one resolved from an index does not, and it needs no network to do it.
 
 With no tag, `init` writes the jurisdictions it can and says which it skipped and why, rather than
-writing a `rev:` that fails on its first run -- and it prints `X.Y.Z` in place of a version in the
-snippets it offers, for the same reason. `init --pin X.Y.Z` writes them regardless, at a version
+writing a `rev:` that fails on its first run. It offers no snippet to paste in place of the file it
+declined to write, for the same reason: an unwritable version pasted by hand is the same broken
+`rev:`, one copy later. `init --pin X.Y.Z` writes them regardless, at a version
 the caller names: naming it is the caller asserting the tag exists, which is the one thing the
 engine cannot check offline.
 

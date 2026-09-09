@@ -14,7 +14,7 @@ ontology you declare yourself (in a later release) is held to exactly the same s
 ```bash
 pip install doc-marshal        # or: uv tool install doc-marshal
 doc-marshal init               # marks docs/ as the docs tree; writes NOMENCLATURE.md, INDEX.md, AGENTS.md
-doc-marshal init --claude-code # CLAUDE.md instead, imported from the root CLAUDE.md so every session sees it
+doc-marshal init --claude-code # CLAUDE.md instead, imported from the root CLAUDE.md; installs the plugin
 doc-marshal init --pre-commit --ci  # write the commit and pull-request integrations, pinned to this version
 doc-marshal new reference docs/ledger/schema.md --summary "Fields of the ledger record." --code-ref src/ledger/schema.py
 doc-marshal check --all        # validate every note against the ontology
@@ -191,8 +191,12 @@ nothing, except that the session-start hook says so once in a project that has a
 `doc-marshal doctor` reports what each route resolves and flags a mismatch.
 
 `doc-marshal init --claude-code` writes `CLAUDE.md` instead of `AGENTS.md`, imports it from the
-repository's root `CLAUDE.md` with one `@docs/CLAUDE.md` line so every session sees it, and allows
-`doc-marshal`, `uv run doc-marshal` and `.venv/bin/doc-marshal` in `.claude/settings.json`.
+repository's root `CLAUDE.md` with one `@docs/CLAUDE.md` line so every session sees it, allows
+`doc-marshal`, `uv run doc-marshal` and `.venv/bin/doc-marshal` in `.claude/settings.json`, and
+installs the plugin itself -- `claude plugin marketplace add` and `claude plugin install --scope
+project`, both idempotent. Project scope means the enablement lands in the repository's own
+`.claude/settings.json`, so the hooks arrive with a clone instead of with whoever remembers to run
+`/plugin`. No `claude` on PATH, or `--no-plugin`, prints the two commands instead.
 `doc-marshal doctor` reports a docs-tree `CLAUDE.md` the root does not import. Either file says
 what the tree, its commands and its two special files are for, so a Codex or Cursor user gets the
 same marshalling by the same route with no plugin at all.
@@ -211,7 +215,7 @@ uv run doc-marshal doctor                                # every route to the en
 ```
 
 Drop `--claude-code` for the vendor-neutral `AGENTS.md`. Drop `--pre-commit` or `--ci` and `init`
-prints that file for you to write yourself instead of writing it. A repository that is not a Python
+names the flag that writes it rather than printing a config block to paste. A repository that is not a Python
 project has no dependency table to add to, so put the engine on PATH instead:
 `uv tool install doc-marshal==0.4.0`.
 

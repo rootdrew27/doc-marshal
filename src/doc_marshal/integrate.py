@@ -46,10 +46,19 @@ class Pin(NamedTuple):
     spec: str
 
 
-class Outcome(NamedTuple):
-    """What a writer did: a line for `init`'s "wrote" list, or a note to print instead."""
+class Written(NamedTuple):
+    """A file a writer created: where it landed, and one line on what it does there. Two fields
+    rather than one sentence because `init` prints them as aligned columns."""
 
-    written: str | None = None
+    path: str
+    does: str
+
+
+class Outcome(NamedTuple):
+    """What a writer did: the file it created, for `init`'s "created" list, or a note to print
+    instead."""
+
+    written: Written | None = None
     note: str | None = None
 
 
@@ -268,7 +277,7 @@ def write_precommit(repo_root: Path, version: str | None) -> Outcome:
     config = repo_root / PRECOMMIT
     if not config.is_file():
         config.write_text(precommit_text(version), encoding="utf-8")
-        return Outcome(written=f"{PRECOMMIT}  (check on staged notes, and the index, at every commit)")
+        return Outcome(written=Written(PRECOMMIT, "check on the staged notes, and the index, at every commit"))
     if has_hook(repo_root):
         return Outcome(note=f"{PRECOMMIT} already names doc-marshal -- left alone")
     return Outcome(
@@ -283,8 +292,8 @@ def write_ci(repo_root: Path, version: str | None) -> Outcome:
         return _untagged((WORKFLOWS / CI_FILE).as_posix())
     if not (repo_root / ".github").is_dir():
         return Outcome(
-            note="--ci writes GitHub Actions and this repository has no .github/ -- skipped. The "
-            "three commands to run on a pull request are printed above."
+            note="--ci writes GitHub Actions and this repository has no .github/ -- nothing "
+            "written. Whatever CI this project runs, these are the steps:\n\n" + render_steps(version, indent="    ")
         )
     workflow = repo_root / WORKFLOWS / CI_FILE
     label = (WORKFLOWS / CI_FILE).as_posix()
@@ -292,7 +301,7 @@ def write_ci(repo_root: Path, version: str | None) -> Outcome:
         return Outcome(note=f"{label} already exists -- left alone")
     workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text(ci_text(version), encoding="utf-8")
-    return Outcome(written=f"{label}  (check --all, index --check and drifted on every pull request)")
+    return Outcome(written=Written(label, "check --all, index --check and drifted on every pull request"))
 
 
 def set_pins(repo_root: Path, version: str) -> list[str]:

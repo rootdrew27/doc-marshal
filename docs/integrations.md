@@ -23,7 +23,8 @@ The plugin is an add-on to the package, not a second way to install it. It carri
 engine: its hooks resolve the project's own `doc-marshal` -- `.venv/bin` or `venv/bin` first,
 `Scripts/` on Windows, then PATH -- so the agent validates against exactly the version the
 repository installed and CI runs. With no engine installed the hooks do nothing, except that the
-session-start hook says so once in a project that has a docs tree.
+session-start hook says so once in a project that has a docs tree. `init --claude-code` installs
+it through the `claude` CLI, at project scope; nothing else in the tool depends on it being there.
 
 Its value is the two hooks no other harness provides. **PostToolUse** validates a note the moment
 it is written: it runs `check --skip-non-notes` on the one file, selects the errors and warnings by
@@ -42,7 +43,7 @@ scopes it to the docs tree, so a docstring or README edit does not load it.
 surface, which Claude Code also reads. Either file is descriptive: what the tree, its commands and
 its two special files are for, and nothing about how to use them, which is `doc-marshal info`.
 
-`init --claude-code` changes three things:
+`init --claude-code` changes four things:
 
 - it writes `CLAUDE.md` instead of `AGENTS.md`;
 - it puts one import line, `@<docs tree>/CLAUDE.md`, in the repository's root `CLAUDE.md`, creating
@@ -51,7 +52,14 @@ its two special files are for, and nothing about how to use them, which is `doc-
   exist. `doctor` reports a docs-tree `CLAUDE.md` the root does not import;
 - it allows `Bash(doc-marshal:*)`, `Bash(uv run doc-marshal:*)` and `Bash(.venv/bin/doc-marshal:*)`
   in `.claude/settings.json`, because the bare name alone matches neither of the two spellings a
-  session actually uses when the engine is installed among a project's own dependencies.
+  session actually uses when the engine is installed among a project's own dependencies;
+- it installs the plugin -- `claude plugin marketplace add rootdrew27/doc-marshal --scope project`,
+  then `claude plugin install doc-marshal@doc-marshal --scope project`. Both are idempotent and
+  both run after the permissions merge, because Claude Code writes the same settings file and owns
+  the shape of the keys it writes. Project scope is the point: the enablement lands in the
+  repository, so the hooks arrive with a clone. Whatever fails here -- no `claude` on PATH, an
+  offline marketplace clone, a CLI that moved -- costs the two printed commands, never the
+  initialisation, and `--no-plugin` skips the attempt.
 
 Other harnesses have no import syntax, so plain `init` prints the reference line for the root
 `AGENTS.md` and writes nothing there. Supported is Claude Code on macOS and Linux: that is what the
@@ -78,8 +86,8 @@ strictness test that blocks a markdown parser -- see `docs/dependency-policy.md`
 
 ## CI
 
-`init --ci` writes `.github/workflows/docs.yml` -- GitHub Actions only -- and skips with a note
-where the repository has no `.github/`. Two properties of that file are the reason the engine owns
+`init --ci` writes `.github/workflows/docs.yml` -- GitHub Actions only -- and where the repository
+has no `.github/` it writes nothing and prints the steps instead, for whatever CI does run there. Two properties of that file are the reason the engine owns
 it rather than a README snippet:
 
 - **`fetch-depth: 0`.** `drifted` and `--range` answer from a git diff, and the default shallow

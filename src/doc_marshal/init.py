@@ -21,6 +21,12 @@ memory file on its own is loaded only once a session reads under that directory,
 line a session that never opens the docs never learns they exist. Other harnesses have no import
 syntax, so plain `init` prints the reference line for the root `AGENTS.md` and writes nothing there.
 
+`--claude-code` also installs the plugin, through the `claude` CLI, at project scope -- the
+enablement lands in the repository's own `.claude/settings.json`, so the hooks arrive with a clone
+rather than with each person who remembers to run `/plugin`. Both commands are idempotent and the
+engine never edits that key itself: Claude Code owns the shape of its settings file. With no
+`claude` on PATH, or with `--no-plugin`, the two commands are printed instead.
+
 `--pre-commit` and `--ci` write the other two integrations (see docs/integrations.md), at the
 version this engine is, rather than printing them for a human to paste at whichever version they
 read about. The wiring belongs to the engine because it is versioned with the policies it wires,
@@ -36,7 +42,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 import sys
+import textwrap
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -47,7 +57,7 @@ from .discovery import cwd_repo, find_configs
 from .errors import DocMarshalError
 from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
-from .integrate import precommit_block, render_steps, writable, write_ci, write_precommit
+from .integrate import CI_FILE, WORKFLOWS, Written, has_hook, writable, write_ci, write_precommit
 from .new import frontmatter_lines, render_note
 from .ontology import Profile
 from .paths import iter_notes, rel_to
@@ -67,6 +77,68 @@ CONFIG_TEXT = """\
 # virtualenv. A permission for the bare name alone never matches the two forms a session actually
 # uses when the package is a project dependency, and a non-interactive session cannot ask.
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
+
+# The plugin ships from this repository's own marketplace file, so one source declares both. Project
+# scope on purpose: the plugin is a property of the repository -- these docs are validated as they
+# are written -- rather than of the person who cloned it.
+MARKETPLACE = "rootdrew27/doc-marshal"
+PLUGIN = "doc-marshal@doc-marshal"
+PLUGIN_SCOPE = "project"
+
+
+def width() -> int:
+    """The column to wrap prose at: the terminal's, capped so a maximised window does not produce
+    200-column paragraphs, floored so a narrow one still breaks somewhere readable."""
+    return max(60, min(shutil.get_terminal_size((100, 24)).columns, 100))
+
+
+def columns(rows: Sequence[tuple[str, str]], indent: str = "  ") -> list[str]:
+    """Rows as two aligned columns -- the path, then what it is for -- with the second column
+    wrapped under itself when the pair is wider than the terminal."""
+    left = max(len(path) for path, _ in rows)
+    lines: list[str] = []
+    for path, does in rows:
+        head = f"{indent}{path.ljust(left)}  "
+        lines += textwrap.wrap(does, width=width(), initial_indent=head, subsequent_indent=" " * len(head))
+    return lines
+
+
+def numbered(steps: Sequence[str], indent: str = "  ") -> list[str]:
+    """Steps as a wrapped numbered list. A step's later lines are text to paste -- a memory line, a
+    command -- so they are printed as they are, under the hanging indent."""
+    lines: list[str] = []
+    for number, step in enumerate(steps, 1):
+        head = f"{indent}{number}. "
+        first, *rest = step.splitlines()
+        lines += textwrap.wrap(first, width=width(), initial_indent=head, subsequent_indent=" " * len(head))
+        lines += [f"{' ' * len(head)}  {line.strip()}" for line in rest]
+    return lines
+
+
+def warn(text: str) -> None:
+    """A warning on stderr, wrapped under its own label. Later lines are already a list -- the
+    notes that could not be indexed -- and keep their own line each."""
+    first, *rest = text.splitlines()
+    print(
+        "\n".join(textwrap.wrap(first, width=width(), initial_indent="warn:  ", subsequent_indent="       ")),
+        file=sys.stderr,
+    )
+    for line in rest:
+        print(f"       {line.strip()}", file=sys.stderr)
+
+
+def paragraph(text: str, indent: str = "  ") -> str:
+    """A writer's note, wrapped. A line that arrives indented is a block to paste -- the pre-commit
+    entry, the CI steps -- and is never reflowed."""
+    lines: list[str] = []
+    for line in text.splitlines():
+        if not line.strip():
+            lines.append("")
+        elif line[:1].isspace():
+            lines.append(f"{indent}{line}")
+        else:
+            lines += textwrap.wrap(line, width=width(), initial_indent=indent, subsequent_indent=indent)
+    return "\n".join(lines)
 
 
 def site_files(target: Path) -> list[str]:
@@ -190,6 +262,49 @@ def scaffold_nomenclature(target: Path, profile: Profile, repo_name: str) -> Pat
     return None
 
 
+def plugin_commands() -> list[list[str]]:
+    """The two commands that put the plugin in a repository: declare the marketplace, install from
+    it. `--yes` because `init` may run with no terminal to answer a prompt."""
+    return [
+        ["claude", "plugin", "marketplace", "add", MARKETPLACE, "--scope", PLUGIN_SCOPE],
+        ["claude", "plugin", "install", PLUGIN, "--scope", PLUGIN_SCOPE, "--yes"],
+    ]
+
+
+def install_plugin(repo_root: Path) -> str:
+    """Install the Claude Code plugin, and report what happened in one paragraph.
+
+    Never fatal. `init` marks a docs tree, and a tree with no plugin is validated by every other
+    integration -- so a missing `claude`, an offline clone or a Claude Code that changed its CLI
+    costs the user the two commands to run by hand, not the initialisation.
+    """
+    printable = "\n".join(f"  {' '.join(command)}" for command in plugin_commands())
+    if shutil.which("claude") is None:
+        return (
+            f"no `claude` on PATH, so the plugin was not installed. It validates each note as it is "
+            f"written and hands every session the briefing. With Claude Code installed:\n\n{printable}"
+        )
+    for command in plugin_commands():
+        try:
+            result = subprocess.run(
+                command, capture_output=True, text=True, timeout=180, cwd=str(repo_root), check=False
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return f"`{' '.join(command)}` did not run ({exc}). The plugin is not installed. To finish by hand:\n\n{printable}"
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip().splitlines()
+            return (
+                f"`{' '.join(command)}` exited {result.returncode}"
+                + (f" -- {detail[-1]}" if detail else "")
+                + f". The plugin is not installed. To finish by hand:\n\n{printable}"
+            )
+    return (
+        f"{PLUGIN} installed at {PLUGIN_SCOPE} scope, so .claude/settings.json enables it for "
+        "everyone who clones this repository. It validates each note as it is written and hands "
+        "every session the briefing. A running Claude Code picks it up on the next session."
+    )
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="doc-marshal init", description="Mark a directory as the docs tree and wire it up."
@@ -200,8 +315,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--claude-code",
         action="store_true",
-        help="write CLAUDE.md instead of AGENTS.md, import it from the root CLAUDE.md, and allow "
-        "`doc-marshal` in .claude/settings.json",
+        help="write CLAUDE.md instead of AGENTS.md, import it from the root CLAUDE.md, allow "
+        "`doc-marshal` in .claude/settings.json, and install the plugin with the `claude` CLI",
+    )
+    parser.add_argument(
+        "--no-plugin",
+        action="store_true",
+        help="with --claude-code, do not install the plugin -- print the two `claude plugin` commands instead",
     )
     parser.add_argument(
         "--pre-commit",
@@ -255,44 +375,42 @@ def main(argv: list[str]) -> int:
                 "to each, or move them out."
             )
     for warning in warnings:
-        print(f"warn:  {warning}", file=sys.stderr)
+        warn(warning)
 
-    written: list[str] = []
+    created: list[Written] = []
     target.mkdir(parents=True, exist_ok=True)
     config = target / settings.config_name
     if not config.exists():
         config.write_text(CONFIG_TEXT, encoding="utf-8")
-        written.append(f"{label}/{settings.config_name}  (the config; holds no keys until configuration lands)")
-    else:
-        print(f"{label}/{settings.config_name} already exists -- filling in whatever else is missing")
+        created.append(
+            Written(f"{label}/{settings.config_name}", "marks the tree; holds no keys until configuration lands")
+        )
 
     profile = load_profile(target, settings)
     nomenclature = scaffold_nomenclature(target, profile, repo_root.name)
     if nomenclature is not None:
-        written.append(f"{label}/{nomenclature.name}  (the shared vocabulary -- fill in the terms this project uses)")
+        created.append(Written(f"{label}/{nomenclature.name}", "the shared vocabulary -- one row per term, to fill in"))
 
     pointer_name = "CLAUDE.md" if args.claude_code else "AGENTS.md"
     pointer = target / pointer_name
     if not pointer.exists():
         pointer.write_text(pointer_text(label, settings, profile), encoding="utf-8")
-        written.append(f"{label}/{pointer_name}  (a pointer to `doc-marshal info`, not a copy of the policies)")
+        created.append(Written(f"{label}/{pointer_name}", "points at `doc-marshal info`; never a copy of the policies"))
     line = import_line(label, pointer_name)
     if args.claude_code and merge_import(repo_root / pointer_name, line):
-        written.append(f"{pointer_name}  (imports {label}/{pointer_name} into every session: `{line}`)")
+        created.append(Written(pointer_name, f"imports {label}/{pointer_name} into every session (`{line}`)"))
 
     state = index_state(target, profile)
     if state.problems:
-        print(
-            f"warn:  {settings.index_name} not generated -- these notes cannot be indexed yet:\n  "
-            + "\n  ".join(state.problems),
-            file=sys.stderr,
-        )
+        warn(f"{settings.index_name} not generated -- these notes cannot be indexed yet:\n" + "\n".join(state.problems))
     elif state.notes and state.stale:
         (target / settings.index_name).write_text(render(state.notes), encoding="utf-8")
-        written.append(f"{label}/{settings.index_name}  (generated -- {len(state.notes)} {plural(len(state.notes))})")
+        created.append(
+            Written(f"{label}/{settings.index_name}", f"generated -- {len(state.notes)} {plural(len(state.notes))}")
+        )
 
     if args.claude_code and merge_permission(repo_root / ".claude" / "settings.json"):
-        written.append(f".claude/settings.json  (allowed {', '.join(PERMISSIONS)})")
+        created.append(Written(".claude/settings.json", "allows the three spellings of `doc-marshal` a session runs"))
 
     # One answer to "which version may these files name", shared by the writers below and by the
     # advice printed further down: a version too unsafe to write is too unsafe to print as a
@@ -304,52 +422,66 @@ def main(argv: list[str]) -> int:
             continue
         outcome = writer(repo_root, pin)
         if outcome.written:
-            written.append(outcome.written)
+            created.append(outcome.written)
         if outcome.note:
             notes.append(outcome.note)
 
-    if written:
-        print("wrote:")
-        for line in written:
-            print(f"  {line}")
-    elif not notes:
-        print(f"{label}/ is already initialised -- nothing to write")
-    for note in notes:
-        print(f"\n{note}")
+    # After the permissions merge: Claude Code rewrites the same settings file, and it owns the
+    # shape of the keys it writes.
+    plugin_note: str | None = None
+    if args.claude_code:
+        plugin_note = (
+            "--no-plugin, so the plugin was not installed. The two commands, whenever you want "
+            "it:\n\n" + "\n".join(f"  {' '.join(command)}" for command in plugin_commands())
+            if args.no_plugin
+            else install_plugin(repo_root)
+        )
 
-    reference = (
-        ""
-        if args.claude_code
-        else f"""
-  Tell agents the tree exists -- one line in the root {pointer_name}:
-    Documentation is a doc-marshal docs tree; {label}/{pointer_name} says what it is for.
-"""
-    )
-    # The two integrations the flags did not wire, so `init` alone still says what the rest of the
-    # integrations are. `--pre-commit` and `--ci` write these instead of printing them.
-    shown = pin or "X.Y.Z"
-    pending = ""
-    if not args.pre_commit:
-        pending += "\n  Pre-commit, in .pre-commit-config.yaml (or `init --pre-commit`):\n" + precommit_block(
-            shown, indent="    "
+    if created:
+        print(f"{label}/ is a doc-marshal docs tree, checked by doc-marshal {__version__}.\n")
+        print("created:")
+        print("\n".join(columns(created)))
+    elif not notes:
+        print(f"{label}/ is already a doc-marshal docs tree -- nothing left to write")
+    if notes:
+        print("\nnote:")
+        print("\n\n".join(paragraph(note) for note in notes))
+    if plugin_note is not None:
+        print(f"\nplugin:\n{paragraph(plugin_note)}")
+
+    steps: list[str] = []
+    if nomenclature is not None:
+        steps.append(
+            f"Fill in {label}/{nomenclature.name}: one row per term this project uses "
+            "inconsistently. Every session is handed this file."
         )
-    if not args.ci:
-        pending += (
-            "\n  CI, on every pull request (or `init --ci`). No paths: filter -- anchors break in\n"
-            "  the change that renames the code, which touches no documentation:\n" + render_steps(shown, indent="    ")
+    if not args.claude_code:
+        steps.append(
+            f"Add one line to the root {pointer_name}, so a session that never opens {label}/ "
+            f"still learns the tree exists:\n"
+            f"Documentation is a doc-marshal docs tree; {label}/{pointer_name} says what it is for."
         )
-    if pending and pin is None:
-        pending += (
-            "\n  X.Y.Z rather than a version: this engine did not come from a release, so the one it\n"
-            "  reports names no tag and no published wheel. Fill in a released version.\n"
+    steps.append("Validate the tree:\ndoc-marshal check --all")
+    steps.append("Read how these docs get written:\ndoc-marshal info --marshalling")
+    print("\nnext:")
+    print("\n".join(numbered(steps)))
+
+    # The integrations the flags did not ask for. Named, not printed: a config file nobody asked
+    # for is noise in the terminal, and the flag writes it correctly at a version this engine
+    # resolves, which a pasted snippet does not.
+    available: list[Written] = []
+    if not args.pre_commit and not has_hook(repo_root):
+        available.append(
+            Written("doc-marshal init --pre-commit", "check the staged notes, and the index, at every commit")
         )
-    print(
-        f"""
-next:
-  doc-marshal check --all            # validates {label}/ ({__version__})
-  doc-marshal info --marshalling     # how the docs are written, staged
-{reference}{pending}"""
-    )
+    if not args.ci and not (repo_root / WORKFLOWS / CI_FILE).is_file():
+        available.append(
+            Written("doc-marshal init --ci", "check --all, index --check and drifted on every pull request")
+        )
+    if available:
+        print("\nnot wired yet:")
+        print("\n".join(columns(available)))
+
     return 0
 
 

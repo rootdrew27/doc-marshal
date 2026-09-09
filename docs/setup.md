@@ -1,6 +1,6 @@
 ---
 type: runbook
-updated: 2026-09-07
+updated: 2026-09-08
 summary: Install doc-marshal into a repository, mark its docs tree, wire the integrations, and move every pin to a new version
 code_refs:
   - src/doc_marshal/init.py
@@ -37,13 +37,21 @@ code_refs:
    uv run doc-marshal init --claude-code --pre-commit --ci
    ```
 
-   It prints a `wrote:` list -- `docs/.doc-marshal.toml`, `docs/NOMENCLATURE.md`, `docs/CLAUDE.md`,
-   the `@docs/CLAUDE.md` import in the root `CLAUDE.md`, `docs/INDEX.md`, `.claude/settings.json`,
-   `.pre-commit-config.yaml` and `.github/workflows/docs.yml` -- then a `next:` block.
+   It prints a `created:` table -- one row per file, with what that file does there:
+   `docs/.doc-marshal.toml`, `docs/NOMENCLATURE.md`, `docs/CLAUDE.md`, the `@docs/CLAUDE.md` import
+   in the root `CLAUDE.md`, `docs/INDEX.md`, `.claude/settings.json`, `.pre-commit-config.yaml` and
+   `.github/workflows/docs.yml` -- then numbered `next:` steps. An integration no flag asked for is
+   named under `not wired yet:`, one line for the flag that writes it, rather than printed as a
+   config block to paste at a version you would have to fill in yourself.
+
+   `--claude-code` also installs the Claude Code plugin, through `claude plugin marketplace add`
+   and `claude plugin install --scope project`. Both are idempotent, and project scope puts the
+   enablement in this repository's own `.claude/settings.json`, so a clone gets the hooks rather
+   than each person who remembers to run `/plugin`. With no `claude` on PATH the two commands are
+   printed instead, and `--no-plugin` skips them.
 
    Drop `--claude-code` for the vendor-neutral `AGENTS.md`; `init` then prints the one reference
-   line to add to the root file yourself. Drop `--pre-commit` or `--ci` and it prints that file for
-   you to write instead of writing it. `init <path>` marks a directory other than `docs/`.
+   line to add to the root file yourself. `init <path>` marks a directory other than `docs/`.
 
    If it says the engine did not come from a release, it declined to write a `rev:` that would not
    resolve. Re-run it naming a published version: `init --pre-commit --ci --pin X.Y.Z`.
