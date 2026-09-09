@@ -85,3 +85,10 @@
 19. Use tags in the document frontmatter, enabling filtering.
 
 20. CLI output needs to much cleaner if we expect humans to read it
+
+21. Folders for features: a feature or facet of a repo may require a separate folder, in which there could be a **decision** folder, a `NOMENCLATURE.md`, possibly even an `INDEX.md`. This enables compartmentalization and prevents main **decisions** folder, as well as any reserved files that are added in the future, from becoming overcrowded. 
+
+22. Create a skill for building the `NOMENCLATURE.md` and for adding a decision.
+
+23. Add an experiments feature, that encompasses the necessary tools to manage experiments (e.g. a structured state document, input doc, and output doc). The flexibility needed for this feature may require user-defined doc structures, and thus it should succeed the profile/configuration feature.
+24. Add a note in the README that this project was inspired by OKF, Andrej Karpathy, Matt Pocock's Skills Repo, and `schematter`.
