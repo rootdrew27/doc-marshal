@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-08
+updated: 2026-09-16
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -52,7 +52,11 @@ its two special files are for, and nothing about how to use them, which is `doc-
   exist. `doctor` reports a docs-tree `CLAUDE.md` the root does not import;
 - it allows `Bash(doc-marshal:*)`, `Bash(uv run doc-marshal:*)` and `Bash(.venv/bin/doc-marshal:*)`
   in `.claude/settings.json`, because the bare name alone matches neither of the two spellings a
-  session actually uses when the engine is installed among a project's own dependencies;
+  session actually uses when the engine is installed among a project's own dependencies. Three is
+  what `init` can know to write, not a complete set: the wrappers Claude Code strips before matching
+  are a built-in list that no setting extends, and environment runners are not in it, so `poetry
+  run`, an absolute path and `python -m doc_marshal` each still ask, and a non-interactive session
+  cannot answer -- see [the harness](claude-code-harness.md);
 - it installs the plugin -- `claude plugin marketplace add rootdrew27/doc-marshal --scope project`,
   then `claude plugin install doc-marshal@doc-marshal --scope project`. Both are idempotent and
   both run after the permissions merge, because Claude Code writes the same settings file and owns

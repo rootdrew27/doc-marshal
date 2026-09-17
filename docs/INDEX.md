@@ -2,12 +2,13 @@
 
 # Documentation index
 
-15 notes, grouped by folder. Regenerate with `doc-marshal index`.
+16 notes, grouped by folder. Regenerate with `doc-marshal index`.
 
 ## (top level)
 
 - [anchors](anchors.md) -- `reference` -- Anchor fields: how entries resolve, which ones a change is matched against, and what every path entry must satisfy
 - [briefing](briefing.md) -- `reference` -- The three blocks a fresh session is handed about the docs tree, and what the plugin's SessionStart hook does with them
+- [claude-code-harness](claude-code-harness.md) -- `reference` -- What Claude Code guarantees the plugin builds on: hook events and their output, the worktree path split, why the Bash permission entries cannot be completed, and the skill listing budget
 - [cli](cli.md) -- `reference` -- Every doc-marshal verb, its flags, its exit status and what it is for, and how each one locates the docs tree
 - [configuration](configuration.md) -- `spec` -- Configuration as designed and unbuilt: the config file, extends, per-type merge, disabling a type, the policies table and exclude
 - [dependency-policy](dependency-policy.md) -- `reference` -- The tests a runtime library must pass before this package takes one, and the one route into the engine that taking one breaks
