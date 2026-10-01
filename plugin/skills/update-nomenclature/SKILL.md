@@ -6,11 +6,15 @@ argument-hint: "<the term change>"
 
 # Update a nomenclature
 
-Run `doc-marshal info --marshalling` and follow it with the nomenclature as the scope:
-changing a term in a `NOMENCLATURE.md`. `$ARGUMENTS` is the request.
+**Ask first.** Before running anything, make one AskUserQuestion call with one multi-select
+question, what to do to the nomenclature, offering "Add Term(s)", "Modify Term(s)" and
+"Remove Term(s)". Then ask what the chosen actions need: the terms, and for a rename, which word
+wins and whether the other goes under `Avoid`. Skip the AskUserQuestion call only when
+`$ARGUMENTS` already says which terms to add, modify or remove, and how.
 
-**Ask first.** Put Stage 1's questions to the user with the AskUserQuestion tool, in one call,
-before reading anything else; offer the likely answer first and skip what `$ARGUMENTS` answers.
+Then run `doc-marshal info --marshalling` and follow it with the nomenclature as the scope:
+changing terms in a `NOMENCLATURE.md`. `$ARGUMENTS` is the request; the answers above are
+Stage 1's.
 
 If `doc-marshal` is not on PATH, run the project's own copy -- `uv run doc-marshal` or
 `.venv/bin/doc-marshal`. If there is none, stop and tell the user, pointing at the version this

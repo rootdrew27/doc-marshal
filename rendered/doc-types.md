@@ -207,7 +207,7 @@ What it does, as statements, each linked to the reference that justifies it.
 - **title:** one H1, first
 - **sections:** ## Terminology, ## Relationships, ## Ambiguities -- exactly, in order
 - **table:** under ## Terminology, columns Term | Definition | Avoid; key `Term`, scanned `Avoid`
-- **caps:** 35 rows, 200 chars per definition, 3000 chars of body outside the table
+- **caps:** 50 rows, 200 chars per definition, 3000 chars of body outside the table
 
 The vocabulary the repo is written in: which word means which thing, and which words are ruled
 out. The body is parsed by the alias scan and the nesting check, so its shape is fixed, as the

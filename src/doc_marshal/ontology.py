@@ -445,7 +445,7 @@ def standard(settings: Settings = SETTINGS) -> Profile:
                 key_column="Term",
                 body_column="Definition",
                 scanned_columns=("Avoid",),
-                max_rows=35,
+                max_rows=50,
                 max_cell=settings.summary_max,
                 max_chars=3000,
             ),
