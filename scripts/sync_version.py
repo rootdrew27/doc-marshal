@@ -63,6 +63,10 @@ def set_source(version: str) -> None:
     if count != 1:
         sys.exit(f"{SOURCE.relative_to(ROOT)}: expected one `__version__` line, found {count}")
     SOURCE.write_text(text, encoding="utf-8")
+    # This script imported the package before the rewrite. A same-length version written within the
+    # same second leaves the cached bytecode looking current, and the next import reads the old one.
+    for cached in (SOURCE.parent / "__pycache__").glob("__init__.*.pyc"):
+        cached.unlink()
 
 
 def sync(version: str, check: bool) -> list[str]:
