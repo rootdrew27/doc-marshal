@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-16
+updated: 2026-09-30
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -36,6 +36,11 @@ check it. **SessionStart** hands the session the [briefing](briefing.md).
 then an instruction to run `doc-marshal info --marshalling` and follow it. The marshalling is
 versioned with the engine that enforces it, so the skill does not restate it. Its description
 scopes it to the docs tree, so a docstring or README edit does not load it.
+
+`create-nomenclature` and `update-nomenclature` are thin the same way: each defers to
+`doc-marshal info --vocabulary`, the one procedure that writes a `NOMENCLATURE.md`, and takes its
+own branch of it. The procedure asks its questions before it reads anything at length; each skill
+adds the Claude Code specific instruction to ask them with AskUserQuestion, in one call.
 
 ## Other agents
 

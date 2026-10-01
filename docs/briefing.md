@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-07
+updated: 2026-09-30
 summary: The three blocks a fresh session is handed about the docs tree, and what the plugin's SessionStart hook does with them
 code_refs:
   - src/doc_marshal/briefing.py
@@ -40,8 +40,9 @@ sections follow as written. Frontmatter, the H1 and HTML comments are not emitte
 the validator and the author.
 
 The terms and the aliases each of them rules out are the content, not a summary of them; a summary of a
-vocabulary is a second vocabulary. Only the root note is briefed. A nested one governs its subtree
-and is read on arriving there. When the root note is absent, the block says so and gives the
+vocabulary is a second vocabulary. Only the root note is briefed as content. A nested one governs
+its subtree and is read on arriving there, so the block ends by listing each nested note's path,
+and lists nothing when there are none. When the root note is absent, the block says so and gives the
 `doc-marshal new` command that scaffolds it. When its table is not the shape the profile expects,
 the body is emitted verbatim rather than hidden -- the malformed table is `check`'s finding to
 report.

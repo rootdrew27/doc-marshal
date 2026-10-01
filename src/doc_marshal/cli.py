@@ -18,7 +18,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "index": ("index", "regenerate INDEX.md; --check reports staleness without writing"),
     "drifted": ("drifted", "notes whose path anchors name something a change touched"),
     "new": ("new", "scaffold a note the validator will accept"),
-    "info": ("info", "the effective profile; info <type>, --policies, --marshalling"),
+    "info": ("info", "the effective profile; info <type>, --policies, --marshalling, --vocabulary"),
     "init": ("init", "mark a directory as the docs tree and write the integration files"),
     "doctor": ("doctor", "report every route to the engine and flag two that name different versions"),
     "upgrade": ("upgrade", "install a version and point every pin at it"),

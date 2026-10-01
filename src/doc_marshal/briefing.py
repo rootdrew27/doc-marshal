@@ -8,8 +8,9 @@ Three blocks, in the order they should be read (see docs/briefing.md):
 2. The docs tree's nomenclature note, as its content rather than its file: the table as one line
    per term, then the remaining sections as written. Frontmatter and HTML comments are for the
    validator and the author, not the session. The terms and the aliases they rule out are the
-   content; a summary of a vocabulary is a second vocabulary. Only the root note is briefed -- a
-   nested one governs its subtree and is read on arriving there.
+   content; a summary of a vocabulary is a second vocabulary. Only the root note is briefed as
+   content -- a nested one governs its subtree and is read on arriving there, so it is named by
+   path and nothing more.
 3. The compact `info` block -- the enabled types and their anchors.
 
 This module decides *what* a session sees. Wiring it to a harness's session-start event is the
@@ -30,7 +31,7 @@ from .index import index_state, render_preview
 from .info import render_briefing_types
 from .markdown import cell_items, cell_text, parse_table, sections, strip_comments
 from .ontology import DocType, Profile
-from .paths import exists_exact, rel_to
+from .paths import exists_exact, iter_notes, rel_to
 
 REGENERATE = "doc-marshal index"
 
@@ -111,11 +112,17 @@ def nomenclature_blocks(docs_tree: Path, profile: Profile, label: str) -> list[s
                 f"without it will not share a vocabulary. `doc-marshal new {spec.name} {label}` scaffolds it."
             )
             continue
-        blocks.append(
+        block = (
             f"The project's shared vocabulary follows, from {label}/{spec.reserved_filename}. Use these "
             "terms in documentation and in code, and avoid the aliases they rule out. A directory with "
             f"its own {spec.reserved_filename} adds terms for its subtree.\n\n" + render_nomenclature(path, spec)
         )
+        nested = [p for p in iter_notes(docs_tree, profile.settings) if p.name == spec.reserved_filename and p != path]
+        if nested:
+            block += "\n\nNested vocabularies -- read the one above a note before writing it:\n" + "\n".join(
+                f"- {label}/{rel_to(p, docs_tree).as_posix()}" for p in nested
+            )
+        blocks.append(block)
     return blocks
 
 

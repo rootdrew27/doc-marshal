@@ -191,7 +191,7 @@ alone -- that is what the backticks are for.
 **Do not edit `NOMENCLATURE.md` as part of a marshalling run.** If the run needs a term the
 vocabulary does not have, or contradicts one it does, write the docs in the existing terms and say
 so in the Stage 6 report. Changing what a word means is a decision about the domain, not a
-documentation update, and it lands as its own task.
+documentation update, and it lands as its own task: `doc-marshal info --vocabulary`.
 
 ### Evidence policy
 

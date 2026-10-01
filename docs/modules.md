@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-08
+updated: 2026-09-30
 summary: "One line per module of the package, per plugin file and per script: what each one owns"
 code_refs:
   - src/doc_marshal
@@ -49,6 +49,7 @@ by `cli.py`, so no verb pays for another's imports.
 | `hooks/session-start.py` | the [briefing](briefing.md), as `additionalContext` |
 | `hooks/post-tool-use.py` | `check --skip-non-notes` on each note as it is written; never blocks |
 | `skills/marshal-the-docs/SKILL.md` | a thin skill that defers to `doc-marshal info --marshalling` |
+| `skills/create-nomenclature/SKILL.md`, `skills/update-nomenclature/SKILL.md` | thin skills that defer to `doc-marshal info --vocabulary` |
 
 ## `scripts/`
 

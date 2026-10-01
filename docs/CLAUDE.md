@@ -6,6 +6,7 @@ doc-marshal info                 # the note types and their anchors, one line ea
 doc-marshal info <type>          # one type in full: what it serves, how it reads, its template
 doc-marshal info --policies      # every policy for this tree
 doc-marshal info --marshalling   # how these docs are written: for a change, a subject, or a clean-up
+doc-marshal info --vocabulary    # how a NOMENCLATURE.md is created or its terms changed
 doc-marshal check <path>         # validates a note against the policies; --all sweeps the tree
 doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires
 doc-marshal drifted              # the notes anchored to code a change touched
