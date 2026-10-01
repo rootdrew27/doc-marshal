@@ -49,7 +49,7 @@ by `cli.py`, so no verb pays for another's imports.
 | `hooks/session-start.py` | the [briefing](briefing.md), as `additionalContext` |
 | `hooks/post-tool-use.py` | `check --skip-non-notes` on each note as it is written; never blocks |
 | `skills/marshal-the-docs/SKILL.md` | a thin skill that defers to `doc-marshal info --marshalling` |
-| `skills/create-nomenclature/SKILL.md`, `skills/update-nomenclature/SKILL.md` | thin skills that defer to `doc-marshal info --vocabulary` |
+| `skills/create-nomenclature/SKILL.md`, `skills/update-nomenclature/SKILL.md` | thin skills that run marshalling with the nomenclature as its scope |
 
 ## `scripts/`
 

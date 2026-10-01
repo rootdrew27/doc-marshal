@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-16
+updated: 2026-09-30
 summary: "What Claude Code guarantees the plugin builds on: hook events and their output, the worktree path split, why the Bash permission entries cannot be completed, and the skill listing budget"
 code_refs:
   - plugin
@@ -133,8 +133,9 @@ denying hook can narrow it.
   files. A skill's body loads only when used, so material behind it costs almost nothing until it
   is needed -- unlike `CLAUDE.md` content, which is loaded whether or not it is wanted.
 
-`plugin/skills/marshal-the-docs/SKILL.md` is 24 lines with a 684-character description. The body is
-far inside the ceiling; the description is the part that competes for the shared listing budget.
+The plugin's three skills carry about 1,100 characters of description, `marshal-the-docs` 684 of
+them. That is the part that competes for the shared listing budget; the bodies are far inside the
+ceiling.
 
 ## Memory files
 

@@ -10,7 +10,6 @@ more accurate than any stored file, and it always matches the installed version.
     doc-marshal info decision         # one type in full: argument, template, properties, statuses
     doc-marshal info --policies       # the policies that are not per-type
     doc-marshal info --marshalling    # marshalling, staged
-    doc-marshal info --vocabulary     # writing a nomenclature note, staged
     doc-marshal info --format json    # the profile as data, for third parties
     doc-marshal info --dump-toml      # the profile as the configuration schema of a later release
 """
@@ -293,10 +292,6 @@ def render_marshalling() -> str:
     return doctrine("marshalling.md")
 
 
-def render_vocabulary() -> str:
-    return doctrine("vocabulary.md")
-
-
 def render_json(profile: Profile) -> str:
     data = to_dict(profile)
     data["version"] = __version__
@@ -335,7 +330,6 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--policies", action="store_true", help="every policy check enforces that is not per-type")
     parser.add_argument("--types", action="store_true", help="every enabled type in full, with the argument for each")
     parser.add_argument("--marshalling", action="store_true", help="marshalling, staged")
-    parser.add_argument("--vocabulary", action="store_true", help="writing a nomenclature note, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument(
         "--dump-toml", action="store_true", help="the profile as the configuration schema of a later release"
@@ -350,8 +344,6 @@ def main(argv: list[str]) -> int:
         sys.stdout.write(render_json(profile))
     elif args.marshalling:
         sys.stdout.write(render_marshalling())
-    elif args.vocabulary:
-        sys.stdout.write(render_vocabulary())
     elif args.policies:
         sys.stdout.write(render_policies(profile))
     elif args.types:

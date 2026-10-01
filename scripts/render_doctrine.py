@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from doc_marshal import __version__
-from doc_marshal.info import render_doc_types, render_marshalling, render_policies, render_vocabulary
+from doc_marshal.info import render_doc_types, render_marshalling, render_policies
 from doc_marshal.init import CONFIG_TEXT, pointer_text
 from doc_marshal.ontology import STANDARD
 from doc_marshal.settings import SETTINGS
@@ -37,7 +37,6 @@ def render() -> dict[str, str]:
         "rendered/policies.md": HEADER + render_policies(STANDARD),
         "rendered/doc-types.md": HEADER + render_doc_types(STANDARD),
         "rendered/marshalling.md": HEADER + render_marshalling(),
-        "rendered/vocabulary.md": HEADER + render_vocabulary(),
         f"{DOCS}/CLAUDE.md": pointer_text(DOCS, SETTINGS, STANDARD),
         f"{DOCS}/{SETTINGS.config_name}": CONFIG_TEXT,
     }

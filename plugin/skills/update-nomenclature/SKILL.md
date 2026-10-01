@@ -1,24 +1,16 @@
 ---
 name: update-nomenclature
-description: Change the terms in a NOMENCLATURE.md of the repository's doc-marshal docs tree -- add, rename, redefine or retire a term, or rule out an alias -- and reword the notes the change reaches. Use when the user asks to add or change a term, rename a concept in the vocabulary, or invokes /update-nomenclature.
+description: Add, rename, redefine or retire a term in a doc-marshal NOMENCLATURE.md, and reword the notes it reaches. Use when asked to add or change a term or rule out an alias, or on /update-nomenclature.
 argument-hint: "<the term change>"
 ---
 
 # Update a nomenclature
 
-Run:
+Run `doc-marshal info --marshalling` and follow it with the nomenclature as the scope:
+changing a term in a `NOMENCLATURE.md`. `$ARGUMENTS` is the request.
 
-```bash
-doc-marshal info --vocabulary
-```
-
-and follow it, taking the "Changing" branch of each stage. `$ARGUMENTS` is the request -- the term
-and what should happen to it.
-
-**Ask first.** Stage 1's questions go to the user with the AskUserQuestion tool, all in one call,
-as the first thing after reading the procedure -- before grepping the tree or reading notes. Offer
-the likely answer as the first option. Skip any question `$ARGUMENTS` already answers. Stage 3's
-confirmation is the only other time to ask.
+**Ask first.** Put Stage 1's questions to the user with the AskUserQuestion tool, in one call,
+before reading anything else; offer the likely answer first and skip what `$ARGUMENTS` answers.
 
 If `doc-marshal` is not on PATH, run the project's own copy -- `uv run doc-marshal` or
 `.venv/bin/doc-marshal`. If there is none, stop and tell the user, pointing at the version this

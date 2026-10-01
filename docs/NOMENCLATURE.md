@@ -1,6 +1,6 @@
 ---
 type: nomenclature
-updated: 2026-09-08
+updated: 2026-09-30
 summary: The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
 ---
 
@@ -41,7 +41,7 @@ out, not merely discouraged.
 | pin | A jurisdiction's exact version: `==X.Y.Z` or `rev: vX.Y.Z`. | constraint, version spec |
 | briefing | The three blocks SessionStart hands a fresh session: the index preview, the root vocabulary as content, and the compact info block. | session injection, context dump, preamble |
 | doctrine | The text shipped inside the package and printed by `info`: the types, the policies and the marshalling. `rendered/` holds generated copies. | prose, help text |
-| marshalling | The staged procedure for writing to the docs tree, for a change, a subject, or a clean-up. | process, playbook, docs run |
+| marshalling | The staged procedure for writing to the docs tree, for a change, a subject, a clean-up, or the nomenclature. | process, playbook, docs run |
 
 ## Relationships
 

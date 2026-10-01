@@ -1,24 +1,16 @@
 ---
 name: create-nomenclature
-description: Create a NOMENCLATURE.md in the repository's doc-marshal docs tree -- the root vocabulary, or a nested one for a subtree with words of its own. Use when the user asks to create, start or scaffold a nomenclature or vocabulary for the docs or a directory of them, or invokes /create-nomenclature.
+description: Create a NOMENCLATURE.md in the doc-marshal docs tree, at the root or for a subtree with words of its own. Use when asked to create or start a nomenclature or vocabulary, or on /create-nomenclature.
 argument-hint: "[directory] [what its subtree is about]"
 ---
 
 # Create a nomenclature
 
-Run:
+Run `doc-marshal info --marshalling` and follow it with the nomenclature as the scope:
+creating a `NOMENCLATURE.md` -- the root one or a nested one. `$ARGUMENTS` is the request.
 
-```bash
-doc-marshal info --vocabulary
-```
-
-and follow it, taking the "Creating" branch of each stage. `$ARGUMENTS` is the request -- the
-directory the note governs and anything said about its subject.
-
-**Ask first.** Stage 1's questions go to the user with the AskUserQuestion tool, all in one call,
-as the first thing after reading the procedure -- before reading the subtree's code or notes. Offer
-the likely answer as the first option. Skip any question `$ARGUMENTS` already answers. Stage 3's
-confirmation is the only other time to ask.
+**Ask first.** Put Stage 1's questions to the user with the AskUserQuestion tool, in one call,
+before reading anything else; offer the likely answer first and skip what `$ARGUMENTS` answers.
 
 If `doc-marshal` is not on PATH, run the project's own copy -- `uv run doc-marshal` or
 `.venv/bin/doc-marshal`. If there is none, stop and tell the user, pointing at the version this

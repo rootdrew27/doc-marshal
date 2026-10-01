@@ -37,10 +37,8 @@ then an instruction to run `doc-marshal info --marshalling` and follow it. The m
 versioned with the engine that enforces it, so the skill does not restate it. Its description
 scopes it to the docs tree, so a docstring or README edit does not load it.
 
-`create-nomenclature` and `update-nomenclature` are thin the same way: each defers to
-`doc-marshal info --vocabulary`, the one procedure that writes a `NOMENCLATURE.md`, and takes its
-own branch of it. The procedure asks its questions before it reads anything at length; each skill
-adds the Claude Code specific instruction to ask them with AskUserQuestion, in one call.
+`create-nomenclature` and `update-nomenclature` run the same marshalling with the nomenclature as
+the scope, and add one Claude Code specific instruction: ask with AskUserQuestion, first.
 
 ## Other agents
 

@@ -36,7 +36,7 @@ Stage 4.
 | notes under the docs tree | yes -- create, edit, rename, delete |
 | `INDEX.md` | never by hand -- generated output. Stage 5 regenerates it with `doc-marshal index` |
 | `assets/**` | no -- assets, exempt from validation, names not yours |
-| `NOMENCLATURE.md`, at any level | read it, write by it -- editing the vocabulary is its own task, not part of a marshalling run |
+| `NOMENCLATURE.md`, at any level | read it, write by it -- edit it only when the scope is the nomenclature |
 | agent-memory files (`CLAUDE.md`, `AGENTS.md`) | yes, surgically -- Stage 4 says how narrowly |
 | docstrings and comments in the project's source | yes -- but only in the files the change touched, or that a note in scope describes |
 | any other documentation tree | no -- see below |
@@ -106,6 +106,24 @@ the invocation, the session, or the diff -- stop and ask what changed.** This ho
    or the one note that should.
 2. Read the code or config the subject rests on. The evidence policy in Stage 4 applies from the
    first line: a note written from a subject alone, without its code, is drift on day one.
+
+### The nomenclature
+
+The one scope that edits a `NOMENCLATURE.md`: creating one -- the root, or a nested one for a
+subtree with words of its own -- or adding, renaming, redefining or retiring a term. What a word
+means is the user's decision, so:
+
+1. **Ask first, in one round, before reading anything at length**: the directory, when creating;
+   the term and the change, when changing -- for a rename, which word wins and whether the other
+   goes under `Avoid`. Skip what the request answers. The plan gate is the only other question.
+2. Read every `NOMENCLATURE.md` from the target directory up to the root: their terms are taken.
+   A term goes in the deepest directory that covers every use of it, and earns a row only when it
+   names one specific thing a reader could call by the wrong word.
+3. Grep the tree for every word the change rules out. The notes using one are in scope and are
+   reworded in this run; append-only notes are not. Code identifiers are renamed only if asked.
+
+`doc-marshal new nomenclature <directory> --summary "..."` scaffolds one. In Stage 5, run
+`check --all`: a new `Avoid` entry warns wherever its word is used.
 
 ### Anything else
 
@@ -186,10 +204,9 @@ directory above the note you are writing. Where it rules a word out, use the ter
 Where a word is in backticks because it is the literal name of a field, a flag or an API, leave it
 alone -- that is what the backticks are for.
 
-**Do not edit `NOMENCLATURE.md` as part of a marshalling run.** If the run needs a term the
-vocabulary does not have, or contradicts one it does, write the docs in the existing terms and say
-so in the Stage 6 report. Changing what a word means is a decision about the domain, not a
-documentation update, and it lands as its own task: `doc-marshal info --vocabulary`.
+**Edit a `NOMENCLATURE.md` only when the run's scope is the nomenclature.** If another run needs
+a term the vocabulary does not have, or contradicts one it does, write in the existing terms and
+say so in the Stage 6 report.
 
 ### Evidence policy
 
