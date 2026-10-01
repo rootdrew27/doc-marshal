@@ -4,4 +4,4 @@ The design this package implements is recorded in docs/engine.md. When the code 
 disagree, the code is right and the note is stale.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
