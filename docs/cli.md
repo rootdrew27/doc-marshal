@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-02
 summary: Every doc-marshal verb, its flags, its exit status and what it is for, and how each one locates the docs tree
 code_refs:
   - src/doc_marshal/cli.py
@@ -19,9 +19,9 @@ or `version` prints the version. An unknown verb exits 2.
 
 | Verb | Arguments and flags | What it is for |
 | --- | --- | --- |
-| `check` | `[paths...]`, `--all`, `--range A..B`, `--skip-non-notes`, `--format text\|github` | validate the named notes, or sweep the tree. `--range` names the change the two policies that need one read -- whether an edited note's `updated` was bumped, and whether a `done` spec was edited while none of its code was; without it they read the working tree against `HEAD`, which in a fresh CI checkout is empty, so CI must pass it. `--skip-non-notes` silently ignores paths that are not notes and exits 0 with no docs tree at all, for a hook handed every file a change touched. `--format github` emits one workflow command per finding |
+| `check` | `[paths...]`, `--all`, `--range A..B`, `--skip-non-notes`, `--format text\|github` | validate the named notes, or sweep the tree. `--range` names the change the policy that needs one reads -- whether an edited note's `updated` was bumped; without it, it reads the working tree against `HEAD`, which in a fresh CI checkout is empty, so CI must pass it. `--skip-non-notes` silently ignores paths that are not notes and exits 0 with no docs tree at all, for a hook handed every file a change touched. `--format github` emits one workflow command per finding |
 | `index` | `--check` | regenerate `INDEX.md`. `--check` reports staleness and writes nothing |
-| `drifted` | `--range A..B` or `--paths ...`, `--format text\|github`, `--print-range`, `--fail-on-match` | the notes whose path anchors name something a change touched. `--print-range` resolves the trunk -- `origin/HEAD` when the remote publishes one, else the first of `main`, `master`, `trunk`, `develop` that exists locally -- and prints `<merge-base>..HEAD`, printing nothing on the trunk itself |
+| `drifted` | `--range A..B` or `--paths ...`, `--format text\|github`, `--print-range`, `--fail-on-match` | the notes whose path anchors name something a change touched. `--print-range` resolves the trunk -- `origin/HEAD` when the remote publishes one, else the first of `main`, `master`, `trunk`, `develop`, in that order, that exists locally -- and prints `<merge-base>..HEAD`, printing nothing on the trunk itself |
 | `new` | `<type> <path>`, `--summary` (required), `--title`, `--code-ref`, `--source`, `--status` | scaffold a note with the frontmatter and sections its type requires. It does not validate: the scaffold fails `check` until it is written |
 | `info` | `[type]`, `--policies`, `--types`, `--marshalling`, `--format markdown\|json`, `--dump-toml` | the effective profile and the doctrine. Bare: the live types, one line each, with their anchors. `--dump-toml` prints the profile the way the configuration file of a later release spells it |
 | `init` | `[path]`, `--claude-code`, `--no-plugin`, `--pre-commit`, `--ci`, `--pin X.Y.Z` | mark a directory as the docs tree and write the integration files |

@@ -86,7 +86,7 @@ Git fills the gaps the message leaves.
    doc-marshal drifted    # branch commits + uncommitted work
    ```
 
-   This matches every note's repo-path anchors against the changed paths -- exactly the question
+   This matches every note's path anchors -- `repo-path` and `docs-path` -- against the changed paths -- exactly the question
    "which docs does this diff touch?". Do not hand-read frontmatter to answer it.
 
    Its output is a starting set, not the answer, in both directions. A note whose subject the change
@@ -135,7 +135,7 @@ before reading anything by hand:
 
 ```bash
 doc-marshal check --all                     # what fails today
-doc-marshal drifted --range <trunk>..HEAD   # what the branch touched; omit --range for the working tree
+doc-marshal drifted                         # what the branch touched, plus uncommitted work
 ```
 
 and let what they report, plus a read of each note against the code it anchors, set the scope.
@@ -165,6 +165,9 @@ each. With the standard profile, route by what the reader needs:
 | a part's specs, a measurement, a vendor protocol, third-party behaviour -- a fact it **observes** | `reference`, anchored with `source` (and `code_refs` where we implement against it) |
 | a procedure to run: a deploy, a validation, a setup, a recovery | `runbook` |
 | how an application or feature behaves **as a whole**, at any stage from proposed to built | `spec` -- and a change to built behaviour updates the existing spec's body and `status` |
+| the ordered work that carries one change out, across sessions | `plan` |
+| a convention or invariant that code or docs must follow | `convention` |
+| what happened or was observed at a point in time: a run's results, a measurement, an incident | `record` |
 | a choice with live alternatives that is likely to be revisited | `decision` |
 | a term the project uses inconsistently, or a word that needs ruling out | `nomenclature` -- but see the vocabulary policy in Stage 4: not on this run |
 
@@ -182,8 +185,8 @@ fact stays in the reference that states it. A dead end with no choice behind it 
 message, not in a note.
 
 A `spec` whose code the change touched is rewritten to match and stays `done`. A spec the change
-rewrote *ahead* of the code goes to `in-progress`; the validator warns when a `done` spec was
-edited by a change that touched none of its `code_refs`, and that warning is the prompt to decide.
+rewrote *ahead* of the code goes to `in-progress`. A `done` spec edited while none of its
+`code_refs` were is the case to decide: a correction stays `done`; a spec now ahead does not.
 
 ## Stage 3 -- Plan gate
 
@@ -264,7 +267,8 @@ Assets under `assets/` are out of scope (Surfaces), so a marshalling run never r
 
 Delete a note when the request says so, or when the run made it wrong in a way editing cannot fix
 and nothing in it is worth keeping. A note whose subject moved into another note is deleted once the
-other note says everything a reader would have come for. Do it the way a rename is done:
+other note says everything a reader would have come for, and a `plan` is deleted once its work is
+done and the notes it changed say what was built. Do it the way a rename is done:
 `git rm`, then find and repair every inbound reference, then re-grep. The report lists each
 deletion with the reason and what, if anything, supersedes it; the git diff is the undo.
 

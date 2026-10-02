@@ -27,5 +27,4 @@ jobs:
       - run: uv sync --group dev
       - run: uv run doc-marshal check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
       - run: uv run doc-marshal index --check
-        continue-on-error: true
       - run: uv run doc-marshal drifted --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github

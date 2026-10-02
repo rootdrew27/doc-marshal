@@ -15,7 +15,7 @@ classifiers = [
     "Topic :: Documentation",
     "Topic :: Software Development :: Quality Assurance",
 ]
-# Deliberately empty, and not by dogma -- see docs/dependency-policy.md for the three tests a
+# Deliberately empty, and not by dogma -- see docs/dependency-policy.md for the four tests a
 # runtime dependency has to pass, and why nothing passes them yet.
 dependencies = []
 
@@ -27,7 +27,7 @@ Source = "https://github.com/rootdrew27/doc-marshal"
 doc-marshal = "doc_marshal.cli:main"
 
 [dependency-groups]
-dev = ["pyyaml>=6", "tomli-w>=1.0", "pytest>=8", "ruff>=0.16", "mypy>=1.19"]
+dev = ["pyyaml>=6", "pytest>=8", "ruff>=0.16", "mypy>=1.19"]
 
 [build-system]
 requires = ["hatchling"]

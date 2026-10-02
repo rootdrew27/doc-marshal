@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test on a fresh repository: every command runs, the five-type profile validates
+# End-to-end smoke test on a fresh repository: every command runs, the standard profile validates
 # what it should and rejects what it should, and the plugin's hooks resolve the installed engine.
 # CI runs this on each supported Python; locally: PLUGIN=$PWD/plugin bash scripts/smoke.sh
 set -eux
@@ -8,7 +8,12 @@ doc-marshal --version
 doc-marshal info --types > /dev/null
 doc-marshal info --marshalling > /dev/null
 doc-marshal info --policies | grep -c '{{' | grep -qx 0
-test "$(doc-marshal info --types | grep -c '^## `')" = 5
+# Every type in the profile has its argument in the doctrine; `info` would render a bare heading.
+python3 -c 'from doc_marshal.info import doctrine, type_sections; from doc_marshal.ontology import STANDARD
+assert set(STANDARD.enabled) <= set(type_sections(doctrine("doc-types.md")))'
+# The configuration schema can express the shipped profile: it serializes to TOML and loads back equal.
+python3 -c 'import tomllib; from doc_marshal.ontology import STANDARD, from_dict, to_toml
+assert from_dict(tomllib.loads(to_toml(STANDARD)), STANDARD.name) == STANDARD'
 doc-marshal info spec | grep -q 'required, in this order'
 
 repo=$(mktemp -d)
@@ -28,13 +33,19 @@ doc-marshal new decision use-postgres --code-ref src/db.py --summary "Postgres o
 doc-marshal new reference docs/vendor-limits --source https://example.com/limits --summary "Limits the vendor imposes."
 doc-marshal new runbook docs/deploy --code-ref src/db.py --summary "Deploy the service."
 doc-marshal new spec docs/billing --summary "How billing behaves end to end."
+doc-marshal new plan docs/plans/move-billing --source docs/billing.md --summary "Move billing to the job queue."
+doc-marshal new convention docs/db-access --code-ref src/db.py --summary "Only src/db.py opens a connection."
+doc-marshal new record docs/records/load-test --summary "Load test of the 2026-09-03 build."
+! doc-marshal new plan docs/move-billing --summary "A plan lives in plans/."
+grep -qx 'status: proposed' docs/plans/move-billing.md
 grep -qx 'status: proposed' docs/billing.md
 grep -qx '## Prerequisites' docs/deploy.md && grep -qx '## Open questions' docs/billing.md
 ! doc-marshal check docs/deploy.md
 doc-marshal check docs/deploy.md | grep -q 'is empty'
 doc-marshal check docs/deploy.md | grep -q 'does not track'
 ! doc-marshal new decision born-dead --status superseded --summary "A note is never born superseded."
-for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md; do
+for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md docs/plans/move-billing.md \
+  docs/db-access.md docs/records/load-test.md; do
   python3 - "$note" <<'EOF'
 import re, sys
 path = sys.argv[1]
@@ -157,7 +168,7 @@ doc-marshal doctor
 (cd "$(mktemp -d)" && ! doc-marshal doctor)
 
 # The integration flags write the other two integrations. This engine came from a checkout,
-# so `v0.3.0` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
+# so `v<this version>` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
 version=$(doc-marshal --version | awk '{print $2}')
 doc-marshal init --pre-commit --ci | grep -q -- '--pin'
 test ! -f .pre-commit-config.yaml

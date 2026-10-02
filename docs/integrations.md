@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-02
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -28,7 +28,8 @@ it through the `claude` CLI, at project scope; nothing else in the tool depends 
 
 Its value is the two hooks no other harness provides. **PostToolUse** validates a note the moment
 it is written: it runs `check --skip-non-notes` on the one file, selects the errors and warnings by
-their line prefixes, and returns them as context. It is deliberately non-blocking -- a note can be
+their line prefixes, and returns them as context with what to do about each: fix every error,
+and reword each warned alias, or backtick it where it is a literal name. It is deliberately non-blocking -- a note can be
 legitimately incomplete mid-edit, and a hook that vetoed those would fight the work rather than
 check it. **SessionStart** hands the session the [briefing](briefing.md).
 
@@ -105,7 +106,7 @@ it rather than a README snippet:
   documentation.
 
 The workflow runs on pull requests only, because both ranged steps read
-`github.event.pull_request.base.sha`, which is empty on a push. `index --check` runs with
-`continue-on-error: true`, so a stale index warns rather than failing the build. Each step calls
+`github.event.pull_request.base.sha`, which is empty on a push. A stale index fails the build like
+any error: the fix is one command and the check has no false positives. Each step calls
 `uvx doc-marshal==<minor>.*` directly; there is no composite Action, which would be sugar over a
 three-line step.

@@ -187,7 +187,7 @@ def type_facts(profile: Profile, spec: DocType) -> list[tuple[str, str]]:
     if spec.additive:
         facts.append(("nesting", "a nested instance adds keys, never redefines an ancestor's"))
     if spec.append_only:
-        facts.append(("editing", "append-only -- never edited after acceptance"))
+        facts.append(("editing", "append-only -- never edited once written"))
     if spec.supersession:
         s = spec.supersession
         facts.append(
@@ -257,7 +257,6 @@ def render_policies(profile: Profile) -> str:
         "{{config_name}}": settings.config_name,
         "{{memory_names}}": ", ".join(f"`{n}`" for n in sorted(settings.memory_names)),
         "{{excluded_dirs}}": ", ".join(f"`{d}/`" for d in sorted(settings.excluded_dirs)),
-        "{{repo_path_fields}}": ", ".join(f"`{n}`" for n in profile.repo_path_fields) or "no field",
         "{{reserved_filenames}}": ", ".join(f"`{n}` (`{t}`)" for n, t in profile.reserved_filenames.items()) or "none",
     }
     for key, value in substitutions.items():

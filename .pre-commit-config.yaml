@@ -1,5 +1,6 @@
-# Keeps every derived copy -- rendered/ and the docs tree's init files -- in step with the doctrine
-# and the profile they come from, and validates the docs tree with the engine in this checkout.
+# Keeps every derived copy -- rendered/, the docs tree's init files, the README type table -- in
+# step with the doctrine and the profile they come from, and validates the docs tree with the
+# engine in this checkout.
 # CI regenerates and commits rendered/ on push to main as the backstop (.github/workflows/render.yml).
 #
 # The two doc-marshal hooks are local rather than a `rev:` on this repository's own hooks file: the
@@ -13,7 +14,7 @@ repos:
         entry: uv run python scripts/render_doctrine.py
         language: system
         pass_filenames: false
-        files: ^(src/doc_marshal/(doctrine/.*|ontology\.py|info\.py|init\.py|settings\.py|__init__\.py)|scripts/render_doctrine\.py|docs/(CLAUDE\.md|\.doc-marshal\.toml))$
+        files: ^(src/doc_marshal/(doctrine/.*|ontology\.py|info\.py|init\.py|settings\.py|__init__\.py)|scripts/render_doctrine\.py|README\.md|docs/(CLAUDE\.md|\.doc-marshal\.toml))$
       - id: sync-version
         name: version copies match __version__
         entry: uv run python scripts/sync_version.py --check

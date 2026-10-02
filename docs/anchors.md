@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-08
+updated: 2026-10-02
 summary: "Anchor fields: how entries resolve, which ones a change is matched against, and what every path entry must satisfy"
 code_refs:
   - src/doc_marshal/ontology.py
@@ -29,8 +29,8 @@ A field may name several: an entry is valid when any of them accepts it. The
 `docs-path` or `url`; `doc-marshal info --policies` renders the table of what each holds and which
 types must carry it, from the profile itself.
 
-`repo_path_fields` is the set that resolves as `repo-path` -- the code anchors, and what the
-warning about a `done` spec reads. `path_fields` is wider: every field whose entries may be
+`repo_path_fields` is the set that resolves as `repo-path` -- the code anchors. `path_fields` is
+wider: every field whose entries may be
 repository paths, code anchors and `docs-path` fields alike. `doc-marshal drifted` matches
 `path_fields`, so a note whose source note or asset changed is reported too.
 
