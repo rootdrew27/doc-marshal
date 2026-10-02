@@ -1,7 +1,7 @@
 ---
 type: reference
 updated: 2026-10-02
-summary: "The standard profile's eight types: why four carry no anchor, the lifecycle they share, and why there is no Related section"
+summary: "The standard profile: where its types are rendered, the lifecycle they share, and why there is no Related section"
 code_refs:
   - src/doc_marshal/ontology.py
 ---
@@ -9,30 +9,24 @@ code_refs:
 # The standard profile
 
 `standard` is the profile shipped in `src/doc_marshal/ontology.py` and the one every docs tree is
-validated against today. It declares eight types and two [anchor fields](anchors.md). A type names
+validated against today. It declares the types and two [anchor fields](anchors.md). A type names
 the reader it serves and nothing else; its anchor minimum follows from what outside the note would
 falsify it.
 
 ## The types
 
-The types are `reference`, `runbook`, `decision`, `spec`, `plan`, `convention`, `record` and
-`nomenclature`, in that order: it is the order `info` lists them in, most common first. The engine renders the rest from the profile,
-so this note does not restate it: `doc-marshal info` gives each type's reader, voice, mutability
-and anchor minimum in a table, and `doc-marshal info <type>` gives one type's argument with the
-[properties](type-properties.md) it sets -- required sections, placement, lifecycle. The same
-rendering is committed for readers without the CLI as `rendered/doc-types.md`.
-
-Four types require no anchor. A `decision` and a `record` are append-only and anchored by their
-own content. A `plan` is deleted once its work is done, so it outlives no change it could drift
-from. A `nomenclature` note is falsified by the words the repository uses, not by a path, and
-anchoring it to code would report it on every unrelated change. A `convention` takes the same
-minimum as a `reference`: the code it governs or the outside standard it adopts.
+The engine renders the types from the profile, so this note does not list them: `doc-marshal
+info` gives each type's reader, voice, mutability and anchor minimum in a table, in the profile's
+order, most common first; `doc-marshal info <type>` gives one type's argument, including why a type
+carries no anchor, with the [properties](type-properties.md) it sets -- required sections,
+placement, lifecycle. The same rendering is committed for readers without the CLI as
+`rendered/doc-types.md`.
 
 ## The shared lifecycle
 
 `LIFECYCLE` is `proposed`, `in-progress`, `done`, a profile constant a type opts into by naming it
-as its `statuses`. `spec` and `plan` do. A type with its own vocabulary declares that
-instead: a `decision` is `accepted` or `superseded`, never "done".
+as its `statuses`; `doc-marshal info` shows which do. A type with its own vocabulary declares
+that instead: a `decision` is `accepted` or `superseded`, never "done".
 
 `requires_from` names the status from which the anchor minimum binds. A `spec` names no code until
 the code exists, so it is unanchored while `proposed` or `in-progress` and anchored once `done`.
@@ -44,7 +38,7 @@ carry at least one, and any declared field is legal on any type and validated wh
 
 ## Why there is no `## Related` section
 
-An earlier convention required a trailing list of neighbouring notes at the end of every note. It
+An earlier policy required a trailing list of neighbouring notes at the end of every note. It
 is gone. Inline markdown references on first mention already carry the connectivity, and the
 validator resolves each one; the trailing list restated those same references with a reason
 clause, and the reason clause was the only thing it added.

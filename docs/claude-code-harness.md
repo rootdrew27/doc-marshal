@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-02
 summary: "What Claude Code guarantees the plugin builds on: hook events and their output, the worktree path split, why the Bash permission entries cannot be completed, and the skill listing budget"
 code_refs:
   - plugin
@@ -67,8 +67,8 @@ wrong address for the tree the agent is editing. A hook that must know which dir
 working in reads `cwd`.
 
 Claude Code exports `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and `CLAUDE_PROJECT_DIR` to hook
-subprocesses as environment variables, which is why they arrive even though the plugin's hooks run
-with `PATH` stripped to `/usr/bin:/bin`.
+subprocesses as environment variables, so they arrive whatever `PATH` holds -- the smoke test runs
+the hooks with it stripped to `/usr/bin:/bin`.
 
 ## Why the Bash permission entries cannot be completed
 

@@ -4,8 +4,9 @@
 writes from it, and `info` renders it -- no check hardcodes a type name. The profile is constructed
 in Python so its docstrings, type checking and cross-references (`Structure(max_cell=summary_max)`)
 survive; `from_dict` is the alternate constructor the configuration loader of a later release
-builds on, and `to_toml` is the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
-function: if the schema cannot express the shipped profile, the schema is too weak.
+builds on, and `to_toml` is the serializer behind `info --dump-toml`. The smoke test's round trip -- the
+profile to TOML and back, compared equal -- is the forcing function: if the schema cannot express
+the shipped profile, the schema is too weak.
 
 What is *not* here: why each type exists and how to route between them. That is `doctrine/`.
 """
@@ -317,22 +318,8 @@ class Profile:
 
 
 def standard(settings: Settings = SETTINGS) -> Profile:
-    """The `standard` profile: eight types, two anchor fields.
-
-    A type names the reader it serves, and nothing else: look a fact up, run a procedure, read a
-    feature's behaviour as a whole, carry out one piece of work, follow a convention, check what was
-    observed, reopen a settled choice, choose what to call a thing. Whether a fact was decided here
-    or observed from outside is a property of the fact, so `reference` accepts either anchor and
-    requires at least one, and so does `convention`. Whether the thing described exists yet is a
-    lifecycle, so `spec` carries `status` and is anchored only once it is `done`.
-
-    `requires` lists the anchor fields of which a note must carry at least one. These are minimums,
-    not permitted sets: any declared field is legal on any type and is validated whenever present.
-
-    Four types require no anchor. `decision` and `record` are append-only and anchored by their own
-    content. A `plan` is deleted once its work is done, so it outlives no change it could drift
-    from. A `nomenclature` note is falsified by the words the repo uses, not by a path, and
-    anchoring it to code would flag a vocabulary on every unrelated change.
+    """The `standard` profile. Why each type exists, and why some carry no anchor, is
+    `doctrine/doc-types.md`; this is the data the policies read.
 
     Order is canonical: it is the order `info` lists the types in, from the most common to the least.
     """
@@ -546,8 +533,8 @@ STANDARD = standard()
 
 # --- serialization ------------------------------------------------------------------------------
 #
-# The TOML shape `.doc-marshal.toml` takes once configuration is read. Written now so the round-trip
-# test can run on day one, and so `info --dump-toml` shows a user the worked example of the schema
+# The TOML shape `.doc-marshal.toml` takes once configuration is read. Written now so the smoke test's
+# round trip can run on day one, and so `info --dump-toml` shows a user the worked example of the schema
 # they will configure.
 
 

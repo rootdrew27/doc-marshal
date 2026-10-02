@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-08
+updated: 2026-10-02
 summary: "What the policies do not see: the limits of the naming, frontmatter, links, numbering, alias and vocabulary checks"
 code_refs:
   - src/doc_marshal/policies.py
@@ -31,8 +31,8 @@ states what *is* checked; this note is its complement.
   before the opening `---`, reads as no frontmatter at all.
 - A nested mapping or a stray indented line is reported as unparseable frontmatter, not as the
   specific thing it was.
-- A flow list, `key: [a, b]`, is read as a scalar string. Where the field is an anchor, the error
-  reported is that it is not a list.
+- A flow list, `key: [a, b]`, is reported as an unquoted value opening with `[`, not as a flow
+  list.
 - A quoted value is unescaped for `\"` and `\\` only, and a single-quoted `''` is not unescaped
   at all, so any other escape a hand-written value carries reaches the generated index verbatim.
 - `https://` with nothing after it passes as a URL.
@@ -73,6 +73,6 @@ directions: a note that does appear may describe a part of the code the change n
 
 - `--format github` annotates the file, not a line: the validator reports on notes, not positions.
 - `append_only` is a property `info` renders and the alias scan reads, and nothing else. That a
-  `decision` is never edited after acceptance is a convention the tool does not hold.
+  note of an append-only type is never edited once written is the writer's to hold, not the tool's.
 - Only the docs tree is scanned against the vocabulary. Whether the code uses the same terms is a
   review obligation.

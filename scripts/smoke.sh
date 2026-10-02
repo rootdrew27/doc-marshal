@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test on a fresh repository: every command runs, the eight-type profile validates
+# End-to-end smoke test on a fresh repository: every command runs, the standard profile validates
 # what it should and rejects what it should, and the plugin's hooks resolve the installed engine.
 # CI runs this on each supported Python; locally: PLUGIN=$PWD/plugin bash scripts/smoke.sh
 set -eux
@@ -8,7 +8,12 @@ doc-marshal --version
 doc-marshal info --types > /dev/null
 doc-marshal info --marshalling > /dev/null
 doc-marshal info --policies | grep -c '{{' | grep -qx 0
-test "$(doc-marshal info --types | grep -c '^## `')" = 8
+# Every type in the profile has its argument in the doctrine; `info` would render a bare heading.
+python3 -c 'from doc_marshal.info import doctrine, type_sections; from doc_marshal.ontology import STANDARD
+assert set(STANDARD.enabled) <= set(type_sections(doctrine("doc-types.md")))'
+# The configuration schema can express the shipped profile: it serializes to TOML and loads back equal.
+python3 -c 'import tomllib; from doc_marshal.ontology import STANDARD, from_dict, to_toml
+assert from_dict(tomllib.loads(to_toml(STANDARD)), STANDARD.name) == STANDARD'
 doc-marshal info spec | grep -q 'required, in this order'
 
 repo=$(mktemp -d)
@@ -163,7 +168,7 @@ doc-marshal doctor
 (cd "$(mktemp -d)" && ! doc-marshal doctor)
 
 # The integration flags write the other two integrations. This engine came from a checkout,
-# so `v0.3.0` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
+# so `v<this version>` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
 version=$(doc-marshal --version | awk '{print $2}')
 doc-marshal init --pre-commit --ci | grep -q -- '--pin'
 test ! -f .pre-commit-config.yaml

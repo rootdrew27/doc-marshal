@@ -47,8 +47,7 @@ vendor protocol we implement carries both, and that is the common case.
   messages. No section is required.
 - State what is true now. No past tense, and no procedures -- that is a runbook.
 - Insight is welcome where it helps a reader use the fact. A choice with live alternatives is a
-  `decision`; how a feature behaves as a whole is a `spec`; what was observed on one occasion is
-  a `record`; what code must keep to is a `convention`.
+  `decision`; how a feature behaves as a whole is a `spec`.
 - Cite what backs an observed claim, and note the revision. Distinguish specified from measured:
   a vendor's typical value is not what your unit does. Where two sources disagree, give both.
 
@@ -181,10 +180,10 @@ several sessions. A `spec` says what the feature does when it is built; a plan s
 what order, to build it. A `runbook` is run again and again; a plan is run once.
 
 - `status` is a claim about the work: `proposed` before a step is taken, `in-progress` while
-  steps remain, `done` when every condition under `## Done when` holds.
-- Mutable while the work runs: tick steps off, reorder them, add the ones the work uncovered.
-- Deleted once done. What it built is described by the spec and the references it touched, and
-  why it went that way is a `decision` or the commit messages; a finished plan is git's to keep.
+  steps remain, `done` when every condition under `## Done when` holds. Tick, reorder and add
+  steps as the work moves.
+- Deleted once done. The spec and references it touched say what was built, and a `decision` or
+  the commit messages say why; a finished plan is git's to keep.
 - Give steps stable identifiers, `S1`, `S2`, so one can be ticked or cited without renumbering
   the rest. Name the files a step touches.
 - Link the spec it carries out in `## Goal`, and anchor it with `source` where one exists. A plan
@@ -229,8 +228,8 @@ boundary a module may not cross, a property every handler keeps. One convention 
   convention without a scope binds everywhere, and is read as binding nowhere.
 - Anchor to the code it governs with `code_refs`, or to the outside standard it adopts with
   `source`: the code changing is what makes it worth re-reading.
-- Mutable. When the convention changes, rewrite it. A `decision` records why a choice was made and
-  is never edited; a convention states what holds now, and links the decision that set it.
+- A `decision` records why a choice was made and is never edited; a convention states what holds
+  now, is rewritten when that changes, and links the decision that set it.
 - A convention the engine or a linter enforces is still written down: the tool says what fails,
   the note says why and where.
 
@@ -265,15 +264,14 @@ What happened or was observed at a point in time: a run's results, a measurement
 benchmark. A `reference` holds facts true now; a record holds what was true then, and stays true
 of then.
 
-- Append-only. A record is never edited after it is written; a later run is a new record. A
-  repaired link or an `updated` bump changes nothing observed and is allowed.
+- A later run is a new record, never an edit to this one. A repaired link or an `updated` bump
+  changes nothing observed and is allowed.
 - Dated and exact. `## Conditions` pins when, where and on what -- the date, the build, the
   device, the inputs -- so a reader can tell whether it still applies.
 - Observations before interpretation. Quote output exactly; distinguish measured from inferred.
 - A fact the record establishes that readers will look up belongs in a `reference`, which cites
   the record as its `source`.
-- No anchor is required: a record is anchored by its conditions. Name the raw output or logs it
-  rests on with `source`, as assets.
+- Name the raw output or logs it rests on with `source`, as assets.
 
 Structure:
 

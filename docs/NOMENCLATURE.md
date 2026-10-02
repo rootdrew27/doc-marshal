@@ -18,7 +18,7 @@ out, not merely discouraged.
 | note | One typed markdown file under the docs tree, with frontmatter the effective profile validates and a body its type shapes. | page, article, document |
 | type | What a note is, named for the reader it serves and nothing else; declared as data whose properties the validator enforces and the scaffolder applies. | kind, category |
 | property | One declared line of a type: `serves`, `requires`, `folder`, `template` and the rest, each enforced by the validator and applied by the scaffolder. | attribute, declaration |
-| profile | A shipped ontology. `standard` is the eight-type one: reference, runbook, decision, spec, plan, convention, record, nomenclature. | preset, default ontology |
+| profile | A shipped ontology. `standard` is the one shipped today; `doc-marshal info` lists its types. | preset, default ontology |
 | ontology | A set of types and anchor fields, with the argument for why each type exists. | taxonomy |
 | effective profile | The profile a docs tree is validated against once its config's changes apply; today, always `standard` unchanged. | registry |
 | anchor | A frontmatter field naming what outside a note would falsify it; each field declares how its entries resolve. | link, dependency |
@@ -38,7 +38,7 @@ out, not merely discouraged.
 | reserved filename | The one filename a type binds both ways: that type must use it, and no other type may. | fixed name, claimed name |
 | integration | A place `check` runs: the plugin's PostToolUse hook, the pre-commit framework, and CI. | enforcement point, gate |
 | jurisdiction | One of the four places that name an engine version and must all name the same one: the environment, `pyproject.toml`, the pre-commit `rev:`, and the CI pin. | facet, version facet |
-| pin | A jurisdiction's exact version: `==X.Y.Z` or `rev: vX.Y.Z`. | constraint, version spec |
+| pin | A jurisdiction's version: `==X.Y.Z`, `rev: vX.Y.Z`, or the CI's `==X.Y.*`. | constraint, version spec |
 | briefing | The three blocks SessionStart hands a fresh session: the index preview, the root vocabulary as content, and the compact info block. | session injection, context dump, preamble |
 | doctrine | The text shipped inside the package and printed by `info`: the types, the policies and the marshalling. `rendered/` holds generated copies. | prose, help text |
 | marshalling | The staged procedure for writing to the docs tree, for a change, a subject, a clean-up, or the nomenclature. | process, playbook, docs run |

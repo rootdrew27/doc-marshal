@@ -1,6 +1,6 @@
 ---
 type: runbook
-updated: 2026-09-08
+updated: 2026-10-02
 summary: "Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish"
 code_refs:
   - scripts/sync_version.py
@@ -50,7 +50,8 @@ code_refs:
    uv run python scripts/render_doctrine.py --check
    ```
 
-   Each prints one confirming line and exits 0. `sync_version.py --check` naming a copy is the
+   Both exit 0: `sync_version.py --check` prints one confirming line, `render_doctrine.py --check`
+   prints nothing. `sync_version.py --check` naming a copy is the
    build refusing to proceed -- a tag must never publish a wheel that reports a different version
    from its name.
 

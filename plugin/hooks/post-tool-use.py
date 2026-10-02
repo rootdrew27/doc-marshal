@@ -2,8 +2,7 @@
 """PostToolUse hook: validate a note the moment it is written, not at review time.
 
 CI is a round trip away and the verify stage of a marshalling run comes after every note is
-written.
-Running the validator on one file as it lands turns a convention error into immediate feedback
+written. Running the validator on one file as it lands turns a policy error into immediate feedback
 while the note is still the thing being worked on.
 
 Deliberately non-blocking. It reports and does not veto: a note can be legitimately incomplete
@@ -59,7 +58,7 @@ def main() -> int:
             "hookSpecificOutput": {
                 "hookEventName": "PostToolUse",
                 "additionalContext": (
-                    f"doc-marshal check on {rel} (the docs convention validator, run automatically on "
+                    f"doc-marshal check on {rel} (the docs validator, run automatically on "
                     "every note you write):\n"
                     + "\n".join(findings)
                     + "\n\nERROR lines fail CI and must be fixed before this run reports done. "

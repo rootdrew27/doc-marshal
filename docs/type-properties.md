@@ -11,7 +11,7 @@ code_refs:
 A type is data. `DocType` in `src/doc_marshal/ontology.py` is the single internal representation:
 the validator enforces from it, `doc-marshal new` writes from it, and `doc-marshal info` renders
 it. No policy hardcodes a type name. The [standard profile](standard-profile.md) constructs its
-eight types in Python; the configuration loader of a later release is an alternate constructor for
+types in Python; the configuration loader of a later release is an alternate constructor for
 the same objects.
 
 ## Properties

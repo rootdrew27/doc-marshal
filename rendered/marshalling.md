@@ -86,7 +86,7 @@ Git fills the gaps the message leaves.
    doc-marshal drifted    # branch commits + uncommitted work
    ```
 
-   This matches every note's repo-path anchors against the changed paths -- exactly the question
+   This matches every note's path anchors -- `repo-path` and `docs-path` -- against the changed paths -- exactly the question
    "which docs does this diff touch?". Do not hand-read frontmatter to answer it.
 
    Its output is a starting set, not the answer, in both directions. A note whose subject the change
@@ -135,7 +135,7 @@ before reading anything by hand:
 
 ```bash
 doc-marshal check --all                     # what fails today
-doc-marshal drifted --range <trunk>..HEAD   # what the branch touched; omit --range for the working tree
+doc-marshal drifted                         # what the branch touched, plus uncommitted work
 ```
 
 and let what they report, plus a read of each note against the code it anchors, set the scope.
@@ -165,7 +165,7 @@ each. With the standard profile, route by what the reader needs:
 | a part's specs, a measurement, a vendor protocol, third-party behaviour -- a fact it **observes** | `reference`, anchored with `source` (and `code_refs` where we implement against it) |
 | a procedure to run: a deploy, a validation, a setup, a recovery | `runbook` |
 | how an application or feature behaves **as a whole**, at any stage from proposed to built | `spec` -- and a change to built behaviour updates the existing spec's body and `status` |
-| the ordered work that carries one change out, across sessions | `plan` -- deleted once its work is done |
+| the ordered work that carries one change out, across sessions | `plan` |
 | a convention or invariant that code or docs must follow | `convention` |
 | what happened or was observed at a point in time: a run's results, a measurement, an incident | `record` |
 | a choice with live alternatives that is likely to be revisited | `decision` |
@@ -177,11 +177,6 @@ Two policies govern the routing itself:
   to each other, not one mixed doc.
 - **Prefer editing an existing doc.** A new note is justified when no existing doc owns the subject,
   not when the subject is new to you.
-
-`spec` vs `plan` turns on **what is described**: the feature's end state, or the work that gets
-there. `convention` vs `decision` turns on **what the reader is doing**: following the convention
-now, or about to reopen why it was chosen. `reference` vs `record` turns on **when the fact holds**:
-now, or at the time it was observed.
 
 `reference` vs `spec` turns on **scope**, not on time. A spec says what a feature does end to end
 and links to the references that hold the facts it rests on; a reference holds one granular subject.
