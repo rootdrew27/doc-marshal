@@ -28,7 +28,8 @@ it through the `claude` CLI, at project scope; nothing else in the tool depends 
 
 Its value is the two hooks no other harness provides. **PostToolUse** validates a note the moment
 it is written: it runs `check --skip-non-notes` on the one file, selects the errors and warnings by
-their line prefixes, and returns them as context. It is deliberately non-blocking -- a note can be
+their line prefixes, and returns them as context with what to do about each: fix every error,
+and reword each warned alias, or backtick it where it is a literal name. It is deliberately non-blocking -- a note can be
 legitimately incomplete mid-edit, and a hook that vetoed those would fight the work rather than
 check it. **SessionStart** hands the session the [briefing](briefing.md).
 

@@ -62,7 +62,9 @@ def main() -> int:
                     "every note you write):\n"
                     + "\n".join(findings)
                     + "\n\nERROR lines fail CI and must be fixed before this run reports done. "
-                    "Fix them in this note only -- do not edit notes outside the change. "
+                    "For each warn line, reword where the alias is used unnecessarily; put it in "
+                    "backticks where it is a literal name. "
+                    "Fix both in this note only -- do not edit notes outside the change. "
                     "`doc-marshal info --policies` explains each policy."
                 ),
             }
