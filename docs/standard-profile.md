@@ -30,8 +30,8 @@ that instead: a `decision` is `accepted` or `superseded`, never "done".
 
 `requires_from` names the status from which the anchor minimum binds. A `spec` names no code until
 the code exists, so it is unanchored while `proposed` or `in-progress` and anchored once `done`.
-A `done` spec edited by a change that touched none of its `code_refs` is a warning, because the
-note may now lead the code and the status would no longer be true.
+Whether a `done` spec edited without its code now leads it is the author's call: a correction and
+a spec moving ahead look the same to the validator, so it says nothing.
 
 Anchor minimums are any-of, not permitted sets: `requires` lists the fields of which a note must
 carry at least one, and any declared field is legal on any type and validated whenever present.

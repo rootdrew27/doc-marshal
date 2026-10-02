@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-02
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -105,7 +105,7 @@ it rather than a README snippet:
   documentation.
 
 The workflow runs on pull requests only, because both ranged steps read
-`github.event.pull_request.base.sha`, which is empty on a push. `index --check` runs with
-`continue-on-error: true`, so a stale index warns rather than failing the build. Each step calls
+`github.event.pull_request.base.sha`, which is empty on a push. A stale index fails the build like
+any error: the fix is one command and the check has no false positives. Each step calls
 `uvx doc-marshal==<minor>.*` directly; there is no composite Action, which would be sugar over a
 three-line step.

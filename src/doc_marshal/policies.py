@@ -23,8 +23,6 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .anchors import check_anchor
-from .drifted import matches
-from .frontmatter import anchor_entries
 from .git import Git
 from .markdown import cell_items, cell_text, heading_lines, headings, parse_table, sections, table_chars
 from .note import Note
@@ -72,10 +70,6 @@ class Scope:
     @cached_property
     def edited(self) -> set[Path] | None:
         return self.git.edited_notes(self.rev_range, self.docs_tree)
-
-    @cached_property
-    def changed(self) -> set[str]:
-        return self.git.changed_paths(self.rev_range)
 
     @cached_property
     def since(self) -> date | None:
@@ -201,31 +195,6 @@ def check_location(note: Note, scope: Scope, report: Report) -> None:
     owner = profile.reserved_filenames.get(path.name)
     if owner is not None and owner != spec.name:
         report.error(path, f"{path.name} is the '{owner}' type's filename, but this declares '{spec.name}'")
-
-
-def check_lead(note: Note, scope: Scope, report: Report) -> None:
-    """A note anchored from a status onward was edited while none of the code it anchors to was.
-
-    Such a note describes what is built, so an edit to it with no edit to the code means either a
-    correction or the doc moving ahead of the code. Only the author knows which, and the second
-    means the status is no longer true: the profile says which status precedes the anchored one,
-    and the warning names it. Silent when git cannot say what changed.
-    """
-    path, meta, spec = note.path, note.meta, note.spec
-    if spec is None or meta is None:
-        return
-    if spec.requires_from is None or meta.get("status") != spec.requires_from or not scope.touched(path):
-        return
-    refs = [ref for name in scope.profile.repo_path_fields for ref in anchor_entries(meta, name)]
-    if not refs or any(matches(ref, scope.changed) for ref in refs):
-        return
-    index = spec.statuses.index(spec.requires_from)
-    before = f"'{spec.statuses[index - 1]}'" if index > 0 else "an earlier status"
-    report.warn(
-        path,
-        f"edited while none of its code was ({', '.join(refs)}) -- if the doc now leads the code, "
-        f"set status to {before} until the code catches up",
-    )
 
 
 def check_freshness(note: Note, scope: Scope, report: Report) -> None:
@@ -570,7 +539,6 @@ NOTE_POLICIES: tuple[Policy, ...] = (
     check_naming,
     check_frontmatter,
     check_location,
-    check_lead,
     check_freshness,
     check_title,
     check_sections,

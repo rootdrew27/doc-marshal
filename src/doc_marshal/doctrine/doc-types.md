@@ -134,9 +134,8 @@ that hold the facts its statements rest on, and several specs may point at one r
 - `status` is a claim about the code, not the writing: `proposed` while nothing is built,
   `in-progress` while code and doc disagree, `done` when they agree.
 - Mutable at every status. When the code changes, rewrite the spec to match. When the spec moves
-  ahead of the code, set it back to `in-progress` until the code catches up; the validator warns
-  when a `done` spec was edited by a change that touched none of its code, because only the
-  author knows which happened.
+  ahead of the code, set it back to `in-progress` until the code catches up. Only the author
+  knows which happened; the validator cannot tell a correction from a spec moving ahead.
 - Statements, not narrative. Where a statement rests on a fact, link the reference that holds it.
 - Give validation items stable identifiers, `V1`, `V2`, so one can be ticked, cited and reported
   without renumbering the rest.

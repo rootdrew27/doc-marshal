@@ -130,8 +130,7 @@ exact heading anchors; no wikilinks, no absolute links; a `nomenclature` note's 
 and one row per term; no `README.md`, second index or misspelled `.md` in the tree; no misplaced
 asset. Everything a script can judge on shape alone is an error.
 
-Warnings, the two policies that judge meaning: a `done` spec edited while none of its code was, and
-a word the vocabulary rules out.
+One warning, the one policy that judges meaning: a word the vocabulary rules out.
 
 Minor releases may add checks. Pin the version in every jurisdiction and bump when you choose.
 
@@ -141,7 +140,7 @@ Minor releases may add checks. Pin the version in every jurisdiction and bump wh
 | --- | --- | --- |
 | every write to a note | `doc-marshal check <that file>`, via the Claude Code plugin | reports into the session; never blocks |
 | every `git commit` | `check` on staged notes, then `index`, via pre-commit | errors block; a regenerated index fails the hook for re-adding |
-| every pull request | `check --all --format github`, `index --check` | errors fail the build, each on the file it names; a stale index warns |
+| every pull request | `check --all --format github`, `index --check` | errors and a stale index fail the build, each error on the file it names |
 | every pull request | `drifted --format github` | annotates anchored notes; never fails |
 
 `doc-marshal init --pre-commit --ci` writes both, at the version of the engine that writes them.
@@ -172,7 +171,6 @@ the code, which by definition touches no documentation. `fetch-depth: 0` because
 - uses: astral-sh/setup-uv@v6
 - run: uvx doc-marshal==0.5.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
 - run: uvx doc-marshal==0.5.* index --check
-  continue-on-error: true
 - run: uvx doc-marshal==0.5.* drifted --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
 ```
 

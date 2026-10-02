@@ -185,8 +185,8 @@ fact stays in the reference that states it. A dead end with no choice behind it 
 message, not in a note.
 
 A `spec` whose code the change touched is rewritten to match and stays `done`. A spec the change
-rewrote *ahead* of the code goes to `in-progress`; the validator warns when a `done` spec was
-edited by a change that touched none of its `code_refs`, and that warning is the prompt to decide.
+rewrote *ahead* of the code goes to `in-progress`. A `done` spec edited while none of its
+`code_refs` were is the case to decide: a correction stays `done`; a spec now ahead does not.
 
 ## Stage 3 -- Plan gate
 

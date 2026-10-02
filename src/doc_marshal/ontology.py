@@ -286,7 +286,7 @@ class Profile:
     @property
     def repo_path_fields(self) -> tuple[str, ...]:
         """The code anchors: anchor fields whose entries resolve as repo paths. `drifted` matches
-        these, and only these, against a diff."""
+        the wider `path_fields`."""
         return tuple(name for name, f in self.anchor_fields.items() if f.is_repo_path)
 
     @property
