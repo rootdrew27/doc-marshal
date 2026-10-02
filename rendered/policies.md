@@ -79,8 +79,8 @@ status the type names, if it names one.
 
 | Field | Contents | Resolves as | Required for |
 | --- | --- | --- | --- |
-| `code_refs` | paths to the code this note describes | `repo-path` | `reference`, `runbook`, `spec` once `done` |
-| `source` | URLs, or paths to an asset or another note | `docs-path`, `url` | `reference` |
+| `code_refs` | paths to the code this note describes | `repo-path` | `reference`, `runbook`, `spec` once `done`, `convention` |
+| `source` | URLs, or paths to an asset or another note | `docs-path`, `url` | `reference`, `convention` |
 
 - A path is written from the repository root, never absolute, with no `.` or `..` segment, and
   spelled exactly as the filesystem has it. It names a file or directory strictly inside the

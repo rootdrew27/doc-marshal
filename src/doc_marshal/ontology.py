@@ -132,7 +132,7 @@ class DocType:
     reserved_filename: str | None = None  # the one filename this type may take, exempt from the naming pattern
     root_required: bool = False  # one instance must exist at the top of the docs tree
     additive: bool = False  # a nested instance may not redefine a key an ancestor defines
-    append_only: bool = False  # never edited after acceptance, so its wording cannot be corrected
+    append_only: bool = False  # never edited once written, so its wording cannot be corrected
     structure: Structure | None = None  # the body shape other checks parse -- see `Structure`
     # The `##` sections a free-form note must carry: each present once, in this relative order, with
     # content; other sections may appear anywhere. The lighter property beside `structure`, which
@@ -317,20 +317,22 @@ class Profile:
 
 
 def standard(settings: Settings = SETTINGS) -> Profile:
-    """The `standard` profile: five types, two anchor fields.
+    """The `standard` profile: eight types, two anchor fields.
 
     A type names the reader it serves, and nothing else: look a fact up, run a procedure, read a
-    feature's behaviour as a whole, reopen a settled choice, choose what to call a thing. Whether a
-    fact was decided here or observed from outside is a property of the fact, so `reference` accepts
-    either anchor and requires at least one. Whether the thing described exists yet is a lifecycle,
-    so `spec` carries `status` and is anchored only once it is `done`.
+    feature's behaviour as a whole, carry out one piece of work, follow a convention, check what was
+    observed, reopen a settled choice, choose what to call a thing. Whether a fact was decided here
+    or observed from outside is a property of the fact, so `reference` accepts either anchor and
+    requires at least one, and so does `convention`. Whether the thing described exists yet is a
+    lifecycle, so `spec` carries `status` and is anchored only once it is `done`.
 
     `requires` lists the anchor fields of which a note must carry at least one. These are minimums,
     not permitted sets: any declared field is legal on any type and is validated whenever present.
 
-    Two types require no anchor. `decision` is append-only and anchored by its own content. A
-    `nomenclature` note is falsified by the words the repo uses, not by a path, and anchoring it to code
-    would flag a vocabulary on every unrelated change.
+    Four types require no anchor. `decision` and `record` are append-only and anchored by their own
+    content. A `plan` is deleted once its work is done, so it outlives no change it could drift
+    from. A `nomenclature` note is falsified by the words the repo uses, not by a path, and
+    anchoring it to code would flag a vocabulary on every unrelated change.
 
     Order is canonical: it is the order `info` lists the types in, from the most common to the least.
     """
@@ -428,6 +430,74 @@ def standard(settings: Settings = SETTINGS) -> Profile:
                 "",
                 "<!-- Live unknowns only, one per line. A resolved one is deleted or becomes a decision.",
                 "     Must be empty once status is done. -->",
+            ),
+        ),
+        DocType(
+            name="plan",
+            serves="someone carrying out one piece of work to completion",
+            voice="ordered, imperative, each step checkable",
+            mutability="mutable -- rewritten as the work moves, deleted once done",
+            statuses=LIFECYCLE,
+            default_status="proposed",
+            folder="plans",
+            required_sections=("Goal", "Steps", "Done when"),
+            template=(
+                "## Goal",
+                "",
+                "<!-- The outcome in a paragraph, and the spec it carries out, linked. -->",
+                "",
+                "## Steps",
+                "",
+                "<!-- In order. Stable identifiers so one step can be ticked off without renumbering the rest. -->",
+                "",
+                "- [ ] **S1** --",
+                "",
+                "## Done when",
+                "",
+                "<!-- The observable conditions that end the work. One per line. -->",
+            ),
+        ),
+        DocType(
+            name="convention",
+            serves="someone about to write code or docs that must follow it",
+            voice="normative, one convention, states its scope",
+            mutability="mutable -- rewritten in place as the convention changes",
+            requires=("code_refs", "source"),
+            required_sections=("Convention", "Applies to", "Rationale"),
+            template=(
+                "## Convention",
+                "",
+                "<!-- What must hold, as a statement. Must and never, not should. -->",
+                "",
+                "## Applies to",
+                "",
+                "<!-- Where it binds: the paths, the kinds of change, the exceptions. -->",
+                "",
+                "## Rationale",
+                "",
+                "<!-- Why it holds, in a line or two. Link the decision that set it, where one did. -->",
+            ),
+        ),
+        DocType(
+            name="record",
+            serves="someone checking what happened or was observed at a point in time",
+            voice="dated, past tense, exact",
+            mutability="append-only -- never edited once written",
+            folder="records",
+            append_only=True,
+            required_sections=("Conditions", "Observations", "Conclusions"),
+            template=(
+                "## Conditions",
+                "",
+                "<!-- When, where and on what: the date, the build, the device, the inputs. -->",
+                "",
+                "## Observations",
+                "",
+                "<!-- What happened, as measured or seen. Past tense. Quote output exactly. -->",
+                "",
+                "## Conclusions",
+                "",
+                "<!-- What the observations show, and what they do not. -->",
             ),
         ),
         DocType(

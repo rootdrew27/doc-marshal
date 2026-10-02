@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test on a fresh repository: every command runs, the five-type profile validates
+# End-to-end smoke test on a fresh repository: every command runs, the eight-type profile validates
 # what it should and rejects what it should, and the plugin's hooks resolve the installed engine.
 # CI runs this on each supported Python; locally: PLUGIN=$PWD/plugin bash scripts/smoke.sh
 set -eux
@@ -8,7 +8,7 @@ doc-marshal --version
 doc-marshal info --types > /dev/null
 doc-marshal info --marshalling > /dev/null
 doc-marshal info --policies | grep -c '{{' | grep -qx 0
-test "$(doc-marshal info --types | grep -c '^## `')" = 5
+test "$(doc-marshal info --types | grep -c '^## `')" = 8
 doc-marshal info spec | grep -q 'required, in this order'
 
 repo=$(mktemp -d)
@@ -28,13 +28,19 @@ doc-marshal new decision use-postgres --code-ref src/db.py --summary "Postgres o
 doc-marshal new reference docs/vendor-limits --source https://example.com/limits --summary "Limits the vendor imposes."
 doc-marshal new runbook docs/deploy --code-ref src/db.py --summary "Deploy the service."
 doc-marshal new spec docs/billing --summary "How billing behaves end to end."
+doc-marshal new plan docs/plans/move-billing --source docs/billing.md --summary "Move billing to the job queue."
+doc-marshal new convention docs/db-access --code-ref src/db.py --summary "Only src/db.py opens a connection."
+doc-marshal new record docs/records/load-test --summary "Load test of the 2026-09-03 build."
+! doc-marshal new plan docs/move-billing --summary "A plan lives in plans/."
+grep -qx 'status: proposed' docs/plans/move-billing.md
 grep -qx 'status: proposed' docs/billing.md
 grep -qx '## Prerequisites' docs/deploy.md && grep -qx '## Open questions' docs/billing.md
 ! doc-marshal check docs/deploy.md
 doc-marshal check docs/deploy.md | grep -q 'is empty'
 doc-marshal check docs/deploy.md | grep -q 'does not track'
 ! doc-marshal new decision born-dead --status superseded --summary "A note is never born superseded."
-for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md; do
+for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md docs/plans/move-billing.md \
+  docs/db-access.md docs/records/load-test.md; do
   python3 - "$note" <<'EOF'
 import re, sys
 path = sys.argv[1]

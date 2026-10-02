@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-07
+updated: 2026-10-02
 summary: Every property a type declares, what the validator enforces from it, and what the scaffolder writes from it
 code_refs:
   - src/doc_marshal/ontology.py
@@ -11,7 +11,7 @@ code_refs:
 A type is data. `DocType` in `src/doc_marshal/ontology.py` is the single internal representation:
 the validator enforces from it, `doc-marshal new` writes from it, and `doc-marshal info` renders
 it. No policy hardcodes a type name. The [standard profile](standard-profile.md) constructs its
-five types in Python; the configuration loader of a later release is an alternate constructor for
+eight types in Python; the configuration loader of a later release is an alternate constructor for
 the same objects.
 
 ## Properties
@@ -32,7 +32,7 @@ the same objects.
 | `reserved_filename` | the one filename this type may take, exempt from the naming pattern |
 | `root_required` | one instance must exist at the top of the docs tree |
 | `additive` | a nested instance may not redefine a key an ancestor defines |
-| `append_only` | never edited after acceptance, so its wording cannot be corrected |
+| `append_only` | never edited once written, so its wording cannot be corrected |
 | `structure` | the parsed body shape, for a type whose body is data |
 | `required_sections` | the `##` sections a free-form note carries |
 | `empty_at` | `(section, status)` pairs: in that status the section, if present, is blank |

@@ -25,11 +25,15 @@ one; any declared field is legal on any type.
 | `runbook` | someone running a procedure | imperative, literal, copy-pasteable | mutable -- rewritten in place | `code_refs` |
 | `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | none |
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | mutable at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
+| `plan` | someone carrying out one piece of work to completion | ordered, imperative, each step checkable | mutable -- rewritten as the work moves, deleted once done | none |
+| `convention` | someone about to write code or docs that must follow it | normative, one convention, states its scope | mutable -- rewritten in place as the convention changes | any of `code_refs`, `source` |
+| `record` | someone checking what happened or was observed at a point in time | dated, past tense, exact | append-only -- never edited once written | none |
 | `nomenclature` | someone choosing what to call a thing | flat, definitional, opinionated | mutable -- rewritten as the domain sharpens | none |
 
 The types requiring no anchor are anchored by their own content: a `decision` by its context
-section, a `nomenclature` note by the words the repo uses. A `spec` is anchored from `done`
-onward, because before that the code it would name need not exist.
+section, a `record` by its conditions, a `nomenclature` note by the words the repo uses. A `plan`
+is deleted once its work is done, so it never outlives the change it would drift from. A `spec` is
+anchored from `done` onward, because before that the code it would name need not exist.
 
 There is no index type. The index is generated from every note's `type` and `summary`, so the
 summary line is all a reader sees before opening a note; a hand-written index of any kind is an
@@ -58,7 +62,8 @@ vendor protocol we implement carries both, and that is the common case.
   messages. No section is required.
 - State what is true now. No past tense, and no procedures -- that is a runbook.
 - Insight is welcome where it helps a reader use the fact. A choice with live alternatives is a
-  `decision`; how a feature behaves as a whole is a `spec`.
+  `decision`; how a feature behaves as a whole is a `spec`; what was observed on one occasion is
+  a `record`; what code must keep to is a `convention`.
 - Cite what backs an observed claim, and note the revision. Distinguish specified from measured:
   a vendor's typical value is not what your unit does. Where two sources disagree, give both.
 
@@ -100,7 +105,7 @@ What must be true before step one: access, tools, state. One line each.
 - **status:** accepted | superseded -- required in the note; `new` writes accepted when --status is omitted; born accepted, never superseded
 - **folder:** decisions/ at the docs tree
 - **filename:** NNNN-kebab-slug.md, numbers unique within the folder
-- **editing:** append-only -- never edited after acceptance
+- **editing:** append-only -- never edited once written
 - **supersession:** `supersedes` / `superseded_by` name the other note; status `superseded` requires `superseded_by`
 - **sections:** ## Context, ## Decision, ## Alternatives considered, ## Consequences -- required, in this order, each with content; other sections allowed
 - **title:** one H1, first, starting `NNNN -- `
@@ -196,6 +201,143 @@ What it does, as statements, each linked to the reference that justifies it.
 
 ## Open questions
 - Does a parked payment expire, and after how long?
+```
+
+## `plan`
+
+- **requires:** no anchor
+- **frontmatter:** `type`, `updated`, `summary`, `code_refs`, `source`, `status` -- no other key
+- **status:** proposed | in-progress | done -- required in the note; `new` writes proposed when --status is omitted
+- **folder:** plans/ at the docs tree
+- **sections:** ## Goal, ## Steps, ## Done when -- required, in this order, each with content; other sections allowed
+- **title:** one H1, first
+
+The work that carries a change out, in order, for whoever is doing it -- often an agent across
+several sessions. A `spec` says what the feature does when it is built; a plan says what to do, in
+what order, to build it. A `runbook` is run again and again; a plan is run once.
+
+- `status` is a claim about the work: `proposed` before a step is taken, `in-progress` while
+  steps remain, `done` when every condition under `## Done when` holds.
+- Mutable while the work runs: tick steps off, reorder them, add the ones the work uncovered.
+- Deleted once done. What it built is described by the spec and the references it touched, and
+  why it went that way is a `decision` or the commit messages; a finished plan is git's to keep.
+- Give steps stable identifiers, `S1`, `S2`, so one can be ticked or cited without renumbering
+  the rest. Name the files a step touches.
+- Link the spec it carries out in `## Goal`, and anchor it with `source` where one exists. A plan
+  with no spec behind it is for work whose end state needs no description: a migration, a
+  clean-up, a rename.
+
+Structure:
+
+```markdown
+---
+type: plan
+updated: 2026-08-07
+summary: Move payment retries from cron to the job queue.
+status: in-progress
+source:
+  - docs/payment-retries.md
+---
+
+# Retries on the job queue
+
+## Goal
+Payment retries run on the job queue, as the payment retries spec describes.
+
+## Steps
+- [x] **S1** -- add a `retry` job to `src/jobs/registry.py`.
+- [ ] **S2** -- point `src/payments/retry.py` at the job and delete the cron entry.
+
+## Done when
+- No retry is scheduled by cron.
+```
+
+## `convention`
+
+- **requires:** any of code_refs, source
+- **frontmatter:** `type`, `updated`, `summary`, `code_refs`, `source` -- no other key
+- **sections:** ## Convention, ## Applies to, ## Rationale -- required, in this order, each with content; other sections allowed
+- **title:** one H1, first
+
+A convention or an invariant that code or docs in this repo must follow: a naming scheme, a
+boundary a module may not cross, a property every handler keeps. One convention per note.
+
+- Normative. State what must hold with `must` and `never`; a `should` is advice, and advice is
+  not a convention.
+- Say where it binds under `## Applies to` -- the paths, the kinds of change, the exceptions. A
+  convention without a scope binds everywhere, and is read as binding nowhere.
+- Anchor to the code it governs with `code_refs`, or to the outside standard it adopts with
+  `source`: the code changing is what makes it worth re-reading.
+- Mutable. When the convention changes, rewrite it. A `decision` records why a choice was made and
+  is never edited; a convention states what holds now, and links the decision that set it.
+- A convention the engine or a linter enforces is still written down: the tool says what fails,
+  the note says why and where.
+
+Structure:
+
+```markdown
+---
+type: convention
+updated: 2026-08-07
+summary: Handlers never call the payment gateway directly; they enqueue a job.
+code_refs:
+  - src/handlers/
+---
+
+# Handlers enqueue, never charge
+
+## Convention
+A request handler never calls the payment gateway. It enqueues a `charge` job and returns.
+
+## Applies to
+Every module under `src/handlers/`. Webhook acknowledgements are exempt.
+
+## Rationale
+A gateway timeout must not hold a request open; see decision 0004.
+```
+
+## `record`
+
+- **requires:** append-only
+- **frontmatter:** `type`, `updated`, `summary`, `code_refs`, `source` -- no other key
+- **folder:** records/ at the docs tree
+- **editing:** append-only -- never edited once written
+- **sections:** ## Conditions, ## Observations, ## Conclusions -- required, in this order, each with content; other sections allowed
+- **title:** one H1, first
+
+What happened or was observed at a point in time: a run's results, a measurement, an incident, a
+benchmark. A `reference` holds facts true now; a record holds what was true then, and stays true
+of then.
+
+- Append-only. A record is never edited after it is written; a later run is a new record. A
+  repaired link or an `updated` bump changes nothing observed and is allowed.
+- Dated and exact. `## Conditions` pins when, where and on what -- the date, the build, the
+  device, the inputs -- so a reader can tell whether it still applies.
+- Observations before interpretation. Quote output exactly; distinguish measured from inferred.
+- A fact the record establishes that readers will look up belongs in a `reference`, which cites
+  the record as its `source`.
+- No anchor is required: a record is anchored by its conditions. Name the raw output or logs it
+  rests on with `source`, as assets.
+
+Structure:
+
+```markdown
+---
+type: record
+updated: 2026-08-07
+summary: Load test of payment retries at 500 requests per second on the 2026-08-07 build.
+---
+
+# Retry load test, 2026-08-07
+
+## Conditions
+Build `a1b2c3d`, staging, 500 requests per second for ten minutes, 5% gateway failures injected.
+
+## Observations
+p99 latency 410 ms. 3 of 1,500 retries parked; none were lost.
+
+## Conclusions
+The queue holds at this rate. Nothing was measured above it.
 ```
 
 ## `nomenclature`

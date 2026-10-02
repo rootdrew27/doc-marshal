@@ -7,7 +7,7 @@ Documentation drifts because nothing connects a note to the thing that would fal
 code or sources it describes -- its **anchor** -- so "which docs did this change invalidate?" is a
 question with an answer a script can give.
 
-It ships an opinionated five-type ontology, the `standard` profile. But the engine is the product:
+It ships an opinionated eight-type ontology, the `standard` profile. But the engine is the product:
 every policy it enforces is read off the effective profile rather than hardcoded per check, and an
 ontology you declare yourself (in a later release) is held to exactly the same standard.
 
@@ -59,7 +59,7 @@ matched against a diff.
 
 ## The standard profile
 
-Five types. A type names the reader it serves, and nothing else. One type per note: a change
+Eight types. A type names the reader it serves, and nothing else. One type per note: a change
 that needs a procedure and the behaviour it implements is two notes linked to each other, not one
 mixed note. Route by what the reader needs.
 
@@ -70,6 +70,9 @@ mixed note. Route by what the reader needs.
 | `runbook` | someone running a procedure | imperative, literal, copy-pasteable | mutable -- rewritten in place | `code_refs` |
 | `decision` | someone about to reopen a settled choice | terse, one decision | append-only -- never edited after acceptance | none |
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | mutable at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
+| `plan` | someone carrying out one piece of work to completion | ordered, imperative, each step checkable | mutable -- rewritten as the work moves, deleted once done | none |
+| `convention` | someone about to write code or docs that must follow it | normative, one convention, states its scope | mutable -- rewritten in place as the convention changes | any of `code_refs`, `source` |
+| `record` | someone checking what happened or was observed at a point in time | dated, past tense, exact | append-only -- never edited after it is written | none |
 | `nomenclature` | someone choosing what to call a thing | flat, definitional, opinionated | mutable -- rewritten as the domain sharpens | none |
 
 The anchor minimum is *any of* the fields listed: a `reference` about a fact this repo decides
@@ -77,12 +80,17 @@ carries `code_refs`, one about a fact it observes carries `source`, and one abou
 we implement carries both. A `spec` carries `status` (`proposed`, `in-progress`, `done`) and is
 anchored once it is `done`; it is mutable at every status, and the validator warns when a `done`
 spec is edited by a change that touched none of its code. `decision` is append-only and anchored by
-its own content. `nomenclature` is falsified by the words the repo uses, not by a path.
+its own content, and so is a `record`, which holds what was observed at a point in time. A `plan`
+carries the same `status` as a spec and is deleted once its work is done, so it needs no anchor. A
+`convention` anchors like a reference: to the code it governs, or to the standard it adopts.
+`nomenclature` is falsified by the words the repo uses, not by a path.
 
 Each type has the shape its reader needs, and the validator holds a note to it. Every note has one
 H1, first. A `decision` carries Context, Decision, Alternatives considered and Consequences; a
 `spec` carries Overview, Behavior and Validation, and may keep Open questions until it is `done`;
-a `runbook` carries Prerequisites and Steps. Required sections are present, in order, and written;
+a `runbook` carries Prerequisites and Steps; a `plan` carries Goal, Steps and Done when; a
+`convention` carries Convention, Applies to and Rationale; a `record` carries Conditions,
+Observations and Conclusions. Required sections are present, in order, and written;
 other sections go anywhere. A `reference` takes the shape of its subject. `doc-marshal new` writes
 the template, and the note passes once it is written.
 
@@ -109,7 +117,7 @@ of the standard profile, generated from the same source at the same version and 
 CI whenever main moves:
 
 - [rendered/policies.md](rendered/policies.md) -- every policy that is not per-type
-- [rendered/doc-types.md](rendered/doc-types.md) -- the five types, in full
+- [rendered/doc-types.md](rendered/doc-types.md) -- the eight types, in full
 - [rendered/marshalling.md](rendered/marshalling.md) -- marshalling, staged
 
 They are derived, never edited: the doctrine lives in `src/doc_marshal/doctrine/`.

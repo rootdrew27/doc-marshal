@@ -187,7 +187,7 @@ def type_facts(profile: Profile, spec: DocType) -> list[tuple[str, str]]:
     if spec.additive:
         facts.append(("nesting", "a nested instance adds keys, never redefines an ancestor's"))
     if spec.append_only:
-        facts.append(("editing", "append-only -- never edited after acceptance"))
+        facts.append(("editing", "append-only -- never edited once written"))
     if spec.supersession:
         s = spec.supersession
         facts.append(

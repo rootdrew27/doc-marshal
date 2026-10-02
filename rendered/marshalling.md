@@ -165,6 +165,9 @@ each. With the standard profile, route by what the reader needs:
 | a part's specs, a measurement, a vendor protocol, third-party behaviour -- a fact it **observes** | `reference`, anchored with `source` (and `code_refs` where we implement against it) |
 | a procedure to run: a deploy, a validation, a setup, a recovery | `runbook` |
 | how an application or feature behaves **as a whole**, at any stage from proposed to built | `spec` -- and a change to built behaviour updates the existing spec's body and `status` |
+| the ordered work that carries one change out, across sessions | `plan` -- deleted once its work is done |
+| a convention or invariant that code or docs must follow | `convention` |
+| what happened or was observed at a point in time: a run's results, a measurement, an incident | `record` |
 | a choice with live alternatives that is likely to be revisited | `decision` |
 | a term the project uses inconsistently, or a word that needs ruling out | `nomenclature` -- but see the vocabulary policy in Stage 4: not on this run |
 
@@ -174,6 +177,11 @@ Two policies govern the routing itself:
   to each other, not one mixed doc.
 - **Prefer editing an existing doc.** A new note is justified when no existing doc owns the subject,
   not when the subject is new to you.
+
+`spec` vs `plan` turns on **what is described**: the feature's end state, or the work that gets
+there. `convention` vs `decision` turns on **what the reader is doing**: following the convention
+now, or about to reopen why it was chosen. `reference` vs `record` turns on **when the fact holds**:
+now, or at the time it was observed.
 
 `reference` vs `spec` turns on **scope**, not on time. A spec says what a feature does end to end
 and links to the references that hold the facts it rests on; a reference holds one granular subject.
@@ -264,7 +272,8 @@ Assets under `assets/` are out of scope (Surfaces), so a marshalling run never r
 
 Delete a note when the request says so, or when the run made it wrong in a way editing cannot fix
 and nothing in it is worth keeping. A note whose subject moved into another note is deleted once the
-other note says everything a reader would have come for. Do it the way a rename is done:
+other note says everything a reader would have come for, and a `plan` is deleted once its work is
+done and the notes it changed say what was built. Do it the way a rename is done:
 `git rm`, then find and repair every inbound reference, then re-grep. The report lists each
 deletion with the reason and what, if anything, supersedes it; the git diff is the undo.
 
