@@ -11,7 +11,7 @@ import importlib
 import sys
 
 from . import __version__
-from .errors import DocMarshalError
+from .errors import CONFIG_PREFIX, ConfigError, DocMarshalError
 
 COMMANDS: dict[str, tuple[str, str]] = {
     "check": ("check", "validate the named notes, or --all to sweep the tree"),
@@ -52,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
     module = importlib.import_module(f".{COMMANDS[command][0]}", __package__)
     try:
         return int(module.main(args[1:]))
+    except ConfigError as exc:
+        print(f"doc-marshal {command}: the config does not load\n{CONFIG_PREFIX}{exc}", file=sys.stderr)
+        return 2
     except DocMarshalError as exc:
         print(f"doc-marshal {command}: {exc}", file=sys.stderr)
         return 2

@@ -59,7 +59,7 @@ from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
 from .integrate import CI_FILE, WORKFLOWS, Written, has_hook, writable, write_ci, write_precommit
 from .new import frontmatter_lines, render_note
-from .ontology import Profile
+from .ontology import PROFILES, Profile, type_toml
 from .paths import iter_notes, rel_to
 from .settings import SETTINGS, Settings
 
@@ -73,18 +73,33 @@ CONFIG_TEXT = """\
 #
 # extends = "standard"    # the profile to start from (the default); [] starts from nothing
 #
-# Each file types/<name>.toml adjusts the shipped type of that name, one key at a time, or
-# declares a new type when no shipped type has that name:
-#   types/runbook.toml    enabled = false
-#   types/plan.toml       serves = "someone about to build a change", template = [...]
-# `doc-marshal info --dump-toml` prints every key a type file may set. A key or file this version
-# does not read makes every doc-marshal command exit 2.
+# types/ holds one file per type. `init` wrote the standard profile's; edit one to change that
+# type (`enabled = false` turns it off), and add types/<name>.toml to declare a new type, with at
+# least `serves`. A file named after a shipped type is laid over it key by key, so deleting one
+# restores the type as shipped. `doc-marshal info --dump-toml` prints every key a type file may
+# set. A key or file this version does not read makes every doc-marshal command exit 2.
 """
 
 # Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
 # virtualenv. A permission for the bare name alone never matches the two forms a session actually
 # uses when the package is a project dependency, and a non-interactive session cannot ask.
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
+
+
+def type_files(settings: Settings = SETTINGS) -> dict[str, str]:
+    """The file for each type of the profile a new config extends, keyed by its name in `types/`."""
+    profile = PROFILES["standard"](settings)
+    return {f"{name}.toml": type_toml(profile, name) for name in profile.types}
+
+
+def deny_rules(settings: Settings = SETTINGS) -> tuple[str, ...]:
+    """What a session may not do: edit the config folder. The config is the law the notes are held
+    to, so an agent writing notes does not rewrite it -- the user changes the profile, or asks for
+    it and approves the edit. One directory segment, so as a deny rule Claude Code matches the folder
+    at any depth under the session's directory. It binds the file tools, the file commands Claude
+    Code recognizes in Bash and redirections; not a script that opens the file itself."""
+    return (f"Edit({settings.config_dirname}/**)",)
+
 
 # The plugin ships from this repository's own marketplace file, so one source declares both. Project
 # scope on purpose: the plugin is a property of the repository -- these docs are validated as they
@@ -232,8 +247,9 @@ def merge_import(root_file: Path, line: str) -> bool:
     return True
 
 
-def merge_permission(settings_path: Path) -> bool:
-    """Add the Bash permissions to `.claude/settings.json`, creating it if needed. True when changed."""
+def merge_permissions(settings_path: Path, settings: Settings = SETTINGS) -> bool:
+    """Add the Bash permissions and the config folder's deny to `.claude/settings.json`, creating it
+    if needed. True when changed."""
     data: dict[str, Any] = {}
     if settings_path.is_file():
         try:
@@ -243,11 +259,14 @@ def merge_permission(settings_path: Path) -> bool:
         if not isinstance(data, dict):
             raise DocMarshalError(f"{settings_path} does not hold a JSON object")
     permissions = data.setdefault("permissions", {})
-    allow = permissions.setdefault("allow", [])
-    missing = [p for p in PERMISSIONS if p not in allow]
-    if not missing:
+    changed = False
+    for key, wanted in (("allow", PERMISSIONS), ("deny", deny_rules(settings))):
+        present = permissions.setdefault(key, [])
+        missing = [p for p in wanted if p not in present]
+        present.extend(missing)
+        changed = changed or bool(missing)
+    if not changed:
         return False
-    allow.extend(missing)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return True
@@ -324,7 +343,8 @@ def main(argv: list[str]) -> int:
         "--claude-code",
         action="store_true",
         help="write CLAUDE.md instead of AGENTS.md, import it from the root CLAUDE.md, allow "
-        "`doc-marshal` in .claude/settings.json, and install the plugin with the `claude` CLI",
+        "`doc-marshal` and deny edits to the config folder in .claude/settings.json, and install the plugin "
+        "with the `claude` CLI",
     )
     parser.add_argument(
         "--no-plugin",
@@ -391,8 +411,19 @@ def main(argv: list[str]) -> int:
     if not config.exists():
         config.parent.mkdir(exist_ok=True)
         config.write_text(CONFIG_TEXT, encoding="utf-8")
+        created.append(Written(f"{label}/{settings.config_name}", "marks the tree; extends the standard profile"))
+        # Only with the config: a later `init`, run to add an integration, does not bring back a
+        # type file the user deleted.
+        files = type_files(settings)
+        folder = settings.types_dir(target)
+        folder.mkdir(exist_ok=True)
+        for name, text in files.items():
+            (folder / name).write_text(text, encoding="utf-8")
         created.append(
-            Written(f"{label}/{settings.config_name}", "marks the tree; the standard profile until you configure it")
+            Written(
+                f"{label}/{settings.config_dirname}/{settings.types_dirname}/",
+                f"the standard profile's {len(files)} types, one file each, to customize",
+            )
         )
 
     profile = load_profile(target, settings)
@@ -418,8 +449,13 @@ def main(argv: list[str]) -> int:
             Written(f"{label}/{settings.index_name}", f"generated -- {len(state.notes)} {plural(len(state.notes))}")
         )
 
-    if args.claude_code and merge_permission(repo_root / ".claude" / "settings.json"):
-        created.append(Written(".claude/settings.json", "allows the three spellings of `doc-marshal` a session runs"))
+    if args.claude_code and merge_permissions(repo_root / ".claude" / "settings.json", settings):
+        created.append(
+            Written(
+                ".claude/settings.json",
+                f"allows the three spellings of `doc-marshal` a session runs; denies edits to {settings.config_dirname}/",
+            )
+        )
 
     # One answer to "which version may these files name", shared by the writers below and by the
     # advice printed further down: a version too unsafe to write is too unsafe to print as a

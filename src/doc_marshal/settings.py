@@ -29,10 +29,6 @@ class Settings:
 
     types_dirname: str = "types"
     """Inside the config folder: one `<type>.toml` per type the config adjusts or declares."""
-
-    legacy_config_name: str = ".doc-marshal.toml"
-    """The single-file config of 0.5 and earlier. Read only to say where it moved."""
-
     default_docs_dir: str = "docs"
     """Where `init` puts the docs tree when not told otherwise."""
 

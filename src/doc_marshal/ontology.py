@@ -108,6 +108,17 @@ class Supersession:
     status: str = "superseded"
 
 
+class TypeProblem(ValueError):
+    """A type the profile refuses. It keeps the type's name apart from what is wrong, so a caller
+    that knows where the type was written -- the config loader, which has its file -- can name that
+    instead."""
+
+    def __init__(self, type_name: str, detail: str) -> None:
+        super().__init__(f"type {type_name!r}: {detail}")
+        self.type_name = type_name
+        self.detail = detail
+
+
 @dataclass(frozen=True)
 class DocType:
     """One type in the ontology.
@@ -142,7 +153,6 @@ class DocType:
     # (section, status) pairs: in that status a note may keep the section only if it is blank --
     # a `done` spec has no open questions. The section itself is optional.
     empty_at: tuple[tuple[str, str], ...] = ()
-    description: str = ""  # longer text for a user-declared type; the profile's lives in doctrine/
 
     @property
     def template_sections(self) -> tuple[str, ...]:
@@ -203,62 +213,64 @@ class Profile:
             if name in _PROPERTIES:
                 raise ValueError(f"anchor field {name!r} collides with a type property of that name")
         for spec in self.types.values():
-            for name in spec.requires:
-                if name not in self.anchor_fields:
-                    raise ValueError(f"type {spec.name!r} requires undeclared anchor field {name!r}")
-            if spec.structure is not None:
-                missing = [
-                    c
-                    for c in (spec.structure.key_column, spec.structure.body_column, *spec.structure.scanned_columns)
-                    if c not in spec.structure.columns
-                ]
-                if missing:
-                    raise ValueError(f"type {spec.name!r}: structure names columns it lacks: {missing}")
-                if spec.structure.table_in not in spec.structure.sections:
-                    raise ValueError(f"type {spec.name!r}: structure.table_in is not one of its sections")
-            if spec.default_status is not None and spec.default_status not in spec.statuses:
-                raise ValueError(f"type {spec.name!r}: default_status is not one of its statuses")
-            if spec.requires_from is not None and spec.requires_from not in spec.statuses:
-                raise ValueError(f"type {spec.name!r}: requires_from is not one of its statuses")
-            # Properties that only mean something in combination. Refused here rather than silently
-            # skipped by each consumer, because a policy that quietly never binds is the failure
-            # mode this whole profile exists to prevent.
-            if spec.numbered and spec.folder is None:
-                raise ValueError(f"type {spec.name!r}: numbered without a folder to number within")
-            if spec.root_required and spec.reserved_filename is None:
-                raise ValueError(f"type {spec.name!r}: root_required without a reserved_filename to find it by")
-            if spec.additive and spec.structure is None:
-                raise ValueError(f"type {spec.name!r}: additive without a structure whose keys would collide")
-            if spec.supersession is not None and spec.supersession.status not in spec.statuses:
-                raise ValueError(f"type {spec.name!r}: supersession.status is not one of its statuses")
-            if spec.default_status is not None and spec.default_status not in spec.birth_statuses:
-                raise ValueError(
-                    f"type {spec.name!r}: default_status is the status of a replaced note; none is born so"
-                )
-            # The scaffold and the validator read the same sections, so `new` writes every heading
-            # `check` will demand and nothing `check` forbids.
-            if spec.structure is not None and spec.required_sections:
-                raise ValueError(f"type {spec.name!r}: structure and required_sections are two answers to one question")
-            if len(set(spec.required_sections)) != len(spec.required_sections):
-                raise ValueError(f"type {spec.name!r}: required_sections repeats a section")
-            written = spec.template_sections
-            order = [written.index(s) for s in spec.required_sections if s in written]
-            if len(order) != len(spec.required_sections) or order != sorted(order):
-                raise ValueError(
-                    f"type {spec.name!r}: required_sections {list(spec.required_sections)} must appear "
-                    f"in the template, in that order; the template writes {list(written)}"
-                )
-            if len({section for section, _ in spec.empty_at}) != len(spec.empty_at):
-                raise ValueError(f"type {spec.name!r}: empty_at names a section twice; one status per section")
-            for section, status in spec.empty_at:
-                if section not in written or status not in spec.statuses:
-                    raise ValueError(
-                        f"type {spec.name!r}: empty_at names a section or status the type lacks: {section!r} at {status!r}"
-                    )
-                if section in spec.required_sections:
-                    raise ValueError(
-                        f"type {spec.name!r}: {section!r} cannot be both required (populated) and empty_at"
-                    )
+            try:
+                self._check(spec)
+            except ValueError as exc:
+                raise TypeProblem(spec.name, str(exc)) from None
+
+    def _check(self, spec: DocType) -> None:
+        """Refuse a type whose properties contradict each other or this profile. The message
+        leaves the type unnamed; `__post_init__` names it."""
+        for name in spec.requires:
+            if name not in self.anchor_fields:
+                raise ValueError(f"requires undeclared anchor field {name!r}")
+        if spec.structure is not None:
+            missing = [
+                c
+                for c in (spec.structure.key_column, spec.structure.body_column, *spec.structure.scanned_columns)
+                if c not in spec.structure.columns
+            ]
+            if missing:
+                raise ValueError(f"structure names columns it lacks: {missing}")
+            if spec.structure.table_in not in spec.structure.sections:
+                raise ValueError("structure.table_in is not one of its sections")
+        if spec.default_status is not None and spec.default_status not in spec.statuses:
+            raise ValueError("default_status is not one of its statuses")
+        if spec.requires_from is not None and spec.requires_from not in spec.statuses:
+            raise ValueError("requires_from is not one of its statuses")
+        # Properties that only mean something in combination. Refused here rather than silently
+        # skipped by each consumer, because a policy that quietly never binds is the failure
+        # mode this whole profile exists to prevent.
+        if spec.numbered and spec.folder is None:
+            raise ValueError("numbered without a folder to number within")
+        if spec.root_required and spec.reserved_filename is None:
+            raise ValueError("root_required without a reserved_filename to find it by")
+        if spec.additive and spec.structure is None:
+            raise ValueError("additive without a structure whose keys would collide")
+        if spec.supersession is not None and spec.supersession.status not in spec.statuses:
+            raise ValueError("supersession.status is not one of its statuses")
+        if spec.default_status is not None and spec.default_status not in spec.birth_statuses:
+            raise ValueError("default_status is the status of a replaced note; none is born so")
+        # The scaffold and the validator read the same sections, so `new` writes every heading
+        # `check` will demand and nothing `check` forbids.
+        if spec.structure is not None and spec.required_sections:
+            raise ValueError("structure and required_sections are two answers to one question")
+        if len(set(spec.required_sections)) != len(spec.required_sections):
+            raise ValueError("required_sections repeats a section")
+        written = spec.template_sections
+        order = [written.index(s) for s in spec.required_sections if s in written]
+        if len(order) != len(spec.required_sections) or order != sorted(order):
+            raise ValueError(
+                f"required_sections {list(spec.required_sections)} must appear "
+                f"in the template, in that order; the template writes {list(written)}"
+            )
+        if len({section for section, _ in spec.empty_at}) != len(spec.empty_at):
+            raise ValueError("empty_at names a section twice; one status per section")
+        for section, status in spec.empty_at:
+            if section not in written or status not in spec.statuses:
+                raise ValueError(f"empty_at names a section or status the type lacks: {section!r} at {status!r}")
+            if section in spec.required_sections:
+                raise ValueError(f"{section!r} cannot be both required (populated) and empty_at")
 
     @property
     def enabled(self) -> dict[str, DocType]:
@@ -548,8 +560,6 @@ def to_dict(profile: Profile) -> dict[str, Any]:
         table["append_only"] = spec.append_only
         if spec.requires_from is not None:
             table["requires_from"] = spec.requires_from
-        if spec.description:
-            table["description"] = spec.description
         table["template"] = list(spec.template)
         if spec.required_sections:
             table["required_sections"] = list(spec.required_sections)
@@ -593,53 +603,61 @@ def from_dict(data: dict[str, Any], name: str = "custom", settings: Settings = S
             tuple(_expect(table.get("resolves", ()), "string list", f"{where}.resolves")),
         )
     types: dict[str, DocType] = {}
-    known = _PROPERTIES - {"name", "requires"} | set(anchors)
     for type_name, table in _expect(data.get("types", {}), "table", "types").items():
-        where = f"types.{type_name}"
-        _only(_expect(table, "table", where), known, where)
-        kwargs: dict[str, Any] = {"name": type_name}
-        # A value of the wrong shape is refused, never coerced: `enabled = "false"` is truthy.
-        for kind, keys in _TYPE_KEYS:
-            for key in keys:
-                if key in table:
-                    value = _expect(table[key], kind, f"{where}.{key}")
-                    kwargs[key] = tuple(value) if kind == "string list" else value
-        for anchor_name in anchors:
-            if anchor_name in table:
-                _expect(table[anchor_name], "boolean", f"{where}.{anchor_name}")
-        kwargs["requires"] = tuple(a for a in anchors if table.get(a))
-        if "empty_at" in table:
-            empty_at = _expect(table["empty_at"], "table", f"{where}.empty_at")
-            for section, status in empty_at.items():
-                _expect(status, "string", f"{where}.empty_at.{section}")
-            kwargs["empty_at"] = tuple(empty_at.items())
-        if "supersession" in table:
-            sub = f"{where}.supersession"
-            s = _expect(table["supersession"], "table", sub)
-            _only(s, {f.name for f in fields(Supersession)}, sub)
-            kwargs["supersession"] = Supersession(**{k: _expect(v, "string", f"{sub}.{k}") for k, v in s.items()})
-        if "structure" in table:
-            sub = f"{where}.structure"
-            s = _expect(table["structure"], "table", sub)
-            _only(s, set(_STRUCTURE_KEYS), sub)
-            missing = sorted(set(_STRUCTURE_KEYS) - set(s))
-            if missing:
-                raise ValueError(f"{sub}: missing key(s) {missing}")
-            values: dict[str, Any] = {}
-            for key, kind in _STRUCTURE_KEYS.items():
-                value = _expect(s[key], kind, f"{sub}.{key}")
-                values[key] = tuple(value) if kind == "string list" else value
-            kwargs["structure"] = Structure(**values)
-        for required in ("serves", "voice", "mutability"):
-            kwargs.setdefault(required, "")
-        types[type_name] = DocType(**kwargs)
+        try:
+            types[type_name] = _doc_type(type_name, table, anchors)
+        except ValueError as exc:
+            raise TypeProblem(type_name, str(exc)) from None
     return Profile(name, anchors, types, settings)
+
+
+def _doc_type(type_name: str, table: Any, anchors: dict[str, AnchorField]) -> DocType:
+    """One type from its table. Errors name the key from the type's table down, and `from_dict`
+    names the type."""
+    known = _PROPERTIES - {"name", "requires"} | set(anchors)
+    _only(_expect(table, "table", ""), known, "")
+    kwargs: dict[str, Any] = {"name": type_name}
+    # A value of the wrong shape is refused, never coerced: `enabled = "false"` is truthy.
+    for kind, keys in _TYPE_KEYS:
+        for key in keys:
+            if key in table:
+                value = _expect(table[key], kind, key)
+                kwargs[key] = tuple(value) if kind == "string list" else value
+    for anchor_name in anchors:
+        if anchor_name in table:
+            _expect(table[anchor_name], "boolean", anchor_name)
+    kwargs["requires"] = tuple(a for a in anchors if table.get(a))
+    if "empty_at" in table:
+        empty_at = _expect(table["empty_at"], "table", "empty_at")
+        for section, status in empty_at.items():
+            _expect(status, "string", f"empty_at.{section}")
+        kwargs["empty_at"] = tuple(empty_at.items())
+    if "supersession" in table:
+        sub = "supersession"
+        s = _expect(table["supersession"], "table", sub)
+        _only(s, {f.name for f in fields(Supersession)}, sub)
+        kwargs["supersession"] = Supersession(**{k: _expect(v, "string", f"{sub}.{k}") for k, v in s.items()})
+    if "structure" in table:
+        sub = "structure"
+        s = _expect(table["structure"], "table", sub)
+        _only(s, set(_STRUCTURE_KEYS), sub)
+        missing = sorted(set(_STRUCTURE_KEYS) - set(s))
+        if missing:
+            raise ValueError(f"{sub}: missing key(s) {missing}")
+        values: dict[str, Any] = {}
+        for key, kind in _STRUCTURE_KEYS.items():
+            value = _expect(s[key], kind, f"{sub}.{key}")
+            values[key] = tuple(value) if kind == "string list" else value
+        kwargs["structure"] = Structure(**values)
+    for required in ("serves", "voice", "mutability"):
+        kwargs.setdefault(required, "")
+    return DocType(**kwargs)
 
 
 # The value shape of every scalar and list property, as `from_dict` checks it. `structure`,
 # `supersession` and `empty_at` are tables, checked key by key where they are read.
 _TYPE_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("string", ("serves", "voice", "mutability", "description")),
+    ("string", ("serves", "voice", "mutability")),
     ("boolean", ("enabled", "numbered", "root_required", "additive", "append_only")),
     ("string", ("default_status", "folder", "reserved_filename", "requires_from")),
     ("string list", ("statuses", "template", "required_sections")),
@@ -667,14 +685,18 @@ def _expect(value: Any, kind: str, where: str) -> Any:
         "table": isinstance(value, dict),
     }[kind]
     if not ok:
-        raise ValueError(f"{where}: must be a {kind}, got {value!r}")
+        raise ValueError(f"{_at(where)}must be a {kind}, got {value!r}")
     return value
 
 
 def _only(table: dict[str, Any], allowed: AbstractSet[str], where: str) -> None:
     unknown = sorted(set(table) - allowed)
     if unknown:
-        raise ValueError(f"{where}: unknown key(s) {unknown}; allowed: {sorted(allowed)}")
+        raise ValueError(f"{_at(where)}unknown key(s) {unknown}; allowed: {sorted(allowed)}")
+
+
+def _at(where: str) -> str:
+    return f"{where}: " if where else ""
 
 
 def to_toml(profile: Profile) -> str:
@@ -691,16 +713,30 @@ def to_toml(profile: Profile) -> str:
     ]
     for section in ("anchors", "types"):
         for name, table in data[section].items():
-            lines += ["", f"[{section}.{_toml_key(name)}]"]
-            nested = {k: v for k, v in table.items() if isinstance(v, dict)}
-            for key, value in table.items():
-                if key not in nested:
-                    lines.append(f"{_toml_key(key)} = {_toml_value(value)}")
-            for key, sub in nested.items():
-                lines += ["", f"[{section}.{_toml_key(name)}.{_toml_key(key)}]"]
-                for k, v in sub.items():
-                    lines.append(f"{_toml_key(k)} = {_toml_value(v)}")
+            lines += ["", f"[{section}.{_toml_key(name)}]", *_toml_table(table, f"{section}.{_toml_key(name)}.")]
     return "\n".join(lines) + "\n"
+
+
+def type_toml(profile: Profile, name: str) -> str:
+    """One type as the file `types/<name>.toml` holds it: the type's table with no header, and its
+    nested tables under their own. What `init` writes for each shipped type, so a tree customizes a
+    type by editing the file rather than by writing one from nothing."""
+    lines = [
+        f"# The `{name}` type. Written by `doc-marshal init` from the {profile.name} profile; edit it to",
+        "# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.",
+        "",
+        *_toml_table(to_dict(profile)["types"][name], ""),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _toml_table(table: dict[str, Any], prefix: str) -> list[str]:
+    """A table's keys, then each nested table under `[<prefix><key>]`."""
+    nested = {k: v for k, v in table.items() if isinstance(v, dict)}
+    lines = [f"{_toml_key(k)} = {_toml_value(v)}" for k, v in table.items() if k not in nested]
+    for key, sub in nested.items():
+        lines += ["", f"[{prefix}{_toml_key(key)}]", *(f"{_toml_key(k)} = {_toml_value(v)}" for k, v in sub.items())]
+    return lines
 
 
 def _toml_key(key: str) -> str:
@@ -720,5 +756,9 @@ def _toml_value(value: Any) -> str:
     if isinstance(value, str):
         return _toml_str(value)
     if isinstance(value, (list, tuple)):
-        return "[" + ", ".join(_toml_value(v) for v in value) + "]"
+        inline = "[" + ", ".join(_toml_value(v) for v in value) + "]"
+        if len(inline) <= 80:
+            return inline
+        # A template is a list of lines, and one line per item is how a person reads and edits it.
+        return "[\n" + "".join(f"    {_toml_value(v)},\n" for v in value) + "]"
     raise TypeError(f"cannot serialize {type(value).__name__} to TOML")

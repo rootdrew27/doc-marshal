@@ -25,9 +25,9 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .discovery import find_docs_tree, find_repo_root, moved_config
-from .errors import DocMarshalError
-from .ontology import PROFILES, Profile, from_dict, to_dict
+from .discovery import find_docs_tree, find_repo_root
+from .errors import ConfigError
+from .ontology import PROFILES, Profile, TypeProblem, from_dict, to_dict
 from .paths import rel_to
 from .settings import SETTINGS, Settings
 
@@ -47,41 +47,40 @@ def load_profile(docs_tree: Path, settings: Settings = SETTINGS) -> Profile:
     """The effective profile for this docs tree. The shipped `standard`, unchanged, when the tree
     has no config folder -- a tree named by `--docs-tree` need not carry one."""
     config = docs_tree / settings.config_name
-    legacy = docs_tree / settings.legacy_config_name
-    if legacy.is_file():
-        raise DocMarshalError(moved_config(docs_tree, find_repo_root(docs_tree), settings))
-    data = _read(config) if config.is_file() else {}
-    where = rel_to(config, docs_tree.parent).as_posix()
+    data = _read(config, docs_tree) if config.is_file() else {}
 
     unknown = sorted(set(data) - CONFIG_KEYS)
     if unknown:
-        types = rel_to(settings.types_dir(docs_tree), docs_tree.parent).as_posix()
+        types = rel_to(settings.types_dir(docs_tree), find_repo_root(docs_tree)).as_posix()
         reasons = [f"`{key}`: {NOT_HERE[key].format(types=types)}" for key in unknown if key in NOT_HERE]
-        raise DocMarshalError(
-            f"{where}: key(s) this version does not read: {', '.join(unknown)}. "
-            f"It reads {', '.join(sorted(CONFIG_KEYS))}." + "".join(f"\n  {r}" for r in reasons)
+        raise _fail(
+            config,
+            docs_tree,
+            f"key(s) this version does not read: {', '.join(unknown)}. "
+            f"It reads {', '.join(sorted(CONFIG_KEYS))}." + "".join(f"\n  {r}" for r in reasons),
         )
 
-    base_name, base = _extends(data.get("extends", "standard"), where, settings)
+    base_name, base = _extends(data.get("extends", "standard"), config, docs_tree, settings)
     merged = to_dict(base) if base is not None else {"anchors": {}, "types": {}}
     anchors = data.get("anchors", {})
     if not isinstance(anchors, dict) or not all(isinstance(t, dict) for t in anchors.values()):
-        raise DocMarshalError(f"{where}: `anchors` is one table per field, [anchors.<field>]")
+        raise _fail(config, docs_tree, "`anchors` is one table per field, [anchors.<field>]")
     for name, table in anchors.items():
         merged["anchors"][name] = _merge(merged["anchors"].get(name, {}), table)
 
     type_files = _type_files(docs_tree, settings)
     for name, path in type_files.items():
-        table = _read(path)
+        table = _read(path, docs_tree)
         shipped = merged["types"].get(name)
         if shipped is None:
             missing = [key for key in NEW_TYPE_REQUIRES if key not in table]
             if missing:
-                raise DocMarshalError(
-                    f"{rel_to(path, docs_tree.parent).as_posix()}: names no type the {base_name} profile "
-                    f"ships ({', '.join(merged['types']) or 'none'}), so it declares a new one, and a new "
-                    f"type must set {', '.join(missing)}. Check the file name if it meant to adjust a "
-                    "shipped type."
+                raise _fail(
+                    path,
+                    docs_tree,
+                    f"names no type the {base_name} profile ships ({', '.join(merged['types']) or 'none'}), "
+                    f"so it declares a new one, and a new type must set {', '.join(missing)}. Check the "
+                    "file name if it meant to adjust a shipped type.",
                 )
         merged["types"][name] = _merge(shipped or {}, table)
 
@@ -89,27 +88,46 @@ def load_profile(docs_tree: Path, settings: Settings = SETTINGS) -> Profile:
         return base
     label = f"{base_name}, as configured" if base is not None else "configured"
     try:
-        return from_dict(merged, label, settings)
-    except (ValueError, TypeError) as exc:
-        raise DocMarshalError(f"{rel_to(config.parent, docs_tree.parent).as_posix()}/: {exc}") from exc
+        profile = from_dict(merged, label, settings)
+    except TypeProblem as exc:
+        # A type written in a file is reported against that file; one the config left as shipped
+        # can only have been broken by config.toml -- an anchor field it redeclared.
+        if exc.type_name in type_files:
+            raise _fail(type_files[exc.type_name], docs_tree, exc.detail) from None
+        raise _fail(config, docs_tree, str(exc)) from None
+    except ValueError as exc:
+        raise _fail(config, docs_tree, str(exc)) from None
+    # The files `init` writes restate the profile they came from; until one is edited, the tree is
+    # validated against that profile, and `info` says so by name.
+    if base is not None and (profile.anchor_fields, profile.types) == (base.anchor_fields, base.types):
+        return base
+    return profile
 
 
-def _read(path: Path) -> dict[str, Any]:
+def _read(path: Path, docs_tree: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        raise DocMarshalError(f"{path}: not valid TOML -- {exc}") from exc
+        raise _fail(path, docs_tree, f"not valid TOML -- {exc}") from None
 
 
-def _extends(value: object, where: str, settings: Settings) -> tuple[str, Profile | None]:
+def _fail(path: Path, docs_tree: Path, detail: str) -> ConfigError:
+    """The error for a config file, named as the user would open it: from the repository root.
+    Built only on failure, so a clean load never pays for the repository lookup."""
+    return ConfigError(rel_to(path, find_repo_root(docs_tree)).as_posix(), detail)
+
+
+def _extends(value: object, config: Path, docs_tree: Path, settings: Settings) -> tuple[str, Profile | None]:
     """The profile `extends` names, or None for `extends = []`, which starts from nothing."""
     if value == []:
         return "empty", None
     if isinstance(value, str) and value in PROFILES:
         return value, PROFILES[value](settings)
-    raise DocMarshalError(
-        f"{where}: extends = {value!r} names no shipped profile. It takes one of "
-        f"{', '.join(repr(p) for p in PROFILES)}, or [] to start from nothing."
+    raise _fail(
+        config,
+        docs_tree,
+        f"extends = {value!r} names no shipped profile. It takes one of "
+        f"{', '.join(repr(p) for p in PROFILES)}, or [] to start from nothing.",
     )
 
 
@@ -123,11 +141,10 @@ def _type_files(docs_tree: Path, settings: Settings) -> dict[str, Path]:
     for path in sorted(folder.iterdir()):
         if path.name.startswith("."):  # .DS_Store and kin: the filesystem's, not the user's
             continue
-        label = rel_to(path, docs_tree.parent).as_posix()
         if not path.is_file() or path.suffix != ".toml":
-            raise DocMarshalError(f"{label}: the types folder holds only <type>.toml files")
+            raise _fail(path, docs_tree, "the types folder holds only <type>.toml files")
         if not settings.name_re.match(path.stem):
-            raise DocMarshalError(f"{label}: a type's name is its file's, and must match {settings.filename_pattern}")
+            raise _fail(path, docs_tree, f"a type's name is its file's, and must match {settings.filename_pattern}")
         found[path.stem] = path
     return found
 

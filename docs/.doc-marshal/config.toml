@@ -2,9 +2,8 @@
 #
 # extends = "standard"    # the profile to start from (the default); [] starts from nothing
 #
-# Each file types/<name>.toml adjusts the shipped type of that name, one key at a time, or
-# declares a new type when no shipped type has that name:
-#   types/runbook.toml    enabled = false
-#   types/plan.toml       serves = "someone about to build a change", template = [...]
-# `doc-marshal info --dump-toml` prints every key a type file may set. A key or file this version
-# does not read makes every doc-marshal command exit 2.
+# types/ holds one file per type. `init` wrote the standard profile's; edit one to change that
+# type (`enabled = false` turns it off), and add types/<name>.toml to declare a new type, with at
+# least `serves`. A file named after a shipped type is laid over it key by key, so deleting one
+# restores the type as shipped. `doc-marshal info --dump-toml` prints every key a type file may
+# set. A key or file this version does not read makes every doc-marshal command exit 2.

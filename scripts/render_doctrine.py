@@ -21,7 +21,7 @@ from pathlib import Path
 
 from doc_marshal import __version__
 from doc_marshal.info import render_doc_types, render_marshalling, render_policies, render_types_table
-from doc_marshal.init import CONFIG_TEXT, pointer_text
+from doc_marshal.init import CONFIG_TEXT, pointer_text, type_files
 from doc_marshal.ontology import STANDARD
 from doc_marshal.settings import SETTINGS
 
@@ -50,6 +50,9 @@ def render() -> dict[str, str]:
         "rendered/marshalling.md": HEADER + render_marshalling(),
         f"{DOCS}/CLAUDE.md": pointer_text(DOCS, SETTINGS, STANDARD),
         f"{DOCS}/{SETTINGS.config_name}": CONFIG_TEXT,
+        **{
+            f"{DOCS}/{SETTINGS.config_dirname}/{SETTINGS.types_dirname}/{n}": t for n, t in type_files(SETTINGS).items()
+        },
         "README.md": readme(),
     }
 
@@ -65,7 +68,7 @@ def main(argv: list[str]) -> int:
         if check:
             stale.append(name)
         else:
-            path.parent.mkdir(exist_ok=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
             print(f"wrote {name}")
     if stale:

@@ -1,0 +1,24 @@
+# The `runbook` type. Written by `doc-marshal init` from the standard profile; edit it to
+# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.
+
+serves = "someone running a procedure"
+voice = "imperative, literal, copy-pasteable"
+mutability = "mutable -- rewritten in place"
+enabled = true
+code_refs = true
+source = false
+numbered = false
+root_required = false
+additive = false
+append_only = false
+template = [
+    "## Prerequisites",
+    "",
+    "<!-- What must be true before step one: access, tools, state. One line each. -->",
+    "",
+    "## Steps",
+    "",
+    "<!-- Imperative. Literal, copy-pasteable commands. Name the condition before the",
+    "     action where the path branches. Cheapest and least destructive step first. -->",
+]
+required_sections = ["Prerequisites", "Steps"]

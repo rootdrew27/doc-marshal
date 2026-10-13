@@ -40,12 +40,9 @@ def find_docs_trees(
     settings: Settings = SETTINGS,
     *,
     stop_at: Path | None = None,
-    marker: str | None = None,
 ) -> list[Path]:
-    """Every directory in the repository carrying a config, sorted.
-
-    `marker` is the config's path from the directory it marks, `.doc-marshal/config.toml` unless
-    the caller is looking for something else -- the 0.5 single-file config, to say where it moved.
+    """Every directory in the repository carrying a config, sorted. The config's main file is what
+    is looked for, `.doc-marshal/config.toml`, and the directory holding its folder is the answer.
 
     Inside a git repository the search is `git ls-files` over tracked and untracked files, which
     respects .gitignore and costs nothing in a large tree. Outside one it is a bounded walk. Either
@@ -55,7 +52,7 @@ def find_docs_trees(
     directory is nothing more than where the command happened to run, and a config above it is
     still the config.
     """
-    marker = marker or settings.config_name
+    marker = settings.config_name
     parts = PurePosixPath(marker).parts
     found: set[Path] = set()
     start = cwd.resolve()
@@ -115,10 +112,6 @@ def find_docs_tree(explicit: str | None = None, settings: Settings = SETTINGS) -
             f"tree:\n{listing}\nRemove all but one, or pass --docs-tree to choose for this run."
         )
 
-    legacy = find_docs_trees(repo_root, cwd, settings, stop_at=toplevel, marker=settings.legacy_config_name)
-    if legacy:
-        raise DocMarshalError("\n".join(moved_config(t, repo_root, settings) for t in legacy))
-
     considered = [d for d in COMMON_DOCS_DIRS if (repo_root / d).is_dir()]
     hint = (
         "Directories considered, none carrying a config: " + ", ".join(f"{d}/" for d in considered)
@@ -129,17 +122,6 @@ def find_docs_tree(explicit: str | None = None, settings: Settings = SETTINGS) -
         f"no {settings.config_name} config found under {repo_root}. {hint}\n"
         f"Run `doc-marshal init [path]` to mark the docs tree (default: {settings.default_docs_dir}/), "
         f"or pass --docs-tree PATH / set ${settings.env_var}."
-    )
-
-
-def moved_config(docs_tree: Path, repo_root: Path, settings: Settings = SETTINGS) -> str:
-    """What to say about a 0.5 single-file config: where the config lives now, and the one command
-    that moves it. Said rather than done -- a file in the user's tree moves when they move it."""
-    label = rel_to(docs_tree, repo_root).as_posix()
-    return (
-        f"{label}/{settings.legacy_config_name} is the single-file config of doc-marshal 0.5 and "
-        f"earlier; the config is now a folder. Move it: `mkdir {label}/{settings.config_dirname} && "
-        f"git mv {label}/{settings.legacy_config_name} {label}/{settings.config_name}`."
     )
 
 

@@ -237,7 +237,7 @@ def render_type(profile: Profile, name: str) -> str:
         lines += ["Template (`doc-marshal new` writes this after the frontmatter and H1):", ""]
         lines += [f"    {line}" for line in spec.template]
         lines.append("")
-    argument = type_sections(doctrine("doc-types.md")).get(spec.name) or spec.description
+    argument = type_sections(doctrine("doc-types.md")).get(spec.name)
     if argument:
         lines += [argument.rstrip(), ""]
     return "\n".join(lines).rstrip() + "\n"
@@ -282,7 +282,7 @@ def render_doc_types(profile: Profile) -> str:
             if label not in ("serves", "voice", "mutability")
         ]
         out.append("")
-        body = sections.get(spec.name) or spec.description
+        body = sections.get(spec.name)
         if body:
             out += [body.rstrip(), ""]
     return "\n".join(out).rstrip() + "\n"

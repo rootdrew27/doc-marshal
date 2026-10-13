@@ -1,0 +1,27 @@
+# The `convention` type. Written by `doc-marshal init` from the standard profile; edit it to
+# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.
+
+serves = "someone about to write code or docs that must follow it"
+voice = "normative, one convention, states its scope"
+mutability = "mutable -- rewritten in place as the convention changes"
+enabled = true
+code_refs = true
+source = true
+numbered = false
+root_required = false
+additive = false
+append_only = false
+template = [
+    "## Convention",
+    "",
+    "<!-- What must hold, as a statement. Must and never, not should. -->",
+    "",
+    "## Applies to",
+    "",
+    "<!-- Where it binds: the paths, the kinds of change, the exceptions. -->",
+    "",
+    "## Rationale",
+    "",
+    "<!-- Why it holds, in a line or two. Link the decision that set it, where one did. -->",
+]
+required_sections = ["Convention", "Applies to", "Rationale"]

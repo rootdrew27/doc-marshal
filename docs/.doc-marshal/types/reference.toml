@@ -1,0 +1,17 @@
+# The `reference` type. Written by `doc-marshal init` from the standard profile; edit it to
+# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.
+
+serves = "someone looking up a fact -- decided by this repo, or observed from outside it"
+voice = "flat, enumerative, cites its source"
+mutability = "mutable -- rewritten in place as the code or the world changes"
+enabled = true
+code_refs = true
+source = true
+numbered = false
+root_required = false
+additive = false
+append_only = false
+template = [
+    "<!-- Tables and definition lists. Present tense. No procedures. Cite the source of",
+    "     any fact from outside the repo, and distinguish specified from measured. -->",
+]

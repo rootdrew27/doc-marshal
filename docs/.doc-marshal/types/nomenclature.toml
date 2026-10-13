@@ -1,0 +1,42 @@
+# The `nomenclature` type. Written by `doc-marshal init` from the standard profile; edit it to
+# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.
+
+serves = "someone choosing what to call a thing"
+voice = "flat, definitional, opinionated"
+mutability = "mutable -- rewritten as the domain sharpens"
+enabled = true
+code_refs = false
+source = false
+numbered = false
+reserved_filename = "NOMENCLATURE.md"
+root_required = true
+additive = true
+append_only = false
+template = [
+    "<!-- One line on what this nomenclature covers. Terms specific to it, never general",
+    "     programming concepts. Be opinionated: one word per concept. -->",
+    "",
+    "## Terminology",
+    "",
+    "| Term | Definition | Avoid |",
+    "| --- | --- | --- |",
+    "",
+    "## Relationships",
+    "",
+    "<!-- How the terms above relate. One per line. Omit if none do. -->",
+    "",
+    "## Ambiguities",
+    "",
+    "<!-- Live concerns only. A resolved one is deleted or becomes a decision. -->",
+]
+
+[structure]
+sections = ["Terminology", "Relationships", "Ambiguities"]
+table_in = "Terminology"
+columns = ["Term", "Definition", "Avoid"]
+key_column = "Term"
+body_column = "Definition"
+scanned_columns = ["Avoid"]
+max_rows = 50
+max_cell = 200
+max_chars = 3000

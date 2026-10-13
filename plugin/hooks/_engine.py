@@ -20,6 +20,7 @@ from pathlib import Path
 PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
 PROJECT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
 CONFIG = ".doc-marshal/config.toml"  # the config's main file, from the docs tree; settings.config_name
+CONFIG_PREFIX = "CONFIG: "  # the stderr line a config that does not load is reported on; errors.py
 VENV_DIRS = (".venv", "venv")
 _PRUNE = {".git", ".venv", "venv", "node_modules", "__pycache__", ".claude", ".github"}
 _MAX_DEPTH = 4
@@ -97,3 +98,16 @@ def has_docs_tree() -> bool:
         if (Path(dirpath) / CONFIG).is_file():
             return True
     return False
+
+
+def config_problem(result: subprocess.CompletedProcess[str] | None) -> str | None:
+    """Which config file a failed run could not load, and what is wrong with it -- the engine's
+    `CONFIG: ` line and any indented lines after it -- or None when the run failed otherwise."""
+    if result is None or result.returncode == 0:
+        return None
+    lines = result.stderr.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith(CONFIG_PREFIX):
+            rest = [extra for extra in lines[i + 1 :] if extra.startswith(" ")]
+            return "\n".join([line[len(CONFIG_PREFIX) :], *rest])
+    return None
