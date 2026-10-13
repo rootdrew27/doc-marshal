@@ -14,7 +14,7 @@ repos:
         entry: uv run python scripts/render_doctrine.py
         language: system
         pass_filenames: false
-        files: ^(src/doc_marshal/(doctrine/.*|ontology\.py|info\.py|init\.py|settings\.py|__init__\.py)|scripts/render_doctrine\.py|README\.md|docs/(CLAUDE\.md|\.doc-marshal\.toml))$
+        files: ^(src/doc_marshal/(doctrine/.*|ontology\.py|info\.py|init\.py|settings\.py|__init__\.py)|scripts/render_doctrine\.py|README\.md|docs/(CLAUDE\.md|\.doc-marshal/.*))$
       - id: sync-version
         name: version copies match __version__
         entry: uv run python scripts/sync_version.py --check
