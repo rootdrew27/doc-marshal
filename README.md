@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rootdrew27/doc-marshal/main/logo.png" alt="doc-marshal logo" width="240">
+</p>
+
 # doc-marshal
 
 Documentation **enforcement** for the AI age.
