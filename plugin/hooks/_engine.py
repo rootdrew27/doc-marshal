@@ -19,7 +19,7 @@ from pathlib import Path
 
 PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
 PROJECT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()).resolve()
-CONFIG = ".doc-marshal.toml"
+CONFIG = ".doc-marshal/config.toml"  # the config's main file, from the docs tree; settings.config_name
 VENV_DIRS = (".venv", "venv")
 _PRUNE = {".git", ".venv", "venv", "node_modules", "__pycache__", ".claude", ".github"}
 _MAX_DEPTH = 4
@@ -90,10 +90,10 @@ def has_docs_tree() -> bool:
     except (OSError, subprocess.SubprocessError):
         listed = None
     if listed is not None and listed.returncode == 0:
-        return any(Path(entry).name == CONFIG for entry in listed.stdout.split("\0") if entry)
-    for dirpath, dirnames, filenames in os.walk(PROJECT):
+        return any(entry == CONFIG or entry.endswith("/" + CONFIG) for entry in listed.stdout.split("\0"))
+    for dirpath, dirnames, _ in os.walk(PROJECT):
         depth = len(Path(dirpath).relative_to(PROJECT).parts)
         dirnames[:] = [d for d in dirnames if d not in _PRUNE and depth < _MAX_DEPTH]
-        if CONFIG in filenames:
+        if (Path(dirpath) / CONFIG).is_file():
             return True
     return False

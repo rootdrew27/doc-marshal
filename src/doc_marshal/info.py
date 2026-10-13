@@ -11,7 +11,7 @@ more accurate than any stored file, and it always matches the installed version.
     doc-marshal info --policies       # the policies that are not per-type
     doc-marshal info --marshalling    # marshalling, staged
     doc-marshal info --format json    # the profile as data, for third parties
-    doc-marshal info --dump-toml      # the profile as the configuration schema of a later release
+    doc-marshal info --dump-toml      # the profile as configuration: every key a type file may set
 """
 
 from __future__ import annotations
@@ -23,7 +23,8 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import add_docs_tree_option, resolve
+from .config import add_docs_tree_option, load_profile
+from .discovery import find_docs_tree
 from .errors import DocMarshalError
 from .ontology import STANDARD, DocType, Profile, to_dict, to_toml
 from .settings import NUMBER_TITLE_SEPARATOR
@@ -312,14 +313,17 @@ def resolve_profile(explicit: str | None) -> Profile:
     """The profile in force, or the built-in one when no docs tree is marked.
 
     `info` is the one command that has something useful to say outside a marked repository -- a
-    user reading the convention before adopting it -- so it falls back to the shipped profile.
+    user reading the convention before adopting it -- so it falls back to the shipped profile. Only
+    when no docs tree is found: a config that fails to load is reported, since printing the shipped
+    profile in its place would be the configuration validating as nothing.
     """
     try:
-        return resolve(explicit)[1]
+        docs_tree = find_docs_tree(explicit)
     except DocMarshalError:
         if explicit:
             raise
         return STANDARD
+    return load_profile(docs_tree)
 
 
 def main(argv: list[str]) -> int:
@@ -332,7 +336,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--marshalling", action="store_true", help="marshalling, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument(
-        "--dump-toml", action="store_true", help="the profile as the configuration schema of a later release"
+        "--dump-toml", action="store_true", help="the profile as configuration: every key a type file may set"
     )
     add_docs_tree_option(parser)
     args = parser.parse_args(argv)

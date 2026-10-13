@@ -3,8 +3,8 @@
 `DocType` is the single internal representation. The validator enforces from it, the scaffolder
 writes from it, and `info` renders it -- no check hardcodes a type name. The profile is constructed
 in Python so its docstrings, type checking and cross-references (`Structure(max_cell=summary_max)`)
-survive; `from_dict` is the alternate constructor the configuration loader of a later release
-builds on, and `to_toml` is the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
+survive; `from_dict` is the alternate constructor the configuration loader in `config.py` builds
+on, and `to_toml` is the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
 function: if the schema cannot express the shipped profile, the schema is too weak.
 
 What is *not* here: why each type exists and how to route between them. That is `doctrine/`.
@@ -473,12 +473,16 @@ def standard(settings: Settings = SETTINGS) -> Profile:
 
 STANDARD = standard()
 
+# The shipped profiles, by the name a config's `extends` gives them. Each is built against the
+# run's settings, so a profile and the policies reading it agree about every constant.
+PROFILES = {"standard": standard}
+
 
 # --- serialization ------------------------------------------------------------------------------
 #
-# The TOML shape `.doc-marshal.toml` takes once configuration is read. Written now so the round-trip
-# test can run on day one, and so `info --dump-toml` shows a user the worked example of the schema
-# they will configure.
+# The TOML shape the config folder takes, written as one document: `extends` and `[anchors.*]` are
+# what `config.toml` holds, and each `[types.<name>]` table is the body of `types/<name>.toml`. So
+# `info --dump-toml` shows a user every property a type file may set, worked for the shipped types.
 
 
 def to_dict(profile: Profile) -> dict[str, Any]:
@@ -545,40 +549,91 @@ def from_dict(data: dict[str, Any], name: str = "custom", settings: Settings = S
     unknown key is an error, since a typo that validated as nothing would be exactly the silent
     failure this tool exists to remove."""
     anchors: dict[str, AnchorField] = {}
-    for field_name, table in (data.get("anchors") or {}).items():
-        _only(table, {"contents", "resolves"}, f"anchors.{field_name}")
-        anchors[field_name] = AnchorField(field_name, str(table.get("contents", "")), tuple(table.get("resolves", ())))
+    for field_name, table in _expect(data.get("anchors", {}), "table", "anchors").items():
+        where = f"anchors.{field_name}"
+        _only(_expect(table, "table", where), {"contents", "resolves"}, where)
+        anchors[field_name] = AnchorField(
+            field_name,
+            _expect(table.get("contents", ""), "string", f"{where}.contents"),
+            tuple(_expect(table.get("resolves", ()), "string list", f"{where}.resolves")),
+        )
     types: dict[str, DocType] = {}
     known = _PROPERTIES - {"name", "requires"} | set(anchors)
-    for type_name, table in (data.get("types") or {}).items():
-        _only(table, known, f"types.{type_name}")
+    for type_name, table in _expect(data.get("types", {}), "table", "types").items():
+        where = f"types.{type_name}"
+        _only(_expect(table, "table", where), known, where)
         kwargs: dict[str, Any] = {"name": type_name}
-        for key in ("serves", "voice", "mutability", "description"):
-            if key in table:
-                kwargs[key] = str(table[key])
-        for key in ("enabled", "numbered", "root_required", "additive", "append_only"):
-            if key in table:
-                kwargs[key] = bool(table[key])
-        for key in ("default_status", "folder", "reserved_filename", "requires_from"):
-            if key in table:
-                kwargs[key] = table[key]
-        for key in ("statuses", "template", "required_sections"):
-            if key in table:
-                kwargs[key] = tuple(table[key])
-        if "empty_at" in table:
-            kwargs["empty_at"] = tuple(dict(table["empty_at"]).items())
+        # A value of the wrong shape is refused, never coerced: `enabled = "false"` is truthy.
+        for kind, keys in _TYPE_KEYS:
+            for key in keys:
+                if key in table:
+                    value = _expect(table[key], kind, f"{where}.{key}")
+                    kwargs[key] = tuple(value) if kind == "string list" else value
+        for anchor_name in anchors:
+            if anchor_name in table:
+                _expect(table[anchor_name], "boolean", f"{where}.{anchor_name}")
         kwargs["requires"] = tuple(a for a in anchors if table.get(a))
+        if "empty_at" in table:
+            empty_at = _expect(table["empty_at"], "table", f"{where}.empty_at")
+            for section, status in empty_at.items():
+                _expect(status, "string", f"{where}.empty_at.{section}")
+            kwargs["empty_at"] = tuple(empty_at.items())
         if "supersession" in table:
-            kwargs["supersession"] = Supersession(**table["supersession"])
+            sub = f"{where}.supersession"
+            s = _expect(table["supersession"], "table", sub)
+            _only(s, {f.name for f in fields(Supersession)}, sub)
+            kwargs["supersession"] = Supersession(**{k: _expect(v, "string", f"{sub}.{k}") for k, v in s.items()})
         if "structure" in table:
-            s = dict(table["structure"])
-            for key in ("sections", "columns", "scanned_columns"):
-                s[key] = tuple(s[key])
-            kwargs["structure"] = Structure(**s)
+            sub = f"{where}.structure"
+            s = _expect(table["structure"], "table", sub)
+            _only(s, set(_STRUCTURE_KEYS), sub)
+            missing = sorted(set(_STRUCTURE_KEYS) - set(s))
+            if missing:
+                raise ValueError(f"{sub}: missing key(s) {missing}")
+            values: dict[str, Any] = {}
+            for key, kind in _STRUCTURE_KEYS.items():
+                value = _expect(s[key], kind, f"{sub}.{key}")
+                values[key] = tuple(value) if kind == "string list" else value
+            kwargs["structure"] = Structure(**values)
         for required in ("serves", "voice", "mutability"):
             kwargs.setdefault(required, "")
         types[type_name] = DocType(**kwargs)
     return Profile(name, anchors, types, settings)
+
+
+# The value shape of every scalar and list property, as `from_dict` checks it. `structure`,
+# `supersession` and `empty_at` are tables, checked key by key where they are read.
+_TYPE_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("string", ("serves", "voice", "mutability", "description")),
+    ("boolean", ("enabled", "numbered", "root_required", "additive", "append_only")),
+    ("string", ("default_status", "folder", "reserved_filename", "requires_from")),
+    ("string list", ("statuses", "template", "required_sections")),
+)
+_STRUCTURE_KEYS = {
+    "sections": "string list",
+    "table_in": "string",
+    "columns": "string list",
+    "key_column": "string",
+    "body_column": "string",
+    "scanned_columns": "string list",
+    "max_rows": "integer",
+    "max_cell": "integer",
+    "max_chars": "integer",
+}
+
+
+def _expect(value: Any, kind: str, where: str) -> Any:
+    """`value`, when it is of the named shape; a `ValueError` naming where it sits otherwise."""
+    ok = {
+        "string": isinstance(value, str),
+        "boolean": isinstance(value, bool),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+        "string list": isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value),
+        "table": isinstance(value, dict),
+    }[kind]
+    if not ok:
+        raise ValueError(f"{where}: must be a {kind}, got {value!r}")
+    return value
 
 
 def _only(table: dict[str, Any], allowed: AbstractSet[str], where: str) -> None:
@@ -594,7 +649,8 @@ def to_toml(profile: Profile) -> str:
     data = to_dict(profile)
     lines: list[str] = [
         "# The effective doc-marshal profile, as configuration. `doc-marshal info --dump-toml`.",
-        "# Configuration is read from a later release; this is the schema it will take.",
+        "# In the config folder, `extends` and [anchors.*] belong in config.toml, and each",
+        "# [types.<name>] table, minus its header, is the file types/<name>.toml.",
         "",
         f"extends = {_toml_value(data['extends'])}",
     ]

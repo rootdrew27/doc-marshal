@@ -7,8 +7,8 @@
 
 This is the command that makes a repository legible to the tool, not a convenience. It writes:
 
-- the config, `.doc-marshal.toml`, a comment and no keys -- location, not configuration, until a
-  later release reads it;
+- the config, `.doc-marshal/config.toml`, comments and no keys -- the standard profile unchanged,
+  until a key or a file under `.doc-marshal/types/` adjusts it;
 - the root `nomenclature` note, because that type is `root_required` and `check --all` errors without it;
 - the generated index, so the tree validates from its first minute;
 - one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs tree. It
@@ -53,7 +53,7 @@ from typing import Any
 
 from . import __version__
 from .config import load_profile
-from .discovery import cwd_repo, find_configs
+from .discovery import cwd_repo, find_docs_trees
 from .errors import DocMarshalError
 from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
@@ -69,8 +69,16 @@ SITE_GLOBS = ("docusaurus.config.*",)
 # What `init` writes into the config. The one person who will ever open this file is about to add
 # a key to it, so the blast radius of doing that is stated where they will read it.
 CONFIG_TEXT = """\
-# doc-marshal docs tree config. The file marks the directory by existing.
-# The profile's adjustments arrive in a later release; until then any key here makes every doc-marshal command exit 2.
+# doc-marshal config. This folder marks the directory holding it as the docs tree.
+#
+# extends = "standard"    # the profile to start from (the default); [] starts from nothing
+#
+# Each file types/<name>.toml adjusts the shipped type of that name, one key at a time, or
+# declares a new type when no shipped type has that name:
+#   types/runbook.toml    enabled = false
+#   types/plan.toml       serves = "someone about to build a change", template = [...]
+# `doc-marshal info --dump-toml` prints every key a type file may set. A key or file this version
+# does not read makes every doc-marshal command exit 2.
 """
 
 # Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
@@ -347,9 +355,9 @@ def main(argv: list[str]) -> int:
         raise DocMarshalError("the docs tree must be a directory inside the repository, not the repository itself")
     label = rel_to(target, repo_root).as_posix()
 
-    others = [m for m in find_configs(repo_root, cwd, settings, stop_at=toplevel) if m.parent != target]
+    others = [t for t in find_docs_trees(repo_root, cwd, settings, stop_at=toplevel) if t != target]
     if others:
-        listing = ", ".join(f"{rel_to(m.parent, repo_root)}/" for m in others)
+        listing = ", ".join(f"{rel_to(t, repo_root)}/" for t in others)
         raise DocMarshalError(
             f"a {settings.config_name} config already exists at {listing}, and one repository has "
             "one docs tree. Remove it first if the tree is moving."
@@ -381,9 +389,10 @@ def main(argv: list[str]) -> int:
     target.mkdir(parents=True, exist_ok=True)
     config = target / settings.config_name
     if not config.exists():
+        config.parent.mkdir(exist_ok=True)
         config.write_text(CONFIG_TEXT, encoding="utf-8")
         created.append(
-            Written(f"{label}/{settings.config_name}", "marks the tree; holds no keys until configuration lands")
+            Written(f"{label}/{settings.config_name}", "marks the tree; the standard profile until you configure it")
         )
 
     profile = load_profile(target, settings)

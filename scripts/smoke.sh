@@ -196,6 +196,58 @@ doc-marshal upgrade 0.4.0 | grep -q -- '--pins'
 ! doc-marshal upgrade 0.4 --pins
 git add -A
 
+# Configuration is a folder: config.toml marks the tree, and each types/<name>.toml adjusts the
+# shipped type of that name one key at a time, or declares a new type. What the loader does not
+# read is refused, never ignored.
+test -f docs/.doc-marshal/config.toml
+types=docs/.doc-marshal/types
+mkdir -p "$types"
+printf 'enabled = false\n' > "$types/runbook.toml"
+! doc-marshal check docs/deploy.md
+! doc-marshal new runbook docs/rollback --code-ref src/db.py --summary "Roll back."
+printf '[structure]\nmax_rows = 1\n' > "$types/nomenclature.toml"
+doc-marshal info --dump-toml | grep -qx 'max_rows = 1'
+doc-marshal info --dump-toml | grep -qx 'max_chars = 3000'
+rm "$types/nomenclature.toml"
+cat > "$types/plan.toml" <<'EOF'
+serves = "someone about to build a change"
+statuses = ["proposed", "done"]
+default_status = "proposed"
+required_sections = ["Goal", "Steps"]
+template = ["## Goal", "", "<!-- What done looks like. -->", "", "## Steps", "", "<!-- In order. -->"]
+EOF
+doc-marshal info | grep -q '^  plan '
+doc-marshal new plan docs/ship-it --summary "Ship the thing."
+grep -qx 'status: proposed' docs/ship-it.md && grep -qx '## Steps' docs/ship-it.md
+doc-marshal check docs/ship-it.md | grep -q 'is empty'
+rm docs/ship-it.md
+# A misspelt type file, a value of the wrong shape, a key or file the loader does not read, and a
+# combination the profile refuses each fail every command, naming the file.
+printf 'enabled = false\n' > "$types/runbok.toml"
+doc-marshal check --all 2>&1 | grep -q 'runbok.toml: names no type'
+rm "$types/runbok.toml"
+printf 'enabled = "false"\n' > "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q 'types.runbook.enabled: must be a boolean'
+printf 'serves = "x"\nservs = "y"\n' > "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q "unknown key(s) \['servs'\]"
+printf 'numbered = true\n' > "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q 'numbered without a folder'
+rm "$types/runbook.toml"
+touch "$types/plan.md"
+doc-marshal info 2>&1 | grep -q 'holds only <type>.toml files'
+rm "$types/plan.md" "$types/plan.toml"
+cp docs/.doc-marshal/config.toml config.bak
+printf '[types.runbook]\nenabled = false\n' >> docs/.doc-marshal/config.toml
+doc-marshal info 2>&1 | grep -q 'each type is its own file'
+printf 'extends = "minimal"\n' > docs/.doc-marshal/config.toml
+doc-marshal info 2>&1 | grep -q 'names no shipped profile'
+mv config.bak docs/.doc-marshal/config.toml
+doc-marshal check --all
+# A 0.5 single-file config is named, with the command that moves it.
+touch docs/.doc-marshal.toml
+doc-marshal check --all 2>&1 | grep -q 'git mv docs/.doc-marshal.toml docs/.doc-marshal/config.toml'
+rm docs/.doc-marshal.toml
+
 # The plugin's hooks resolve the installed engine and report on a broken note.
 printf -- '---\ntype: decision\nstatus: bogus\nsummary: bad\n---\n# Bad\n' > docs/bad.md
 export CLAUDE_PROJECT_DIR="$repo" CLAUDE_PLUGIN_ROOT="$PLUGIN"

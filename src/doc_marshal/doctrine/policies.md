@@ -17,7 +17,7 @@ under the docs tree is one of these, never validated and never indexed:
 | `{{assets_dirname}}/**` | assets |
 | `{{index_name}}` at the docs tree | the generated index |
 | {{memory_names}}, anywhere | instructions to an agent: no frontmatter, no type, outside these policies |
-| `{{config_name}}` | the config naming this directory the docs tree |
+| `{{config_name}}` and its folder | the config: it names this directory the docs tree and adjusts the profile |
 | {{excluded_dirs}} | tooling and metadata |
 | any file with another suffix | not markdown |
 
@@ -162,7 +162,7 @@ gives the sections, columns and caps.
 The change a run is scoped to is the working tree against `HEAD` plus untracked files, or
 `--range A..B`: two commits, `A` an ancestor of `B`, or the command exits 2. A `git mv` with no
 content change is not an edit; a plain `mv` is. There is no inline suppression and no severity
-configuration; what is configurable lives in `{{config_name}}`.
+configuration; what is configurable lives in the config folder, `{{config_name}}` and its `types/`.
 
 Git is required: the tracked-anchor policy, the freshness window and `drifted` are questions to
 git. Claude Code on macOS and Linux is the supported platform; the CLI, pre-commit and CI run

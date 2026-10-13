@@ -1,0 +1,10 @@
+# doc-marshal config. This folder marks the directory holding it as the docs tree.
+#
+# extends = "standard"    # the profile to start from (the default); [] starts from nothing
+#
+# Each file types/<name>.toml adjusts the shipped type of that name, one key at a time, or
+# declares a new type when no shipped type has that name:
+#   types/runbook.toml    enabled = false
+#   types/plan.toml       serves = "someone about to build a change", template = [...]
+# `doc-marshal info --dump-toml` prints every key a type file may set. A key or file this version
+# does not read makes every doc-marshal command exit 2.

@@ -6,7 +6,7 @@ Write to the docs tree: update notes for a change, write new ones from scratch, 
 and keep agent-memory files and in-code docs in step. It runs at any point in the work -- before a
 change is committed, beside it, or long after -- and on any request that writes to the tree.
 
-The docs tree is the directory holding `.doc-marshal.toml`; `doc-marshal doctor` names it. The
+The docs tree is the directory holding the `.doc-marshal/` config folder; `doc-marshal doctor` names it. The
 policies live in the tool and win on any conflict with this file:
 
 - `doc-marshal info --policies` -- every policy `check` enforces that is not per-type: notes,

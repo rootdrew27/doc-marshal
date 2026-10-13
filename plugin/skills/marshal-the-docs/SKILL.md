@@ -1,6 +1,6 @@
 ---
 name: marshal-the-docs
-description: Write to the repository's doc-marshal docs tree, the directory marked with .doc-marshal.toml. Only for that tree -- not for docstrings, READMEs, comments or any documentation outside it, and not for installing, upgrading or configuring doc-marshal. Use whenever a request updates notes in the tree for a change, writes new ones from scratch, removes or renames stale ones, or brings the tree back in step with the code, at any point in the work -- when the user says "update the docs", "document this", "sync the docs", "write a runbook/reference/decision", "prune the docs", or invokes /marshal-the-docs. Follows the marshalling the engine prints and verifies its own output with it.
+description: Write to the repository's doc-marshal docs tree, the directory marked with a .doc-marshal/ config folder. Only for that tree -- not for docstrings, READMEs, comments or any documentation outside it, and not for installing, upgrading or configuring doc-marshal. Use whenever a request updates notes in the tree for a change, writes new ones from scratch, removes or renames stale ones, or brings the tree back in step with the code, at any point in the work -- when the user says "update the docs", "document this", "sync the docs", "write a runbook/reference/decision", "prune the docs", or invokes /marshal-the-docs. Follows the marshalling the engine prints and verifies its own output with it.
 argument-hint: "[--auto] <what to do>"
 ---
 

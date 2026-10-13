@@ -4,7 +4,7 @@
 
 The source of truth is `doc-marshal check` run on the docs: this text describes what it enforces.
 
-The **docs tree** is the directory holding the `.doc-marshal.toml` config; one repository has one.
+The **docs tree** is the directory holding the `.doc-marshal/config.toml` config; one repository has one.
 Paths below are relative to it unless stated otherwise.
 
 ---
@@ -19,8 +19,8 @@ under the docs tree is one of these, never validated and never indexed:
 | `assets/**` | assets |
 | `INDEX.md` at the docs tree | the generated index |
 | `AGENTS.md`, `CLAUDE.md`, anywhere | instructions to an agent: no frontmatter, no type, outside these policies |
-| `.doc-marshal.toml` | the config naming this directory the docs tree |
-| `.claude/`, `.git/`, `.github/`, `.obsidian/` | tooling and metadata |
+| `.doc-marshal/config.toml` and its folder | the config: it names this directory the docs tree and adjusts the profile |
+| `.claude/`, `.doc-marshal/`, `.git/`, `.github/`, `.obsidian/` | tooling and metadata |
 | any file with another suffix | not markdown |
 
 Errors by name, in any spelling of case, anywhere under the docs tree:
@@ -167,7 +167,7 @@ gives the sections, columns and caps.
 The change a run is scoped to is the working tree against `HEAD` plus untracked files, or
 `--range A..B`: two commits, `A` an ancestor of `B`, or the command exits 2. A `git mv` with no
 content change is not an edit; a plain `mv` is. There is no inline suppression and no severity
-configuration; what is configurable lives in `.doc-marshal.toml`.
+configuration; what is configurable lives in the config folder, `.doc-marshal/config.toml` and its `types/`.
 
 Git is required: the tracked-anchor policy, the freshness window and `drifted` are questions to
 git. Claude Code on macOS and Linux is the supported platform; the CLI, pre-commit and CI run
