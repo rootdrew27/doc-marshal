@@ -1,17 +1,19 @@
-"""The effective profile a docs tree is validated against: a shipped profile, adjusted by the config.
+"""The effective profile a docs tree is validated against: the one its config folder declares.
 
-The config is a folder at the top of the docs tree:
+The config is a folder at the top of the docs tree, and it is the whole profile:
 
     .doc-marshal/
-      config.toml         # extends, [anchors.*]; its existence marks the docs tree
+      config.toml         # [anchors.*], the anchor fields; its existence marks the docs tree
       types/
-        runbook.toml      # names a type the extended profile ships: merged over it
-        plan.toml         # names no shipped type: a new one
+        reference.toml    # one file per type: the file is the type
+        runbook.toml
 
-A type file's name is the type's name. Merge is per type and shallow, and a nested table such as
-`[structure]` merges the same way, so one key replaces one property and nothing reverts to a
-default -- see docs/configuration.md. Whatever results goes through `from_dict`, so a user's type is
-held to every combination `Profile` refuses in a shipped one.
+A type exists only if its file does, and its file's name is its name. A file is the entire type --
+nothing is inherited, so any property can be removed by deleting its key -- and an anchor field
+exists only if `config.toml` declares it. `init` writes the standard profile's anchor fields and
+types as the starting point; from then on the tree's own files are what it is held to, and
+`doctor` says where they differ from the profile `init` wrote. Everything goes through
+`from_dict`, so a user's type is held to every combination `Profile` refuses in a shipped one.
 
 Not read yet: `[policies]` and `exclude`. A key the loader does not read is refused, never
 ignored: a configuration that validated as nothing would be exactly the silent failure this tool
@@ -22,86 +24,89 @@ from __future__ import annotations
 
 import argparse
 import tomllib
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from .discovery import find_docs_tree, find_repo_root
 from .errors import ConfigError
-from .ontology import PROFILES, Profile, TypeProblem, from_dict, to_dict
+from .ontology import Profile, TypeProblem, from_dict, standard
 from .paths import rel_to
 from .settings import SETTINGS, Settings
 
-# What `config.toml` may hold, and where each key that belongs elsewhere goes instead.
-CONFIG_KEYS = frozenset({"extends", "anchors"})
+# What `config.toml` may hold, and why each key that does not belong there is refused.
+CONFIG_KEYS = frozenset({"anchors"})
 NOT_HERE = {
     "types": "each type is its own file, {types}/<name>.toml, holding that type's table without a header",
+    "extends": "the config folder is the whole profile: a type exists only if its file in {types}/ does",
     "policies": "the [policies] table is not read yet",
     "exclude": "`exclude` is not read yet",
 }
-# The properties a type no shipped profile declares must set, so a misspelt file name -- a
-# `types/runbok.toml` holding `enabled = false` -- is an error rather than a new, empty type.
-NEW_TYPE_REQUIRES = ("serves",)
+# What every type file must set, so a file holding a stray key or two is an error rather than a
+# type with nothing to say about the reader it serves.
+TYPE_REQUIRES = ("serves",)
 
 
 def load_profile(docs_tree: Path, settings: Settings = SETTINGS) -> Profile:
-    """The effective profile for this docs tree. The shipped `standard`, unchanged, when the tree
-    has no config folder -- a tree named by `--docs-tree` need not carry one."""
+    """The effective profile for this docs tree: the anchor fields `config.toml` declares and one
+    type per file in `types/`. Named `standard` while it equals the shipped profile. A tree with no
+    config at all -- one named by `--docs-tree` -- is held to the shipped `standard`."""
     config = docs_tree / settings.config_name
-    data = _read(config, docs_tree) if config.is_file() else {}
+    if not config.is_file():
+        return standard(settings)
+    data = _read(config, docs_tree)
 
     unknown = sorted(set(data) - CONFIG_KEYS)
     if unknown:
-        types = rel_to(settings.types_dir(docs_tree), find_repo_root(docs_tree)).as_posix()
-        reasons = [f"`{key}`: {NOT_HERE[key].format(types=types)}" for key in unknown if key in NOT_HERE]
+        folder = rel_to(settings.types_dir(docs_tree), find_repo_root(docs_tree)).as_posix()
+        reasons = [f"`{key}`: {NOT_HERE[key].format(types=folder)}" for key in unknown if key in NOT_HERE]
         raise _fail(
             config,
             docs_tree,
             f"key(s) this version does not read: {', '.join(unknown)}. "
             f"It reads {', '.join(sorted(CONFIG_KEYS))}." + "".join(f"\n  {r}" for r in reasons),
         )
-
-    base_name, base = _extends(data.get("extends", "standard"), config, docs_tree, settings)
-    merged = to_dict(base) if base is not None else {"anchors": {}, "types": {}}
     anchors = data.get("anchors", {})
     if not isinstance(anchors, dict) or not all(isinstance(t, dict) for t in anchors.values()):
         raise _fail(config, docs_tree, "`anchors` is one table per field, [anchors.<field>]")
-    for name, table in anchors.items():
-        merged["anchors"][name] = _merge(merged["anchors"].get(name, {}), table)
 
     type_files = _type_files(docs_tree, settings)
+    types: dict[str, Any] = {}
     for name, path in type_files.items():
-        table = _read(path, docs_tree)
-        shipped = merged["types"].get(name)
-        if shipped is None:
-            missing = [key for key in NEW_TYPE_REQUIRES if key not in table]
-            if missing:
-                raise _fail(
-                    path,
-                    docs_tree,
-                    f"names no type the {base_name} profile ships ({', '.join(merged['types']) or 'none'}), "
-                    f"so it declares a new one, and a new type must set {', '.join(missing)}. Check the "
-                    "file name if it meant to adjust a shipped type.",
-                )
-        merged["types"][name] = _merge(shipped or {}, table)
+        types[name] = _read(path, docs_tree)
+        missing = [key for key in TYPE_REQUIRES if key not in types[name]]
+        if missing:
+            raise _fail(path, docs_tree, f"a type must set {', '.join(missing)}")
 
-    if not anchors and not type_files and base is not None:
-        return base
-    label = f"{base_name}, as configured" if base is not None else "configured"
     try:
-        profile = from_dict(merged, label, settings)
+        profile = from_dict({"anchors": anchors, "types": types}, "configured", settings)
     except TypeProblem as exc:
-        # A type written in a file is reported against that file; one the config left as shipped
-        # can only have been broken by config.toml -- an anchor field it redeclared.
-        if exc.type_name in type_files:
-            raise _fail(type_files[exc.type_name], docs_tree, exc.detail) from None
+        raise _fail(type_files[exc.type_name], docs_tree, exc.detail) from None
+    except ValueError as exc:  # an anchor field: those are declared in config.toml
         raise _fail(config, docs_tree, str(exc)) from None
-    except ValueError as exc:
-        raise _fail(config, docs_tree, str(exc)) from None
-    # The files `init` writes restate the profile they came from; until one is edited, the tree is
-    # validated against that profile, and `info` says so by name.
-    if base is not None and (profile.anchor_fields, profile.types) == (base.anchor_fields, base.types):
-        return base
+    shipped = standard(settings)
+    if (profile.anchor_fields, profile.types) == (shipped.anchor_fields, shipped.types):
+        return Profile(shipped.name, profile.anchor_fields, profile.types, settings)
     return profile
+
+
+def differences(profile: Profile, settings: Settings = SETTINGS) -> dict[str, list[str]]:
+    """Where a tree's profile departs from the shipped `standard` that `init` wrote: the types
+    whose file differs, the types standard does not have, the standard types with no file, and the
+    same three for anchor fields. Empty lists where it agrees. What `doctor` reports -- a newer
+    engine's change to a shipped type reaches a tree only by its file being edited, so this is
+    where a user sees what they hold apart from it."""
+    shipped = standard(settings)
+    pairs: tuple[tuple[str, Mapping[str, object], Mapping[str, object]], ...] = (
+        ("types", profile.types, shipped.types),
+        ("anchor fields", profile.anchor_fields, shipped.anchor_fields),
+    )
+    out: dict[str, list[str]] = {}
+    for label, ours, theirs in pairs:
+        out[f"{label} edited"] = [n for n in ours if n in theirs and ours[n] != theirs[n]]
+        out[f"{label} added"] = [n for n in ours if n not in theirs]
+        out[f"{label} removed"] = [n for n in theirs if n not in ours]
+    return out
 
 
 def _read(path: Path, docs_tree: Path) -> dict[str, Any]:
@@ -115,20 +120,6 @@ def _fail(path: Path, docs_tree: Path, detail: str) -> ConfigError:
     """The error for a config file, named as the user would open it: from the repository root.
     Built only on failure, so a clean load never pays for the repository lookup."""
     return ConfigError(rel_to(path, find_repo_root(docs_tree)).as_posix(), detail)
-
-
-def _extends(value: object, config: Path, docs_tree: Path, settings: Settings) -> tuple[str, Profile | None]:
-    """The profile `extends` names, or None for `extends = []`, which starts from nothing."""
-    if value == []:
-        return "empty", None
-    if isinstance(value, str) and value in PROFILES:
-        return value, PROFILES[value](settings)
-    raise _fail(
-        config,
-        docs_tree,
-        f"extends = {value!r} names no shipped profile. It takes one of "
-        f"{', '.join(repr(p) for p in PROFILES)}, or [] to start from nothing.",
-    )
 
 
 def _type_files(docs_tree: Path, settings: Settings) -> dict[str, Path]:
@@ -147,18 +138,6 @@ def _type_files(docs_tree: Path, settings: Settings) -> dict[str, Path]:
             raise _fail(path, docs_tree, f"a type's name is its file's, and must match {settings.filename_pattern}")
         found[path.stem] = path
     return found
-
-
-def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
-    """`over` laid on `base`, one key at a time; a table present in both is merged the same way,
-    one level down, so `[structure] max_rows = 30` replaces one number and keeps the rest."""
-    out = dict(base)
-    for key, value in over.items():
-        if isinstance(value, dict) and isinstance(base.get(key), dict):
-            out[key] = {**base[key], **value}
-        else:
-            out[key] = value
-    return out
 
 
 DOCS_TREE_HELP = "docs tree (default: the directory holding the config)"

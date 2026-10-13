@@ -520,21 +520,17 @@ def standard(settings: Settings = SETTINGS) -> Profile:
 
 STANDARD = standard()
 
-# The shipped profiles, by the name a config's `extends` gives them. Each is built against the
-# run's settings, so a profile and the policies reading it agree about every constant.
-PROFILES = {"standard": standard}
-
 
 # --- serialization ------------------------------------------------------------------------------
 #
-# The TOML shape the config folder takes, written as one document: `extends` and `[anchors.*]` are
-# what `config.toml` holds, and each `[types.<name>]` table is the body of `types/<name>.toml`. So
+# The TOML shape the config folder takes, written as one document: `[anchors.*]` is what
+# `config.toml` holds, and each `[types.<name>]` table is the body of `types/<name>.toml`. So
 # `info --dump-toml` shows a user every property a type file may set, worked for the shipped types.
 
 
 def to_dict(profile: Profile) -> dict[str, Any]:
     """The profile as plain data, in the shape the config file takes."""
-    out: dict[str, Any] = {"extends": [], "anchors": {}, "types": {}}
+    out: dict[str, Any] = {"anchors": {}, "types": {}}
     for name, anchor in profile.anchor_fields.items():
         out["anchors"][name] = {"contents": anchor.contents, "resolves": list(anchor.resolves)}
     for name, spec in profile.types.items():
@@ -590,7 +586,7 @@ def to_dict(profile: Profile) -> dict[str, Any]:
 
 def from_dict(data: dict[str, Any], name: str = "custom", settings: Settings = SETTINGS) -> Profile:
     """Construct a profile from plain data -- the inverse of `to_dict`, and the constructor the
-    configuration loader calls once it has merged a config over the profile it extends. Strict: an
+    configuration loader calls with the config folder's tables. Strict: an
     unknown key is an error, since a typo that validated as nothing would be exactly the silent
     failure this tool exists to remove."""
     anchors: dict[str, AnchorField] = {}
@@ -706,10 +702,8 @@ def to_toml(profile: Profile) -> str:
     data = to_dict(profile)
     lines: list[str] = [
         "# The effective doc-marshal profile, as configuration. `doc-marshal info --dump-toml`.",
-        "# In the config folder, `extends` and [anchors.*] belong in config.toml, and each",
-        "# [types.<name>] table, minus its header, is the file types/<name>.toml.",
-        "",
-        f"extends = {_toml_value(data['extends'])}",
+        "# In the config folder, [anchors.*] belong in config.toml, and each [types.<name>]",
+        "# table, minus its header, is the file types/<name>.toml.",
     ]
     for section in ("anchors", "types"):
         for name, table in data[section].items():
@@ -717,13 +711,22 @@ def to_toml(profile: Profile) -> str:
     return "\n".join(lines) + "\n"
 
 
+def anchors_toml(profile: Profile) -> str:
+    """The profile's anchor fields as `config.toml` declares them: one `[anchors.<field>]` table each."""
+    lines: list[str] = []
+    for name, table in to_dict(profile)["anchors"].items():
+        lines += ["", f"[anchors.{_toml_key(name)}]", *_toml_table(table, "")]
+    return "\n".join(lines).lstrip("\n") + "\n"
+
+
 def type_toml(profile: Profile, name: str) -> str:
     """One type as the file `types/<name>.toml` holds it: the type's table with no header, and its
     nested tables under their own. What `init` writes for each shipped type, so a tree customizes a
     type by editing the file rather than by writing one from nothing."""
     lines = [
-        f"# The `{name}` type. Written by `doc-marshal init` from the {profile.name} profile; edit it to",
-        "# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.",
+        f"# The `{name}` type, as `doc-marshal init` wrote it from the {profile.name} profile. This file",
+        "# is the type: edit it to change the type, delete it to remove the type. Each key is one",
+        "# property; `doc-marshal info --dump-toml` shows every type's.",
         "",
         *_toml_table(to_dict(profile)["types"][name], ""),
     ]

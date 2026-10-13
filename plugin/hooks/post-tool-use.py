@@ -57,8 +57,8 @@ def main() -> int:
     if problem:
         emit(
             f"doc-marshal could not check {rel}: the docs tree's config does not load -- {problem}\n"
-            "The note stays unvalidated until the user fixes the config; do not edit the config "
-            "folder yourself."
+            "The note stays unvalidated until the config is fixed. The config folder is the user's: "
+            "tell them, and edit it only if they ask."
         )
         return 0
     findings = [line for line in result.stdout.splitlines() if line.startswith(PREFIXES)]

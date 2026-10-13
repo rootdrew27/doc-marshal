@@ -39,8 +39,8 @@ def main() -> int:
         emit(
             "doc-marshal: the docs tree's config does not load, so every doc-marshal command exits 2 "
             f"and no note is validated until it is fixed:\n{problem}\nThis is context, not a task. "
-            "The config folder is the user's to edit: if the work touches the docs, say that the "
-            "config needs fixing rather than editing it.",
+            "The config folder is the user's: if the work touches the docs, say that the config "
+            "needs fixing, and edit it only if they ask -- each edit there needs their approval.",
             f"doc-marshal: config error -- notes are not validated until it is fixed.\n{problem}",
         )
         return 0

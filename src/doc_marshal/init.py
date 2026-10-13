@@ -59,7 +59,7 @@ from .frontmatter import split_frontmatter
 from .index import index_state, plural, render
 from .integrate import CI_FILE, WORKFLOWS, Written, has_hook, writable, write_ci, write_precommit
 from .new import frontmatter_lines, render_note
-from .ontology import PROFILES, Profile, type_toml
+from .ontology import Profile, anchors_toml, standard, type_toml
 from .paths import iter_notes, rel_to
 from .settings import SETTINGS, Settings
 
@@ -68,16 +68,15 @@ SITE_GLOBS = ("docusaurus.config.*",)
 
 # What `init` writes into the config. The one person who will ever open this file is about to add
 # a key to it, so the blast radius of doing that is stated where they will read it.
-CONFIG_TEXT = """\
-# doc-marshal config. This folder marks the directory holding it as the docs tree.
+CONFIG_HEADER = """\
+# doc-marshal config. This folder marks the directory holding it as the docs tree, and it is the
+# whole profile the notes are held to: the anchor fields below, and one file per type in types/.
 #
-# extends = "standard"    # the profile to start from (the default); [] starts from nothing
-#
-# types/ holds one file per type. `init` wrote the standard profile's; edit one to change that
-# type (`enabled = false` turns it off), and add types/<name>.toml to declare a new type, with at
-# least `serves`. A file named after a shipped type is laid over it key by key, so deleting one
-# restores the type as shipped. `doc-marshal info --dump-toml` prints every key a type file may
-# set. A key or file this version does not read makes every doc-marshal command exit 2.
+# A type exists only if its file does: edit types/<name>.toml to change a type, delete it to remove
+# the type, and add one to declare a new type, setting at least `serves`. An anchor field exists
+# only if a table below declares it. `doc-marshal info --dump-toml` prints every key; `doctor`
+# says where this folder differs from the standard profile `init` wrote. A key or file this
+# version does not read makes every doc-marshal command exit 2.
 """
 
 # Every spelling of the engine an agent might run: on PATH, through uv, and the project's own
@@ -86,18 +85,24 @@ CONFIG_TEXT = """\
 PERMISSIONS = ("Bash(doc-marshal:*)", "Bash(uv run doc-marshal:*)", "Bash(.venv/bin/doc-marshal:*)")
 
 
+def config_text(settings: Settings = SETTINGS) -> str:
+    """What `init` writes into `config.toml`: what the folder is, then the standard anchor fields."""
+    return CONFIG_HEADER + "\n" + anchors_toml(standard(settings))
+
+
 def type_files(settings: Settings = SETTINGS) -> dict[str, str]:
-    """The file for each type of the profile a new config extends, keyed by its name in `types/`."""
-    profile = PROFILES["standard"](settings)
+    """The file `init` writes for each standard type, keyed by its name in `types/`."""
+    profile = standard(settings)
     return {f"{name}.toml": type_toml(profile, name) for name in profile.types}
 
 
-def deny_rules(settings: Settings = SETTINGS) -> tuple[str, ...]:
-    """What a session may not do: edit the config folder. The config is the law the notes are held
-    to, so an agent writing notes does not rewrite it -- the user changes the profile, or asks for
-    it and approves the edit. One directory segment, so as a deny rule Claude Code matches the folder
-    at any depth under the session's directory. It binds the file tools, the file commands Claude
-    Code recognizes in Bash and redirections; not a script that opens the file itself."""
+def ask_rules(settings: Settings = SETTINGS) -> tuple[str, ...]:
+    """What a session must ask for every time: an edit to the config folder. The config is the law
+    the notes are held to, so an agent writing notes holds no standing permission to rewrite it; the
+    user approves each edit, which an `ask` rule enforces even where an `allow` rule would match.
+    One directory segment, so as an ask rule Claude Code matches the folder at any depth under the
+    session's directory. It binds the file tools, the file commands Claude Code recognizes in Bash
+    and redirections; not a script that opens the file itself."""
     return (f"Edit({settings.config_dirname}/**)",)
 
 
@@ -248,7 +253,7 @@ def merge_import(root_file: Path, line: str) -> bool:
 
 
 def merge_permissions(settings_path: Path, settings: Settings = SETTINGS) -> bool:
-    """Add the Bash permissions and the config folder's deny to `.claude/settings.json`, creating it
+    """Add the Bash permissions and the config folder's ask rule to `.claude/settings.json`, creating it
     if needed. True when changed."""
     data: dict[str, Any] = {}
     if settings_path.is_file():
@@ -260,7 +265,7 @@ def merge_permissions(settings_path: Path, settings: Settings = SETTINGS) -> boo
             raise DocMarshalError(f"{settings_path} does not hold a JSON object")
     permissions = data.setdefault("permissions", {})
     changed = False
-    for key, wanted in (("allow", PERMISSIONS), ("deny", deny_rules(settings))):
+    for key, wanted in (("allow", PERMISSIONS), ("ask", ask_rules(settings))):
         present = permissions.setdefault(key, [])
         missing = [p for p in wanted if p not in present]
         present.extend(missing)
@@ -343,7 +348,7 @@ def main(argv: list[str]) -> int:
         "--claude-code",
         action="store_true",
         help="write CLAUDE.md instead of AGENTS.md, import it from the root CLAUDE.md, allow "
-        "`doc-marshal` and deny edits to the config folder in .claude/settings.json, and install the plugin "
+        "`doc-marshal` and ask before edits to the config folder in .claude/settings.json, and install the plugin "
         "with the `claude` CLI",
     )
     parser.add_argument(
@@ -410,8 +415,10 @@ def main(argv: list[str]) -> int:
     config = target / settings.config_name
     if not config.exists():
         config.parent.mkdir(exist_ok=True)
-        config.write_text(CONFIG_TEXT, encoding="utf-8")
-        created.append(Written(f"{label}/{settings.config_name}", "marks the tree; extends the standard profile"))
+        config.write_text(config_text(settings), encoding="utf-8")
+        created.append(
+            Written(f"{label}/{settings.config_name}", "marks the tree; declares the standard anchor fields")
+        )
         # Only with the config: a later `init`, run to add an integration, does not bring back a
         # type file the user deleted.
         files = type_files(settings)
@@ -453,7 +460,7 @@ def main(argv: list[str]) -> int:
         created.append(
             Written(
                 ".claude/settings.json",
-                f"allows the three spellings of `doc-marshal` a session runs; denies edits to {settings.config_dirname}/",
+                f"allows the three spellings of `doc-marshal` a session runs; asks before each edit to {settings.config_dirname}/",
             )
         )
 

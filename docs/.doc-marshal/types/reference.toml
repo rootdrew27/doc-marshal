@@ -1,5 +1,6 @@
-# The `reference` type. Written by `doc-marshal init` from the standard profile; edit it to
-# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.
+# The `reference` type, as `doc-marshal init` wrote it from the standard profile. This file
+# is the type: edit it to change the type, delete it to remove the type. Each key is one
+# property; `doc-marshal info --dump-toml` shows every type's.
 
 serves = "someone looking up a fact -- decided by this repo, or observed from outside it"
 voice = "flat, enumerative, cites its source"

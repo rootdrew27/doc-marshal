@@ -23,9 +23,9 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import add_docs_tree_option
+from .config import add_docs_tree_option, differences, load_profile
 from .discovery import cwd_repo, find_docs_tree, find_repo_root
-from .errors import DocMarshalError
+from .errors import ConfigError, DocMarshalError
 from .init import has_import, import_line
 from .integrate import PRECOMMIT, PYPROJECT, is_exact, normalize, pin_matches, pins
 from .paths import rel_to
@@ -81,6 +81,19 @@ def main(argv: list[str]) -> int:
         _, repo_root, _ = cwd_repo()
         print(f"docs tree: none -- {exc.args[0].splitlines()[0]}")
         problems.append("no docs tree resolves here, so nothing is being validated")
+
+    # The config folder is the whole profile, so a newer engine's change to a standard type reaches
+    # the tree only through its file. Reported, never a problem: departing from standard is the point.
+    if docs_tree is not None:
+        try:
+            profile = load_profile(docs_tree)
+        except ConfigError as exc:
+            print(f"profile:   does not load -- {exc}")
+            problems.append(f"the config does not load, so every command exits 2: {exc.path}")
+        else:
+            apart = [f"{label}: {', '.join(names)}" for label, names in differences(profile).items() if names]
+            summary = "; ".join(apart) if apart else "matches the standard profile"
+            print(f"profile:   {len(profile.types)} types, {len(profile.anchor_fields)} anchor fields -- {summary}")
 
     # A docs-tree CLAUDE.md is what `init --claude-code` writes, and it reaches a session only
     # through the import line in the root CLAUDE.md. A nested memory file with no import is loaded

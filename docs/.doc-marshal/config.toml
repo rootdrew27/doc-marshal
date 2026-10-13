@@ -1,9 +1,16 @@
-# doc-marshal config. This folder marks the directory holding it as the docs tree.
+# doc-marshal config. This folder marks the directory holding it as the docs tree, and it is the
+# whole profile the notes are held to: the anchor fields below, and one file per type in types/.
 #
-# extends = "standard"    # the profile to start from (the default); [] starts from nothing
-#
-# types/ holds one file per type. `init` wrote the standard profile's; edit one to change that
-# type (`enabled = false` turns it off), and add types/<name>.toml to declare a new type, with at
-# least `serves`. A file named after a shipped type is laid over it key by key, so deleting one
-# restores the type as shipped. `doc-marshal info --dump-toml` prints every key a type file may
-# set. A key or file this version does not read makes every doc-marshal command exit 2.
+# A type exists only if its file does: edit types/<name>.toml to change a type, delete it to remove
+# the type, and add one to declare a new type, setting at least `serves`. An anchor field exists
+# only if a table below declares it. `doc-marshal info --dump-toml` prints every key; `doctor`
+# says where this folder differs from the standard profile `init` wrote. A key or file this
+# version does not read makes every doc-marshal command exit 2.
+
+[anchors.code_refs]
+contents = "paths to the code this note describes"
+resolves = ["repo-path"]
+
+[anchors.source]
+contents = "URLs, or paths to an asset or another note"
+resolves = ["docs-path", "url"]

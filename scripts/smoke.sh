@@ -206,22 +206,28 @@ doc-marshal upgrade 0.4.0 | grep -q -- '--pins'
 ! doc-marshal upgrade 0.4 --pins
 git add -A
 
-# Configuration is a folder: config.toml marks the tree, and init wrote one types/<name>.toml per
-# shipped type. Edited, a file changes its type key by key; a new name declares a new type. Until
-# one is edited the tree is held to the standard profile, by name. What the loader does not read
-# is refused, never ignored, on a CONFIG line naming the file.
+# Configuration is a folder, and it is the whole profile: config.toml marks the tree and declares
+# the anchor fields, and a type exists only if its file in types/ does. init wrote standard's; while
+# they are unedited the tree is held to the standard profile, by name, and doctor says where they
+# differ. What the loader does not read is refused, never ignored, on a CONFIG line naming the file.
 types=docs/.doc-marshal/types
 test -f docs/.doc-marshal/config.toml && test -f "$types/decision.toml" && test -f "$types/convention.toml"
+grep -qx '\[anchors.code_refs\]' docs/.doc-marshal/config.toml
 doc-marshal info | grep -q "profile 'standard'"
-grep -qx '      "Edit(.doc-marshal/\*\*)"' .claude/settings.json
+doc-marshal doctor | grep -q '^profile: .*matches the standard profile'
+grep -A1 '"ask": \[' .claude/settings.json | grep -q '"Edit(.doc-marshal/\*\*)"'
 sed -i.bak 's/^enabled = true$/enabled = false/' "$types/runbook.toml" && rm "$types/runbook.toml.bak"
 ! doc-marshal check docs/deploy.md
 ! doc-marshal new runbook docs/rollback --code-ref src/db.py --summary "Roll back."
-printf 'enabled = false\n' > "$types/runbook.toml"
-! doc-marshal check docs/deploy.md
-printf '[structure]\nmax_rows = 1\n' > "$types/nomenclature.toml"
+doc-marshal doctor | grep -q '^profile: .*types edited: runbook'
+rm "$types/runbook.toml"
+doc-marshal check docs/deploy.md | grep -q "got 'runbook'"
+doc-marshal doctor | grep -q '^profile: .*types removed: runbook'
+# The file is the entire type, so any property goes by deleting its key -- a nested table included.
+sed -i.bak 's/^max_rows = 50$/max_rows = 1/' "$types/nomenclature.toml" && rm "$types/nomenclature.toml.bak"
 doc-marshal info --dump-toml | grep -qx 'max_rows = 1'
-doc-marshal info --dump-toml | grep -qx 'max_chars = 3000'
+sed -i.bak '/^\[supersession\]$/,$d' "$types/decision.toml" && rm "$types/decision.toml.bak"
+! doc-marshal info --dump-toml | grep -q 'types.decision.supersession'
 cat > "$types/experiment.toml" <<'EOF'
 serves = "someone about to build a change"
 statuses = ["proposed", "done"]
@@ -230,23 +236,24 @@ required_sections = ["Goal", "Steps"]
 template = ["## Goal", "", "<!-- What done looks like. -->", "", "## Steps", "", "<!-- In order. -->"]
 EOF
 doc-marshal info | grep -q "^  experiment "
+doc-marshal doctor | grep -q 'types added: experiment'
 doc-marshal new experiment docs/ship-it --summary "Ship the thing."
 grep -qx 'status: proposed' docs/ship-it.md && grep -qx '## Steps' docs/ship-it.md
 doc-marshal check docs/ship-it.md | grep -q 'is empty'
 rm docs/ship-it.md "$types/experiment.toml"
 git checkout -q -- "$types"
-# A misspelt type file, a value of the wrong shape, a key or file the loader does not read, and a
-# combination the profile refuses each fail every command, naming the file.
+# A type with nothing to say, a value of the wrong shape, a key or file the loader does not read,
+# and a combination the profile refuses each fail every command, naming the file.
 printf 'enabled = false\n' > "$types/runbok.toml"
-doc-marshal check --all 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbok.toml: names no type'
+doc-marshal check --all 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbok.toml: a type must set serves'
 rm "$types/runbok.toml"
 printf 'enabled = "false"\n' >> "$types/runbook.toml"
 doc-marshal info 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbook.toml: not valid TOML'
-printf 'enabled = "false"\n' > "$types/runbook.toml"
+printf 'serves = "x"\nenabled = "false"\n' > "$types/runbook.toml"
 doc-marshal info 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbook.toml: enabled: must be a boolean'
 printf 'serves = "x"\nservs = "y"\n' > "$types/runbook.toml"
 doc-marshal info 2>&1 | grep -q "runbook.toml: unknown key(s) \['servs'\]"
-printf 'numbered = true\n' > "$types/runbook.toml"
+printf 'serves = "x"\nnumbered = true\n' > "$types/runbook.toml"
 doc-marshal info 2>&1 | grep -q 'runbook.toml: numbered without a folder'
 git checkout -q -- "$types"
 touch "$types/experiment.md"
@@ -255,8 +262,8 @@ rm "$types/experiment.md"
 cp docs/.doc-marshal/config.toml config.bak
 printf '[types.runbook]\nenabled = false\n' >> docs/.doc-marshal/config.toml
 doc-marshal info 2>&1 | grep -q 'each type is its own file'
-printf 'extends = "minimal"\n' > docs/.doc-marshal/config.toml
-doc-marshal info 2>&1 | grep -q 'names no shipped profile'
+printf 'extends = "standard"\n' > docs/.doc-marshal/config.toml
+doc-marshal info 2>&1 | grep -q 'the config folder is the whole profile'
 mv config.bak docs/.doc-marshal/config.toml
 doc-marshal check --all
 
@@ -276,7 +283,7 @@ PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'context, 
 test -z "$(echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/post-tool-use.py")"
 # A config that does not load is told to the user and the session at start, naming the file and the
 # problem, and a note written while it is broken is reported as unvalidated.
-printf 'numbered = true\n' > docs/.doc-marshal/types/runbook.toml
+printf 'serves = "x"\nnumbered = true\n' > docs/.doc-marshal/types/runbook.toml
 python3 "$PLUGIN/hooks/session-start.py" | grep -q '"systemMessage": "doc-marshal: config error'
 python3 "$PLUGIN/hooks/session-start.py" | grep -q 'types/runbook.toml: numbered without a folder'
 echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | python3 "$PLUGIN/hooks/post-tool-use.py" | grep -q "could not check docs/bad.md"

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from doc_marshal import __version__
 from doc_marshal.info import render_doc_types, render_marshalling, render_policies, render_types_table
-from doc_marshal.init import CONFIG_TEXT, pointer_text, type_files
+from doc_marshal.init import config_text, pointer_text, type_files
 from doc_marshal.ontology import STANDARD
 from doc_marshal.settings import SETTINGS
 
@@ -49,7 +49,7 @@ def render() -> dict[str, str]:
         "rendered/doc-types.md": HEADER + render_doc_types(STANDARD),
         "rendered/marshalling.md": HEADER + render_marshalling(),
         f"{DOCS}/CLAUDE.md": pointer_text(DOCS, SETTINGS, STANDARD),
-        f"{DOCS}/{SETTINGS.config_name}": CONFIG_TEXT,
+        f"{DOCS}/{SETTINGS.config_name}": config_text(SETTINGS),
         **{
             f"{DOCS}/{SETTINGS.config_dirname}/{SETTINGS.types_dirname}/{n}": t for n, t in type_files(SETTINGS).items()
         },

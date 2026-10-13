@@ -1,5 +1,6 @@
-# The `nomenclature` type. Written by `doc-marshal init` from the standard profile; edit it to
-# change the type. Each key is one property: `doc-marshal info --dump-toml` shows them all.
+# The `nomenclature` type, as `doc-marshal init` wrote it from the standard profile. This file
+# is the type: edit it to change the type, delete it to remove the type. Each key is one
+# property; `doc-marshal info --dump-toml` shows every type's.
 
 serves = "someone choosing what to call a thing"
 voice = "flat, definitional, opinionated"
