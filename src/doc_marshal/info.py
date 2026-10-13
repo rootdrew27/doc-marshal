@@ -11,7 +11,7 @@ more accurate than any stored file, and it always matches the installed version.
     doc-marshal info --policies       # the policies that are not per-type
     doc-marshal info --marshalling    # marshalling, staged
     doc-marshal info --format json    # the profile as data, for third parties
-    doc-marshal info --dump-toml      # the profile as the configuration schema of a later release
+    doc-marshal info --dump-toml      # the profile as configuration: every key a type file may set
 """
 
 from __future__ import annotations
@@ -23,7 +23,8 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import add_docs_tree_option, resolve
+from .config import add_docs_tree_option, load_profile
+from .discovery import find_docs_tree
 from .errors import DocMarshalError
 from .ontology import STANDARD, DocType, Profile, to_dict, to_toml
 from .settings import NUMBER_TITLE_SEPARATOR
@@ -108,6 +109,7 @@ def render_compact(profile: Profile) -> str:
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)}  {spec.serves.ljust(serves_width)}  {_placement(spec)}")
+    lines += _disabled_lines(profile)
     anchors = "; ".join(f"{name} = {', '.join(a.resolves)}" for name, a in profile.anchor_fields.items())
     lines.append("")
     lines.append(f"Anchors: {anchors or 'none declared'}.")
@@ -135,7 +137,17 @@ def render_briefing_types(profile: Profile) -> str:
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {describe_requires(spec)}")
+    lines += _disabled_lines(profile)
     return "\n".join(lines)
+
+
+def _disabled_lines(profile: Profile) -> list[str]:
+    """The types switched off in this tree, and where each is switched back on -- so neither a
+    person nor a session reads a missing type as one that never existed, or writes a note of it."""
+    return [
+        f"  disabled: {name} -- no note may take this type while {profile.switch(name)} is false"
+        for name in profile.disabled
+    ]
 
 
 # --- one type -------------------------------------------------------------------------------------
@@ -225,8 +237,7 @@ def type_facts(profile: Profile, spec: DocType) -> list[tuple[str, str]]:
 def render_type(profile: Profile, name: str) -> str:
     spec = profile.get(name)
     if spec is None:
-        known = ", ".join(profile.enabled)
-        raise DocMarshalError(f"no enabled type named {name!r}; the profile has: {known}")
+        raise DocMarshalError(profile.not_live(name))
     lines = [f"# `{spec.name}`", ""]
     facts = type_facts(profile, spec)
     width = max(len(k) for k, _ in facts)
@@ -236,7 +247,7 @@ def render_type(profile: Profile, name: str) -> str:
         lines += ["Template (`doc-marshal new` writes this after the frontmatter and H1):", ""]
         lines += [f"    {line}" for line in spec.template]
         lines.append("")
-    argument = type_sections(doctrine("doc-types.md")).get(spec.name) or spec.description
+    argument = type_sections(doctrine("doc-types.md")).get(spec.name)
     if argument:
         lines += [argument.rstrip(), ""]
     return "\n".join(lines).rstrip() + "\n"
@@ -257,7 +268,6 @@ def render_policies(profile: Profile) -> str:
         "{{config_name}}": settings.config_name,
         "{{memory_names}}": ", ".join(f"`{n}`" for n in sorted(settings.memory_names)),
         "{{excluded_dirs}}": ", ".join(f"`{d}/`" for d in sorted(settings.excluded_dirs)),
-        "{{repo_path_fields}}": ", ".join(f"`{n}`" for n in profile.repo_path_fields) or "no field",
         "{{reserved_filenames}}": ", ".join(f"`{n}` (`{t}`)" for n, t in profile.reserved_filenames.items()) or "none",
     }
     for key, value in substitutions.items():
@@ -282,7 +292,7 @@ def render_doc_types(profile: Profile) -> str:
             if label not in ("serves", "voice", "mutability")
         ]
         out.append("")
-        body = sections.get(spec.name) or spec.description
+        body = sections.get(spec.name)
         if body:
             out += [body.rstrip(), ""]
     return "\n".join(out).rstrip() + "\n"
@@ -312,14 +322,17 @@ def resolve_profile(explicit: str | None) -> Profile:
     """The profile in force, or the built-in one when no docs tree is marked.
 
     `info` is the one command that has something useful to say outside a marked repository -- a
-    user reading the convention before adopting it -- so it falls back to the shipped profile.
+    user reading the convention before adopting it -- so it falls back to the shipped profile. Only
+    when no docs tree is found: a config that fails to load is reported, since printing the shipped
+    profile in its place would be the configuration validating as nothing.
     """
     try:
-        return resolve(explicit)[1]
+        docs_tree = find_docs_tree(explicit)
     except DocMarshalError:
         if explicit:
             raise
         return STANDARD
+    return load_profile(docs_tree)
 
 
 def main(argv: list[str]) -> int:
@@ -332,7 +345,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--marshalling", action="store_true", help="marshalling, staged")
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument(
-        "--dump-toml", action="store_true", help="the profile as the configuration schema of a later release"
+        "--dump-toml", action="store_true", help="the profile as configuration: every key a type file may set"
     )
     add_docs_tree_option(parser)
     args = parser.parse_args(argv)

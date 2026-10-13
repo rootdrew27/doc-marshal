@@ -2,8 +2,7 @@
 """PostToolUse hook: validate a note the moment it is written, not at review time.
 
 CI is a round trip away and the verify stage of a marshalling run comes after every note is
-written.
-Running the validator on one file as it lands turns a convention error into immediate feedback
+written. Running the validator on one file as it lands turns a policy error into immediate feedback
 while the note is still the thing being worked on.
 
 Deliberately non-blocking. It reports and does not veto: a note can be legitimately incomplete
@@ -29,6 +28,10 @@ import _engine
 PREFIXES = ("ERROR: ", "warn:  ")
 
 
+def emit(context: str) -> None:
+    json.dump({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": context}}, sys.stdout)
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -46,29 +49,30 @@ def main() -> int:
     result = _engine.run("check", "--skip-non-notes", str(path))
     if result is None:
         return 0
-    findings = [line for line in result.stdout.splitlines() if line.startswith(PREFIXES)]
-    if not findings:
-        return 0
-
     try:
         rel = path.resolve().relative_to(_engine.PROJECT)
     except ValueError:
         rel = path
-    json.dump(
-        {
-            "hookSpecificOutput": {
-                "hookEventName": "PostToolUse",
-                "additionalContext": (
-                    f"doc-marshal check on {rel} (the docs convention validator, run automatically on "
-                    "every note you write):\n"
-                    + "\n".join(findings)
-                    + "\n\nERROR lines fail CI and must be fixed before this run reports done. "
-                    "Fix them in this note only -- do not edit notes outside the change. "
-                    "`doc-marshal info --policies` explains each policy."
-                ),
-            }
-        },
-        sys.stdout,
+    problem = _engine.config_problem(result)
+    if problem:
+        emit(
+            f"doc-marshal could not check {rel}: the docs tree's config does not load -- {problem}\n"
+            "The note stays unvalidated until the config is fixed. The config folder is the user's: "
+            "tell them, and edit it only if they ask."
+        )
+        return 0
+    findings = [line for line in result.stdout.splitlines() if line.startswith(PREFIXES)]
+    if not findings:
+        return 0
+
+    emit(
+        f"doc-marshal check on {rel} (the docs validator, run automatically on every note you write):\n"
+        + "\n".join(findings)
+        + "\n\nERROR lines fail CI and must be fixed before this run reports done. "
+        "For each warn line, reword where the alias is used unnecessarily; put it in "
+        "backticks where it is a literal name. "
+        "Fix both in this note only -- do not edit notes outside the change. "
+        "`doc-marshal info --policies` explains each policy."
     )
     return 0
 

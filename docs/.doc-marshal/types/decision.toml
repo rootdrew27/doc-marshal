@@ -1,0 +1,43 @@
+# The `decision` type, as `doc-marshal init` wrote it from the standard profile. This file
+# is the type: edit it to change the type, delete it to remove the type. Each key is one
+# property; `doc-marshal info --dump-toml` shows every type's.
+
+# false switches the type off and keeps this file: `info` lists it as disabled, and
+# `check` and `new` refuse a note of it, naming this line. true switches it back on.
+enabled = true
+
+serves = "someone about to reopen a settled choice"
+voice = "terse, one decision"
+mutability = "append-only -- never edited after acceptance"
+code_refs = false
+source = false
+statuses = ["accepted", "superseded"]
+default_status = "accepted"
+folder = "decisions"
+numbered = true
+root_required = false
+additive = false
+append_only = true
+template = [
+    "## Context",
+    "",
+    "<!-- What forced a choice: the constraint, the failure, the requirement. -->",
+    "",
+    "## Decision",
+    "",
+    "<!-- What was decided, in the active voice. -->",
+    "",
+    "## Alternatives considered",
+    "",
+    "<!-- Each one, and the specific reason it lost. This is what stops the question being reopened. -->",
+    "",
+    "## Consequences",
+    "",
+    "<!-- What this makes easy, what it makes hard, what it commits us to. -->",
+]
+required_sections = ["Context", "Decision", "Alternatives considered", "Consequences"]
+
+[supersession]
+forward = "supersedes"
+back = "superseded_by"
+status = "superseded"

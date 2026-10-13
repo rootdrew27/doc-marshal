@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test on a fresh repository: every command runs, the five-type profile validates
+# End-to-end smoke test on a fresh repository: every command runs, the standard profile validates
 # what it should and rejects what it should, and the plugin's hooks resolve the installed engine.
 # CI runs this on each supported Python; locally: PLUGIN=$PWD/plugin bash scripts/smoke.sh
 set -eux
@@ -8,7 +8,12 @@ doc-marshal --version
 doc-marshal info --types > /dev/null
 doc-marshal info --marshalling > /dev/null
 doc-marshal info --policies | grep -c '{{' | grep -qx 0
-test "$(doc-marshal info --types | grep -c '^## `')" = 5
+# Every type in the profile has its argument in the doctrine; `info` would render a bare heading.
+python3 -c 'from doc_marshal.info import doctrine, type_sections; from doc_marshal.ontology import STANDARD
+assert set(STANDARD.enabled) <= set(type_sections(doctrine("doc-types.md")))'
+# The configuration schema can express the shipped profile: it serializes to TOML and loads back equal.
+python3 -c 'import tomllib; from doc_marshal.ontology import STANDARD, from_dict, to_toml
+assert from_dict(tomllib.loads(to_toml(STANDARD)), STANDARD.name) == STANDARD'
 doc-marshal info spec | grep -q 'required, in this order'
 
 repo=$(mktemp -d)
@@ -28,13 +33,18 @@ doc-marshal new decision use-postgres --code-ref src/db.py --summary "Postgres o
 doc-marshal new reference docs/vendor-limits --source https://example.com/limits --summary "Limits the vendor imposes."
 doc-marshal new runbook docs/deploy --code-ref src/db.py --summary "Deploy the service."
 doc-marshal new spec docs/billing --summary "How billing behaves end to end."
+doc-marshal new plan docs/plans/move-billing --source docs/billing.md --summary "Move billing to the job queue."
+doc-marshal new convention docs/db-access --code-ref src/db.py --summary "Only src/db.py opens a connection."
+! doc-marshal new plan docs/move-billing --summary "A plan lives in plans/."
+grep -qx 'status: proposed' docs/plans/move-billing.md
 grep -qx 'status: proposed' docs/billing.md
 grep -qx '## Prerequisites' docs/deploy.md && grep -qx '## Open questions' docs/billing.md
 ! doc-marshal check docs/deploy.md
 doc-marshal check docs/deploy.md | grep -q 'is empty'
 doc-marshal check docs/deploy.md | grep -q 'does not track'
 ! doc-marshal new decision born-dead --status superseded --summary "A note is never born superseded."
-for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md; do
+for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md docs/plans/move-billing.md \
+  docs/db-access.md; do
   python3 - "$note" <<'EOF'
 import re, sys
 path = sys.argv[1]
@@ -157,7 +167,7 @@ doc-marshal doctor
 (cd "$(mktemp -d)" && ! doc-marshal doctor)
 
 # The integration flags write the other two integrations. This engine came from a checkout,
-# so `v0.3.0` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
+# so `v<this version>` is not a tag a `rev:` could resolve and init declines and says what to pass instead.
 version=$(doc-marshal --version | awk '{print $2}')
 doc-marshal init --pre-commit --ci | grep -q -- '--pin'
 test ! -f .pre-commit-config.yaml
@@ -196,6 +206,74 @@ doc-marshal upgrade 0.4.0 | grep -q -- '--pins'
 ! doc-marshal upgrade 0.4 --pins
 git add -A
 
+# Configuration is a folder, and it is the whole profile: config.toml marks the tree and declares
+# the anchor fields, and a type exists only if its file in types/ does. init wrote standard's; while
+# they are unedited the tree is held to the standard profile, by name, and doctor says where they
+# differ. What the loader does not read is refused, never ignored, on a CONFIG line naming the file.
+types=docs/.doc-marshal/types
+test -f docs/.doc-marshal/config.toml && test -f "$types/decision.toml" && test -f "$types/convention.toml"
+grep -qx '\[anchors.code_refs\]' docs/.doc-marshal/config.toml
+doc-marshal info | grep -q "profile 'standard'"
+doc-marshal doctor | grep -q '^profile: .*matches the standard profile'
+grep -A1 '"ask": \[' .claude/settings.json | grep -q '"Edit(.doc-marshal/\*\*)"'
+# Switched off, a type keeps its file and is named as disabled wherever it would have appeared, with
+# the line that switches it back on.
+sed -i.bak 's/^enabled = true$/enabled = false/' "$types/runbook.toml" && rm "$types/runbook.toml.bak"
+! doc-marshal check docs/deploy.md
+doc-marshal check docs/deploy.md | grep -q "type 'runbook' is disabled -- \`enabled\` in .doc-marshal/types/runbook.toml is false"
+! doc-marshal new runbook docs/rollback --code-ref src/db.py --summary "Roll back."
+doc-marshal new runbook docs/rollback --code-ref src/db.py --summary "Roll back." 2>&1 | grep -q "is disabled"
+doc-marshal info | grep -q '^  disabled: runbook'
+doc-marshal briefing | grep -q '^  disabled: runbook'
+doc-marshal doctor | grep -q '^profile: .*types disabled: runbook'
+! doc-marshal doctor | grep -q 'types edited: runbook'
+rm "$types/runbook.toml"
+doc-marshal check docs/deploy.md | grep -q "got 'runbook'"
+doc-marshal doctor | grep -q '^profile: .*types removed: runbook'
+# The file is the entire type, so any property goes by deleting its key -- a nested table included.
+sed -i.bak 's/^max_rows = 50$/max_rows = 1/' "$types/nomenclature.toml" && rm "$types/nomenclature.toml.bak"
+doc-marshal info --dump-toml | grep -qx 'max_rows = 1'
+sed -i.bak '/^\[supersession\]$/,$d' "$types/decision.toml" && rm "$types/decision.toml.bak"
+! doc-marshal info --dump-toml | grep -q 'types.decision.supersession'
+cat > "$types/experiment.toml" <<'EOF'
+serves = "someone about to build a change"
+statuses = ["proposed", "done"]
+default_status = "proposed"
+required_sections = ["Goal", "Steps"]
+template = ["## Goal", "", "<!-- What done looks like. -->", "", "## Steps", "", "<!-- In order. -->"]
+EOF
+doc-marshal info | grep -q "^  experiment "
+doc-marshal doctor | grep -q 'types added: experiment'
+doc-marshal new experiment docs/ship-it --summary "Ship the thing."
+grep -qx 'status: proposed' docs/ship-it.md && grep -qx '## Steps' docs/ship-it.md
+doc-marshal check docs/ship-it.md | grep -q 'is empty'
+rm docs/ship-it.md "$types/experiment.toml"
+git checkout -q -- "$types"
+# A type with nothing to say, a value of the wrong shape, a key or file the loader does not read,
+# and a combination the profile refuses each fail every command, naming the file.
+printf 'enabled = false\n' > "$types/runbok.toml"
+doc-marshal check --all 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbok.toml: a type must set serves'
+rm "$types/runbok.toml"
+printf 'enabled = "false"\n' >> "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbook.toml: not valid TOML'
+printf 'serves = "x"\nenabled = "false"\n' > "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q '^CONFIG: docs/.doc-marshal/types/runbook.toml: enabled: must be a boolean'
+printf 'serves = "x"\nservs = "y"\n' > "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q "runbook.toml: unknown key(s) \['servs'\]"
+printf 'serves = "x"\nnumbered = true\n' > "$types/runbook.toml"
+doc-marshal info 2>&1 | grep -q 'runbook.toml: numbered without a folder'
+git checkout -q -- "$types"
+touch "$types/experiment.md"
+doc-marshal info 2>&1 | grep -q 'holds only <type>.toml files'
+rm "$types/experiment.md"
+cp docs/.doc-marshal/config.toml config.bak
+printf '[types.runbook]\nenabled = false\n' >> docs/.doc-marshal/config.toml
+doc-marshal info 2>&1 | grep -q 'each type is its own file'
+printf 'extends = "standard"\n' > docs/.doc-marshal/config.toml
+doc-marshal info 2>&1 | grep -q 'the config folder is the whole profile'
+mv config.bak docs/.doc-marshal/config.toml
+doc-marshal check --all
+
 # The plugin's hooks resolve the installed engine and report on a broken note.
 printf -- '---\ntype: decision\nstatus: bogus\nsummary: bad\n---\n# Bad\n' > docs/bad.md
 export CLAUDE_PROJECT_DIR="$repo" CLAUDE_PLUGIN_ROOT="$PLUGIN"
@@ -210,4 +288,11 @@ PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'context, 
 ! PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'pip install'
 ! PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/session-start.py" | grep -q 'uv add'
 test -z "$(echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | PATH=/usr/bin:/bin python3 "$PLUGIN/hooks/post-tool-use.py")"
+# A config that does not load is told to the user and the session at start, naming the file and the
+# problem, and a note written while it is broken is reported as unvalidated.
+printf 'serves = "x"\nnumbered = true\n' > docs/.doc-marshal/types/runbook.toml
+python3 "$PLUGIN/hooks/session-start.py" | grep -q '"systemMessage": "doc-marshal: config error'
+python3 "$PLUGIN/hooks/session-start.py" | grep -q 'types/runbook.toml: numbered without a folder'
+echo "{\"tool_input\": {\"file_path\": \"$repo/docs/bad.md\"}}" | python3 "$PLUGIN/hooks/post-tool-use.py" | grep -q "could not check docs/bad.md"
+git checkout -q -- docs/.doc-marshal
 echo "smoke: ok"

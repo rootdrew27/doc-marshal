@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-13
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -28,7 +28,9 @@ it through the `claude` CLI, at project scope; nothing else in the tool depends 
 
 Its value is the two hooks no other harness provides. **PostToolUse** validates a note the moment
 it is written: it runs `check --skip-non-notes` on the one file, selects the errors and warnings by
-their line prefixes, and returns them as context. It is deliberately non-blocking -- a note can be
+their line prefixes, and returns them as context with what to do about each: fix every error,
+and reword each warned alias, or backtick it where it is a literal name. When the config does
+not load, it says the note went unchecked, and why. It is deliberately non-blocking -- a note can be
 legitimately incomplete mid-edit, and a hook that vetoed those would fight the work rather than
 check it. **SessionStart** hands the session the [briefing](briefing.md).
 
@@ -59,7 +61,8 @@ its two special files are for, and nothing about how to use them, which is `doc-
   what `init` can know to write, not a complete set: the wrappers Claude Code strips before matching
   are a built-in list that no setting extends, and environment runners are not in it, so `poetry
   run`, an absolute path and `python -m doc_marshal` each still ask, and a non-interactive session
-  cannot answer -- see [the harness](claude-code-harness.md);
+  cannot answer -- see [the harness](claude-code-harness.md). It also adds `Edit(.doc-marshal/**)`
+  under `ask`, so a session asks before each edit to the config;
 - it installs the plugin -- `claude plugin marketplace add rootdrew27/doc-marshal --scope project`,
   then `claude plugin install doc-marshal@doc-marshal --scope project`. Both are idempotent and
   both run after the permissions merge, because Claude Code writes the same settings file and owns
@@ -105,7 +108,7 @@ it rather than a README snippet:
   documentation.
 
 The workflow runs on pull requests only, because both ranged steps read
-`github.event.pull_request.base.sha`, which is empty on a push. `index --check` runs with
-`continue-on-error: true`, so a stale index warns rather than failing the build. Each step calls
+`github.event.pull_request.base.sha`, which is empty on a push. A stale index fails the build like
+any error: the fix is one command and the check has no false positives. Each step calls
 `uvx doc-marshal==<minor>.*` directly; there is no composite Action, which would be sugar over a
 three-line step.

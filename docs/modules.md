@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-13
 summary: "One line per module of the package, per plugin file and per script: what each one owns"
 code_refs:
   - src/doc_marshal
@@ -20,10 +20,10 @@ by `cli.py`, so no verb pays for another's imports.
 | `__init__.py` | the package docstring and `__version__`, the one source of the version |
 | `__main__.py` | `python -m doc_marshal`, so the package runs from a bare checkout |
 | `cli.py` | verb dispatch, the usage text and the exit status |
-| `errors.py` | `DocMarshalError`, the one exception the CLI turns into a message and exit 2 |
-| `settings.py` | the constants not yet configurable, behind one `Settings` object |
+| `errors.py` | `DocMarshalError`, which the CLI turns into a message and exit 2, and `ConfigError`, printed on a `CONFIG:` line |
+| `settings.py` | the constants not yet configurable, and the config folder's names, behind one `Settings` object |
 | `ontology.py` | `AnchorField`, `Structure`, `Supersession`, `DocType`, `Profile`, the `standard` profile, and the TOML serializer |
-| `config.py` | the effective profile a docs tree is validated against; the loader lands here |
+| `config.py` | the loader: the effective profile from the config folder, and how it differs from `standard` |
 | `discovery.py` | locating the docs tree, and the repository root paths resolve against |
 | `paths.py` | classifying a path under the docs tree, the note set, and exact-spelling existence |
 | `frontmatter.py` | the frontmatter subset, parsed strictly; `read_note` |
@@ -62,6 +62,5 @@ by `cli.py`, so no verb pays for another's imports.
 ## What is not here
 
 There is no `tests/` directory. CI runs `scripts/smoke.sh` on each supported Python, and checks
-that `rendered/` still matches the doctrine and the profile. A suite over synthetic trees is still
-the plan, and the round-trip test between the profile and its TOML form is the first case it should
-hold.
+that `rendered/` still matches the doctrine and the profile. The smoke test holds the round trip
+between the profile and its TOML form; a suite over synthetic trees is still the plan.

@@ -1,0 +1,36 @@
+# The `plan` type, as `doc-marshal init` wrote it from the standard profile. This file
+# is the type: edit it to change the type, delete it to remove the type. Each key is one
+# property; `doc-marshal info --dump-toml` shows every type's.
+
+# false switches the type off and keeps this file: `info` lists it as disabled, and
+# `check` and `new` refuse a note of it, naming this line. true switches it back on.
+enabled = true
+
+serves = "someone carrying out one piece of work to completion"
+voice = "ordered, imperative, each step checkable"
+mutability = "mutable -- rewritten as the work moves, deleted once done"
+code_refs = false
+source = false
+statuses = ["proposed", "in-progress", "done"]
+default_status = "proposed"
+folder = "plans"
+numbered = false
+root_required = false
+additive = false
+append_only = false
+template = [
+    "## Goal",
+    "",
+    "<!-- The outcome in a paragraph, and the spec it carries out, linked. -->",
+    "",
+    "## Steps",
+    "",
+    "<!-- In order. Stable identifiers so one step can be ticked off without renumbering the rest. -->",
+    "",
+    "- [ ] **S1** --",
+    "",
+    "## Done when",
+    "",
+    "<!-- The observable conditions that end the work. One per line. -->",
+]
+required_sections = ["Goal", "Steps", "Done when"]

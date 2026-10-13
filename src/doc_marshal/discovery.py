@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .errors import DocMarshalError
 from .git import Git, toplevel
@@ -34,10 +34,15 @@ _MAX_DEPTH = 6
 COMMON_DOCS_DIRS = ("docs", "doc", "agent-docs", "notes", "documentation")
 
 
-def find_configs(
-    repo_root: Path, cwd: Path, settings: Settings = SETTINGS, *, stop_at: Path | None = None
+def find_docs_trees(
+    repo_root: Path,
+    cwd: Path,
+    settings: Settings = SETTINGS,
+    *,
+    stop_at: Path | None = None,
 ) -> list[Path]:
-    """Every config file in the repository, sorted.
+    """Every directory in the repository carrying a config, sorted. The config's main file is what
+    is looked for, `.doc-marshal/config.toml`, and the directory holding its folder is the answer.
 
     Inside a git repository the search is `git ls-files` over tracked and untracked files, which
     respects .gitignore and costs nothing in a large tree. Outside one it is a bounded walk. Either
@@ -47,26 +52,29 @@ def find_configs(
     directory is nothing more than where the command happened to run, and a config above it is
     still the config.
     """
+    marker = settings.config_name
+    parts = PurePosixPath(marker).parts
     found: set[Path] = set()
     start = cwd.resolve()
     for base in (start, *start.parents):
-        if (base / settings.config_name).is_file():
-            found.add((base / settings.config_name).resolve())
+        if (base / marker).is_file():
+            found.add(base.resolve())
         if base == stop_at:
             break
     listed = Git(repo_root).listed()
     if listed is not None:
         for entry in listed:
-            if Path(entry).name == settings.config_name:
-                candidate = (repo_root / entry).resolve()
-                if candidate.is_file():
-                    found.add(candidate)
+            path = PurePosixPath(entry)
+            if path.parts[-len(parts) :] == parts:
+                owner = (repo_root / path.parents[len(parts) - 1]).resolve()
+                if (owner / marker).is_file():
+                    found.add(owner)
     else:
-        for dirpath, dirnames, filenames in os.walk(repo_root):
+        for dirpath, dirnames, _ in os.walk(repo_root):
             depth = len(Path(dirpath).relative_to(repo_root).parts)
             dirnames[:] = [d for d in dirnames if d not in _PRUNE and depth < _MAX_DEPTH]
-            if settings.config_name in filenames:
-                found.add((Path(dirpath) / settings.config_name).resolve())
+            if (Path(dirpath) / marker).is_file():
+                found.add(Path(dirpath).resolve())
     return sorted(found)
 
 
@@ -94,13 +102,13 @@ def find_docs_tree(explicit: str | None = None, settings: Settings = SETTINGS) -
             return root
 
     cwd, repo_root, toplevel = cwd_repo()
-    configs = find_configs(repo_root, cwd, settings, stop_at=toplevel)
-    if len(configs) == 1:
-        return configs[0].parent
-    if configs:
-        listing = "\n".join(f"  {rel_to(c.parent, repo_root)}/" for c in configs)
+    trees = find_docs_trees(repo_root, cwd, settings, stop_at=toplevel)
+    if len(trees) == 1:
+        return trees[0]
+    if trees:
+        listing = "\n".join(f"  {rel_to(t, repo_root)}/" for t in trees)
         raise DocMarshalError(
-            f"{len(configs)} {settings.config_name} configs found, and one repository has one docs "
+            f"{len(trees)} {settings.config_name} configs found, and one repository has one docs "
             f"tree:\n{listing}\nRemove all but one, or pass --docs-tree to choose for this run."
         )
 

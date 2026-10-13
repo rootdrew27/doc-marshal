@@ -7,7 +7,7 @@ the caller means. Each command builds one for the repository it runs in and hand
 There is deliberately no `Protocol` yet: with one implementation the class itself is the
 interface, and a fake subclasses it. Add the protocol the day a second implementation exists.
 
-Every method returns None when git could not answer. None and the empty answer are different
+A query returns None when git could not answer. None and the empty answer are different
 facts -- "cannot tell" against "nothing changed" -- and callers keep them apart (see
 `edited_notes`). `toplevel` is the bootstrap: the one question asked of a directory before any
 repository is known, to find the root a `Git` is then built on.
@@ -165,12 +165,15 @@ class Git:
         head = self._value("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
         if head:
             return head
+        # `for-each-ref` sorts by refname, not by the order its patterns are given, so the
+        # candidates' order is applied here.
         refs = self._value(
             "for-each-ref",
             "--format=%(refname:short)",
             *(f"refs/heads/{name}" for name in TRUNK_CANDIDATES),
         )
-        return refs.splitlines()[0] if refs else None
+        present = set(refs.splitlines()) if refs else set()
+        return next((name for name in TRUNK_CANDIDATES if name in present), None)
 
     def default_range(self) -> str | None:
         """`<merge-base>..HEAD` against the trunk, or None on the trunk itself or outside a repo.

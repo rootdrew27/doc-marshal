@@ -1,8 +1,8 @@
 """The constants of Tier 3, behind one object.
 
 The filename pattern, the summary cap, the index and assets names, the forbidden names and the
-excluded directories are not configurable until configuration lands (see docs/engine.md). They
-are routed through this one object anyway, so that exposing them under `[policies]` then is a schema
+excluded directories are not configurable until `[policies]` is read (see docs/configuration.md).
+They are routed through this one object anyway, so that exposing them then is a schema
 addition rather than a refactor through six modules: every consumer already takes a `Settings`.
 """
 
@@ -20,9 +20,15 @@ MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 
 @dataclass(frozen=True)
 class Settings:
-    config_name: str = ".doc-marshal.toml"
-    """The file that marks the docs tree and, in a later release, holds its configuration."""
+    config_dirname: str = ".doc-marshal"
+    """The config folder: its presence at the top of a directory makes that directory the docs tree."""
 
+    config_filename: str = "config.toml"
+    """The config's main file, inside the folder. It is what discovery finds, because git tracks
+    files and not directories: an empty config folder would not survive a clone."""
+
+    types_dirname: str = "types"
+    """Inside the config folder: one `<type>.toml` per type the config adjusts or declares."""
     default_docs_dir: str = "docs"
     """Where `init` puts the docs tree when not told otherwise."""
 
@@ -38,8 +44,8 @@ class Settings:
     memory_names: frozenset[str] = frozenset({"CLAUDE.md", "AGENTS.md"})
     """Agent-memory files: never notes, anywhere under the docs tree."""
 
-    excluded_dirs: frozenset[str] = frozenset({".claude", ".git", ".github", ".obsidian"})
-    """Tooling and metadata directories: nothing under them is a note."""
+    excluded_dirs: frozenset[str] = frozenset({".claude", ".doc-marshal", ".git", ".github", ".obsidian"})
+    """Tooling and metadata directories: nothing under them is a note. The config folder is one."""
 
     filename_pattern: str = r"^[a-z0-9]+(-[a-z0-9]+)*$"
     """Notes and the folders holding them: kebab-case."""
@@ -49,6 +55,15 @@ class Settings:
 
     future_slack_days: int = 1
     """An `updated` date this far ahead of today is tolerated -- a writer ahead of CI's UTC clock."""
+
+    @property
+    def config_name(self) -> str:
+        """The config's main file as a path from the docs tree, `.doc-marshal/config.toml`: what
+        messages name, and what `docs_tree / config_name` finds."""
+        return f"{self.config_dirname}/{self.config_filename}"
+
+    def types_dir(self, docs_tree: Path) -> Path:
+        return docs_tree / self.config_dirname / self.types_dirname
 
     @property
     def forbidden_names(self) -> dict[str, str]:

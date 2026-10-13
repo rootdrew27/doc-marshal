@@ -1,0 +1,44 @@
+# The `spec` type, as `doc-marshal init` wrote it from the standard profile. This file
+# is the type: edit it to change the type, delete it to remove the type. Each key is one
+# property; `doc-marshal info --dump-toml` shows every type's.
+
+# false switches the type off and keeps this file: `info` lists it as disabled, and
+# `check` and `new` refuse a note of it, naming this line. true switches it back on.
+enabled = true
+
+serves = "someone reading, building or validating a feature's behaviour as a whole"
+voice = "declarative, whole-feature, links to the references that justify it"
+mutability = "mutable at every status -- in-progress whenever the doc leads the code"
+code_refs = true
+source = false
+statuses = ["proposed", "in-progress", "done"]
+default_status = "proposed"
+numbered = false
+root_required = false
+additive = false
+append_only = false
+requires_from = "done"
+template = [
+    "## Overview",
+    "",
+    "<!-- The feature in a paragraph: what it is for, and where it starts and stops. -->",
+    "",
+    "## Behavior",
+    "",
+    "<!-- What it does, as statements. Link each fact to the reference note that holds it. -->",
+    "",
+    "## Validation",
+    "",
+    "<!-- Stable identifiers so one item can be ticked off without renumbering the rest. -->",
+    "",
+    "- [ ] **V1** --",
+    "",
+    "## Open questions",
+    "",
+    "<!-- Live unknowns only, one per line. A resolved one is deleted or becomes a decision.",
+    "     Must be empty once status is done. -->",
+]
+required_sections = ["Overview", "Behavior", "Validation"]
+
+[empty_at]
+"Open questions" = "done"

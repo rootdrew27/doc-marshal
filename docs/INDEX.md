@@ -10,7 +10,7 @@
 - [briefing](briefing.md) -- `reference` -- The three blocks a fresh session is handed about the docs tree, and what the plugin's SessionStart hook does with them
 - [claude-code-harness](claude-code-harness.md) -- `reference` -- What Claude Code guarantees the plugin builds on: hook events and their output, the worktree path split, why the Bash permission entries cannot be completed, and the skill listing budget
 - [cli](cli.md) -- `reference` -- Every doc-marshal verb, its flags, its exit status and what it is for, and how each one locates the docs tree
-- [configuration](configuration.md) -- `spec` -- Configuration as designed and unbuilt: the config file, extends, per-type merge, disabling a type, the policies table and exclude
+- [configuration](configuration.md) -- `spec` -- The config folder: config.toml declares the anchor fields, one file per type in types/, and what a broken config does
 - [dependency-policy](dependency-policy.md) -- `reference` -- The tests a runtime library must pass before this package takes one, and the one route into the engine that taking one breaks
 - [engine](engine.md) -- `spec` -- What doc-marshal is: an engine that reads every policy off an effective profile, ships its doctrine in the package, and holds one version everywhere
 - [integrations](integrations.md) -- `reference` -- Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
@@ -20,5 +20,5 @@
 - [NOMENCLATURE](NOMENCLATURE.md) -- `nomenclature` -- The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
 - [release](release.md) -- `runbook` -- Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish
 - [setup](setup.md) -- `runbook` -- Install doc-marshal into a repository, mark its docs tree, wire the integrations, and move every pin to a new version
-- [standard-profile](standard-profile.md) -- `reference` -- The standard profile's five types: why two carry no anchor, the lifecycle they share, and why there is no Related section
+- [standard-profile](standard-profile.md) -- `reference` -- The standard profile: where its types are rendered, the lifecycle they share, and why there is no Related section
 - [type-properties](type-properties.md) -- `reference` -- Every property a type declares, what the validator enforces from it, and what the scaffolder writes from it

@@ -19,8 +19,8 @@ not enforced -- that is `check`'s job, and the note it writes fails `check` unti
 sections are written. The last line printed is the gate. An earlier version validated here as
 well and still wrote notes `check` rejected, because two implementations of one policy drift.
 
-The template writes every section the type requires and nothing else; a heading the type does
-not require earns its place or is deleted.
+The template writes every section the type requires, and any optional one the type declares --
+a spec's `Open questions`; a heading the type does not declare earns its place or is deleted.
 """
 
 from __future__ import annotations
@@ -145,7 +145,9 @@ def main(argv: list[str]) -> int:
         description="Scaffold a note with the frontmatter and sections its type requires.",
         parents=[tree_options],
     )
-    parser.add_argument("type", choices=list(types))
+    # Every declared type is a valid choice, so a disabled one reaches the check below and is told
+    # how to switch it on; the usage line still offers only the live ones.
+    parser.add_argument("type", choices=list(profile.types), metavar="{" + ",".join(types) + "}")
     parser.add_argument(
         "path",
         help="path to the new note, from the current directory; a bare slug for a numbered type; "
@@ -177,6 +179,8 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     repo_root = find_repo_root(docs_tree)
+    if args.type not in types:
+        raise DocMarshalError(profile.not_live(args.type))
     spec = types[args.type]
     today = date.today().isoformat()
 
