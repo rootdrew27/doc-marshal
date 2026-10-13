@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-10-02
+updated: 2026-10-13
 summary: "The standard profile: where its types are rendered, the lifecycle they share, and why there is no Related section"
 code_refs:
   - src/doc_marshal/ontology.py
@@ -8,16 +8,15 @@ code_refs:
 
 # The standard profile
 
-`standard` is the profile shipped in `src/doc_marshal/ontology.py` and the one every docs tree is
-validated against today. It declares the types and two [anchor fields](anchors.md). A type names
+`standard` is the profile shipped in `src/doc_marshal/ontology.py`, and what `init` writes into a
+new [config](configuration.md) for the tree to edit. It declares the types and two [anchor fields](anchors.md). A type names
 the reader it serves and nothing else; its anchor minimum follows from what outside the note would
 falsify it.
 
 ## The types
 
 The engine renders the types from the profile, so this note does not list them: `doc-marshal
-info` gives each type's reader, voice, mutability and anchor minimum in a table, in the profile's
-order, most common first; `doc-marshal info <type>` gives one type's argument, including why a type
+info` gives each type's reader, voice, mutability and anchor minimum in a table; `doc-marshal info <type>` gives one type's argument, including why a type
 carries no anchor, with the [properties](type-properties.md) it sets -- required sections,
 placement, lifecycle. The same rendering is committed for readers without the CLI as
 `rendered/doc-types.md`.

@@ -9,7 +9,7 @@ question with an answer a script can give.
 
 It ships an opinionated ontology, the `standard` profile. But the engine is the product:
 every policy it enforces is read off the effective profile rather than hardcoded per check, and an
-ontology you declare yourself (in a later release) is held to exactly the same standard.
+ontology you declare yourself is held to exactly the same standard.
 
 ```bash
 pip install doc-marshal        # or: uv tool install doc-marshal
@@ -116,7 +116,7 @@ They are derived, never edited: the doctrine lives in `src/doc_marshal/doctrine/
 
 Every policy is either an error or a warning, and there is no severity configuration, no warn-only
 mode, and **no inline suppression** -- that is the one absolute prohibition. A hundred scattered
-suppressions are unauditable; everything configurable lives in one file that review can see.
+suppressions are unauditable; everything configurable lives in one folder that review can see.
 
 Errors: frontmatter parses and carries `type`, `updated` and `summary` and no key the type does
 not declare; `type` names a live type; required anchors are present and every anchor entry
@@ -259,15 +259,15 @@ runs `check --all` as part of the upgrade rather than letting it surprise you af
 
 ## The docs tree is marked, not guessed
 
-`doc-marshal init [path]` writes a `.doc-marshal.toml` with no keys into the directory (default `docs/`).
-That config is how every command finds the docs tree -- never by name. A repository can hold a
+`doc-marshal init [path]` writes the config folder, `.doc-marshal/`, into the directory (default
+`docs/`). That config is how every command finds the docs tree -- never by name. A repository can hold a
 Sphinx `docs/` and a marshal tree elsewhere without ambiguity, and `init` warns when the target
 looks like a published site. Two configs in one repository is an error.
 
-In a later release the config holds the profile's adjustments: `extends = "standard"`, per-type
-overrides, `enabled = false`, `[policies]`, `exclude`. `doc-marshal info --dump-toml` shows the
-schema today. Until then it holds no keys: `init` writes it with a comment saying so, and a config
-carrying any key fails every command with exit 2. There is no escape hatch before the loader exists.
+The folder is the whole profile. `config.toml` declares the anchor fields, and each type is one
+file in `types/`, which `init` writes from `standard`: edit a file to change the type, delete it to
+remove the type, add one to declare a new type, or set `enabled = false` to disable a type and keep
+its file. A config that does not load fails every command with exit 2, naming the file.
 
 ## Design
 

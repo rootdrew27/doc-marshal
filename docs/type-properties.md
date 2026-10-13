@@ -11,7 +11,7 @@ code_refs:
 A type is data. `DocType` in `src/doc_marshal/ontology.py` is the single internal representation:
 the validator enforces from it, `doc-marshal new` writes from it, and `doc-marshal info` renders
 it. No policy hardcodes a type name. The [standard profile](standard-profile.md) constructs its
-types in Python; the configuration loader of a later release is an alternate constructor for
+types in Python; the [configuration](configuration.md) loader is an alternate constructor for
 the same objects.
 
 ## Properties
@@ -20,7 +20,7 @@ the same objects.
 | --- | --- |
 | `name` | the value a note's `type:` carries |
 | `serves`, `voice`, `mutability` | text only `info` renders |
-| `enabled` | whether the type is live; `enabled = false` in config removes it from the effective profile |
+| `enabled` | whether the type is live; `false` disables it and keeps its file |
 | `requires` | anchor fields of which a note must carry at least one -- a minimum, not a permitted set |
 | `requires_from` | the `status` from which `requires` binds; unset means always |
 | `statuses` | the values `status:` may take; empty means the type has no status |
@@ -36,7 +36,6 @@ the same objects.
 | `structure` | the parsed body shape, for a type whose body is data |
 | `required_sections` | the `##` sections a free-form note carries |
 | `empty_at` | `(section, status)` pairs: in that status the section, if present, is blank |
-| `description` | the longer argument for a user-declared type; the profile's own lives in `doctrine/` |
 
 `Supersession` names three values: `forward` (`supersedes`), `back` (`superseded_by`) and the
 `status` that requires the back-pointer.

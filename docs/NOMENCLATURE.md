@@ -18,14 +18,14 @@ out, not merely discouraged.
 | note | One typed markdown file under the docs tree, with frontmatter the effective profile validates and a body its type shapes. | page, article, document |
 | type | What a note is, named for the reader it serves and nothing else; declared as data whose properties the validator enforces and the scaffolder applies. | kind, category |
 | property | One declared line of a type: `serves`, `requires`, `folder`, `template` and the rest, each enforced by the validator and applied by the scaffolder. | attribute, declaration |
-| profile | A shipped ontology. `standard` is the one shipped today; `doc-marshal info` lists its types. | preset, default ontology |
+| profile | A shipped ontology. `standard` is the one shipped today, and `init` writes it into every new config. | preset, default ontology |
 | ontology | A set of types and anchor fields, with the argument for why each type exists. | taxonomy |
-| effective profile | The profile a docs tree is validated against once its config's changes apply; today, always `standard` unchanged. | registry |
+| effective profile | The anchor fields and types a docs tree's config declares, which its notes are validated against; named `standard` while it matches the shipped one. | registry |
 | anchor | A frontmatter field naming what outside a note would falsify it; each field declares how its entries resolve. | link, dependency |
 | drift | Anchored code changing while the note anchored to it does not. | rot, bit-rot |
 | drifted | The notes whose path-valued anchors name something a change touched: a prompt to look, not a verdict. | affected, impacted |
 | docs tree | The one directory the engine governs and everything under it: the directory holding the config, found by the config and never by name. | docs root, docs folder, docs dir, documentation directory |
-| config | `.doc-marshal.toml`, which marks the docs tree by existing and will carry the profile's adjustments. | marker, manifest |
+| config | `.doc-marshal/` at the top of the docs tree: `config.toml` marks the tree and declares the anchor fields, and `types/` holds one file per type. | marker, manifest |
 | mutable | A note rewritten in place as its subject changes. | living, evergreen |
 | append-only | A note never edited after acceptance, so its wording cannot be corrected; anchored by its own content. | immutable, frozen |
 | supersession | A later note replacing an append-only one, recorded by a field and a status on the replaced note. | deprecation, retirement |
@@ -45,7 +45,7 @@ out, not merely discouraged.
 
 ## Relationships
 
-- An effective profile is one profile as adjusted by one config; today no config adjusts anything, so it is always `standard`.
+- An effective profile is what one config declares; `init` starts every config from `standard`.
 - A type declares anchor minimums; `drifted` reads every path-valued anchor against a change.
 - A policy runs over a note and writes into the report; an integration is where the policies run.
 - Every jurisdiction that names a version names the same one; a pin is a jurisdiction's value; `doctor` reads them and `upgrade` moves them together.

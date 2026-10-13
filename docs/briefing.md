@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-13
 summary: The three blocks a fresh session is handed about the docs tree, and what the plugin's SessionStart hook does with them
 code_refs:
   - src/doc_marshal/briefing.py
@@ -56,10 +56,11 @@ than failing. That is for a hook installed across every project, most of which h
 
 `plugin/hooks/session-start.py` is deliberately thin. It resolves the project's own engine the way
 every [integration](integrations.md) does, runs `briefing --quiet-if-absent`, and writes the output
-as the `additionalContext` of a `SessionStart` hook result. It stays silent when the command fails, when the output is empty, and on any internal
-failure of its own.
+as the `additionalContext` of a `SessionStart` hook result. It stays silent when the output is empty and on any internal failure of its own. When the
+config does not load, it passes on the engine's `CONFIG:` line, to the user as a `systemMessage`
+and to the session.
 
-The one thing it says on its own is `MISSING_ENGINE`: the project has a `.doc-marshal.toml` but no
+The other thing it says on its own is `MISSING_ENGINE`: the project has a config but no
 engine was found, so notes are not being validated as they are written. Silence there would look
 like a clean tree. Because it arrives as `additionalContext`, it is read by an agent at the top of
 a session opened for unrelated work, so it states the situation and stops: it says this is context

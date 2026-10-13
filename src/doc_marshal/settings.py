@@ -1,8 +1,8 @@
 """The constants of Tier 3, behind one object.
 
 The filename pattern, the summary cap, the index and assets names, the forbidden names and the
-excluded directories are not configurable until configuration lands (see docs/engine.md). They
-are routed through this one object anyway, so that exposing them under `[policies]` then is a schema
+excluded directories are not configurable until `[policies]` is read (see docs/configuration.md).
+They are routed through this one object anyway, so that exposing them then is a schema
 addition rather than a refactor through six modules: every consumer already takes a `Settings`.
 """
 

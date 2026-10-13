@@ -1,6 +1,6 @@
 ---
 type: spec
-updated: 2026-10-02
+updated: 2026-10-13
 summary: "What doc-marshal is: an engine that reads every policy off an effective profile, ships its doctrine in the package, and holds one version everywhere"
 status: done
 code_refs:
@@ -16,9 +16,9 @@ doc-marshal is a documentation system for repositories whose primary reader is a
 has three parts: an engine -- a validator, an index builder and a drift detector over a tree of
 typed markdown notes; the `standard` [profile](standard-profile.md), an ontology shipped
 as data; and [integrations](integrations.md) that run the engine at every write, every commit and
-every pull request. The engine is the product, and the shipped ontology is one profile among the
-ones a later release lets a repository declare. It starts at the directory holding
-`.doc-marshal.toml` and stops there: nothing outside that tree is validated, indexed or briefed.
+every pull request. The engine is the product, and the shipped ontology is the starting point a
+repository's own config edits. It starts at the directory holding the `.doc-marshal/` config
+folder and stops there: nothing outside that tree is validated, indexed or briefed.
 
 The distinguishing idea is the [anchor](anchors.md): every note declares in frontmatter what
 outside itself would falsify it, so "which notes did this change invalidate?" has a mechanical
@@ -28,11 +28,10 @@ answer.
 
 - Every policy is read off the effective profile rather than branched on by type name, so a new
   type is a profile entry and no check changes (`NOTE_POLICIES` in `src/doc_marshal/policies.py`).
-- The effective profile is one profile as adjusted by one config. Today `config.py` returns
-  `STANDARD` unchanged, and a config carrying any key exits 2 -- see
-  [configuration](configuration.md) for the loader that replaces it.
+- The effective profile is what the docs tree's config declares: its anchor fields and one file
+  per type ([configuration](configuration.md)).
 - A type is data: [what it declares](type-properties.md) is enforced by the validator and applied
-  by the scaffolder, from one `DocType` the profile constructs in Python.
+  by the scaffolder, from one `DocType`.
 - The docs tree is located by `--docs-tree`, then `DOC_MARSHAL_DOCS_TREE`, then the config file,
   and never by directory name (`discovery.py`). One repository has one docs tree.
 - Anchor fields are declared, not fixed. Which of them a change is matched against follows from
@@ -52,7 +51,7 @@ answer.
 - Whatever the effective profile results in is enforced completely: no inline suppression, no
   severity configuration, no warn-only mode. [Configuration](configuration.md) says what no
   configuration reaches.
-- The constants a later release exposes -- the filename pattern, the summary cap, the index and
+- The constants `[policies]` will expose -- the filename pattern, the summary cap, the index and
   asset directory names, the forbidden names, the excluded directories -- are routed through one
   `Settings` object today, so exposing them is an addition rather than a refactor through six
   modules.

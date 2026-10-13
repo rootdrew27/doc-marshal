@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-10-02
+updated: 2026-10-13
 summary: Every doc-marshal verb, its flags, its exit status and what it is for, and how each one locates the docs tree
 code_refs:
   - src/doc_marshal/cli.py
@@ -25,7 +25,7 @@ or `version` prints the version. An unknown verb exits 2.
 | `new` | `<type> <path>`, `--summary` (required), `--title`, `--code-ref`, `--source`, `--status` | scaffold a note with the frontmatter and sections its type requires. It does not validate: the scaffold fails `check` until it is written |
 | `info` | `[type]`, `--policies`, `--types`, `--marshalling`, `--format markdown\|json`, `--dump-toml` | the effective profile and the doctrine. Bare: the live types, one line each, with their anchors. `--dump-toml` prints the profile the way the configuration file of a later release spells it |
 | `init` | `[path]`, `--claude-code`, `--no-plugin`, `--pre-commit`, `--ci`, `--pin X.Y.Z` | mark a directory as the docs tree and write the integration files |
-| `doctor` | -- | every route to the engine and every version the repository names, and whether they agree |
+| `doctor` | -- | every route to the engine and every version the repository names, and whether they agree; how the profile differs from `standard` |
 | `upgrade` | `<version>`, `--pins`, `--dry-run` | install a version and point every pin at it |
 | `briefing` | `--quiet-if-absent` | what a fresh session is given about the docs tree |
 
@@ -38,12 +38,12 @@ profile, so `code_refs` is `--code-ref` and `source` is `--source`.
 | --- | --- |
 | 0 | nothing to report. Warnings never change this, and neither does a `drifted` match without `--fail-on-match` |
 | 1 | `check` found an error; `index --check` found a stale or unbuildable index; `doctor` found a problem; `drifted --fail-on-match` matched |
-| 2 | a usage error, or anything the engine refuses: no docs tree, two configs, a config carrying keys, a malformed `--range`, an unknown verb |
+| 2 | a usage error, or anything the engine refuses: no docs tree, two configs, a config that does not load (a `CONFIG:` line names the file), a malformed `--range`, an unknown verb |
 
 ## Locating the docs tree
 
 Every verb but `init` and `upgrade` takes `--docs-tree PATH`. Resolution is `--docs-tree`, then
-the `DOC_MARSHAL_DOCS_TREE` environment variable, then the directory holding `.doc-marshal.toml`
+the `DOC_MARSHAL_DOCS_TREE` environment variable, then the directory holding `.doc-marshal/config.toml`
 -- never a directory name. Inside a git repository the search is `git ls-files`, which honours
 `.gitignore`; the working directory's ancestors are checked first, so a command run from inside
 the tree finds its config without searching.
