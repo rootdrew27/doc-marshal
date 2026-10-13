@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import tomllib
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -92,16 +93,19 @@ def load_profile(docs_tree: Path, settings: Settings = SETTINGS) -> Profile:
 
 def differences(profile: Profile, settings: Settings = SETTINGS) -> dict[str, list[str]]:
     """Where a tree's profile departs from the shipped `standard` that `init` wrote: the types
-    whose file differs, the types standard does not have, the standard types with no file, and the
-    same three for anchor fields. Empty lists where it agrees. What `doctor` reports -- a newer
-    engine's change to a shipped type reaches a tree only by its file being edited, so this is
-    where a user sees what they hold apart from it."""
+    switched off, the types whose file differs otherwise, the types standard does not have, the
+    standard types with no file, and the last three for anchor fields. Empty lists where it agrees.
+    What `doctor` reports -- a newer engine's change to a shipped type reaches a tree only by its
+    file being edited, so this is where a user sees what they hold apart from it."""
     shipped = standard(settings)
+    # Switched off is its own line rather than an edit: it is the one change made to keep a type's
+    # file without the type, so a disabled type is compared as though it were on.
+    switched_on = {n: replace(t, enabled=True) for n, t in profile.types.items()}
     pairs: tuple[tuple[str, Mapping[str, object], Mapping[str, object]], ...] = (
-        ("types", profile.types, shipped.types),
+        ("types", switched_on, shipped.types),
         ("anchor fields", profile.anchor_fields, shipped.anchor_fields),
     )
-    out: dict[str, list[str]] = {}
+    out: dict[str, list[str]] = {"types disabled": list(profile.disabled)}
     for label, ours, theirs in pairs:
         out[f"{label} edited"] = [n for n in ours if n in theirs and ours[n] != theirs[n]]
         out[f"{label} added"] = [n for n in ours if n not in theirs]

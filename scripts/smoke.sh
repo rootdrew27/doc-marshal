@@ -216,10 +216,17 @@ grep -qx '\[anchors.code_refs\]' docs/.doc-marshal/config.toml
 doc-marshal info | grep -q "profile 'standard'"
 doc-marshal doctor | grep -q '^profile: .*matches the standard profile'
 grep -A1 '"ask": \[' .claude/settings.json | grep -q '"Edit(.doc-marshal/\*\*)"'
+# Switched off, a type keeps its file and is named as disabled wherever it would have appeared, with
+# the line that switches it back on.
 sed -i.bak 's/^enabled = true$/enabled = false/' "$types/runbook.toml" && rm "$types/runbook.toml.bak"
 ! doc-marshal check docs/deploy.md
+doc-marshal check docs/deploy.md | grep -q "type 'runbook' is disabled -- \`enabled\` in .doc-marshal/types/runbook.toml is false"
 ! doc-marshal new runbook docs/rollback --code-ref src/db.py --summary "Roll back."
-doc-marshal doctor | grep -q '^profile: .*types edited: runbook'
+doc-marshal new runbook docs/rollback --code-ref src/db.py --summary "Roll back." 2>&1 | grep -q "is disabled"
+doc-marshal info | grep -q '^  disabled: runbook'
+doc-marshal briefing | grep -q '^  disabled: runbook'
+doc-marshal doctor | grep -q '^profile: .*types disabled: runbook'
+! doc-marshal doctor | grep -q 'types edited: runbook'
 rm "$types/runbook.toml"
 doc-marshal check docs/deploy.md | grep -q "got 'runbook'"
 doc-marshal doctor | grep -q '^profile: .*types removed: runbook'

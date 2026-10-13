@@ -277,6 +277,27 @@ class Profile:
         """The live types, in canonical order. Every consumer reads this, never `types`."""
         return {name: spec for name, spec in self.types.items() if spec.enabled}
 
+    @property
+    def disabled(self) -> dict[str, DocType]:
+        """The types switched off with `enabled = false`: declared, kept, and live nowhere."""
+        return {name: spec for name, spec in self.types.items() if not spec.enabled}
+
+    def switch(self, name: str) -> str:
+        """Where a type is switched on and off, from the docs tree."""
+        return f"`enabled` in {self.settings.config_dirname}/{self.settings.types_dirname}/{name}.toml"
+
+    def not_live(self, name: object) -> str:
+        """Why `name` is no live type, said the same way by every command. A disabled type is named
+        as such, with the line that disabled it -- otherwise a note of a type the user switched off
+        reads as a typo, and the one-line fix is nowhere in sight."""
+        live = ", ".join(sorted(self.enabled)) or "none"
+        if isinstance(name, str) and name in self.disabled:
+            return (
+                f"type {name!r} is disabled -- {self.switch(name)} is false. Set it to true to use the "
+                f"type, or give the note a live one: {live}"
+            )
+        return f"'type' must be one of {live}, got {name!r}"
+
     def get(self, name: object) -> DocType | None:
         """The live type of that name, or None."""
         if not isinstance(name, str):
@@ -722,13 +743,20 @@ def anchors_toml(profile: Profile) -> str:
 def type_toml(profile: Profile, name: str) -> str:
     """One type as the file `types/<name>.toml` holds it: the type's table with no header, and its
     nested tables under their own. What `init` writes for each shipped type, so a tree customizes a
-    type by editing the file rather than by writing one from nothing."""
+    type by editing the file rather than by writing one from nothing. `enabled` comes first, with
+    what turning it off does, because it is the one key a user reaches for without reading the rest."""
+    table = to_dict(profile)["types"][name]
+    enabled = table.pop("enabled")
     lines = [
         f"# The `{name}` type, as `doc-marshal init` wrote it from the {profile.name} profile. This file",
         "# is the type: edit it to change the type, delete it to remove the type. Each key is one",
         "# property; `doc-marshal info --dump-toml` shows every type's.",
         "",
-        *_toml_table(to_dict(profile)["types"][name], ""),
+        "# false switches the type off and keeps this file: `info` lists it as disabled, and",
+        "# `check` and `new` refuse a note of it, naming this line. true switches it back on.",
+        f"enabled = {_toml_value(enabled)}",
+        "",
+        *_toml_table(table, ""),
     ]
     return "\n".join(lines) + "\n"
 

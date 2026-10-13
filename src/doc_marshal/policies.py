@@ -113,7 +113,7 @@ def check_frontmatter(note: Note, scope: Scope, report: Report) -> None:
         return
     settings = profile.settings
     if spec is None:
-        report.error(path, f"'type' must be one of {sorted(profile.enabled)}, got {meta.get('type')!r}")
+        report.error(path, profile.not_live(meta.get("type")))
 
     updated = meta.get("updated")
     if not isinstance(updated, str) or not DATE_RE.match(updated):

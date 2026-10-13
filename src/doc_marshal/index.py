@@ -67,7 +67,7 @@ def collect(docs_tree: Path, profile: Profile) -> tuple[list[Note], list[str]]:
             # The index names each note's type, so one outside the ontology would be published as
             # though it were real. The validator errors on this too; refusing here keeps the two
             # from disagreeing about what a note is.
-            problems.append(f"{rel}: type {doc_type!r} is not one of {sorted(profile.enabled)}")
+            problems.append(f"{rel}: {profile.not_live(doc_type)}")
             continue
         assert isinstance(doc_type, str) and isinstance(summary, str)
         notes.append(Note(path=rel, doc_type=doc_type, summary=summary))

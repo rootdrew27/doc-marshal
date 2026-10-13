@@ -109,6 +109,7 @@ def render_compact(profile: Profile) -> str:
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)}  {spec.serves.ljust(serves_width)}  {_placement(spec)}")
+    lines += _disabled_lines(profile)
     anchors = "; ".join(f"{name} = {', '.join(a.resolves)}" for name, a in profile.anchor_fields.items())
     lines.append("")
     lines.append(f"Anchors: {anchors or 'none declared'}.")
@@ -136,7 +137,17 @@ def render_briefing_types(profile: Profile) -> str:
     ]
     for spec in types.values():
         lines.append(f"  {spec.name.ljust(width)} {spec.serves} -- {describe_requires(spec)}")
+    lines += _disabled_lines(profile)
     return "\n".join(lines)
+
+
+def _disabled_lines(profile: Profile) -> list[str]:
+    """The types switched off in this tree, and where each is switched back on -- so neither a
+    person nor a session reads a missing type as one that never existed, or writes a note of it."""
+    return [
+        f"  disabled: {name} -- no note may take this type while {profile.switch(name)} is false"
+        for name in profile.disabled
+    ]
 
 
 # --- one type -------------------------------------------------------------------------------------
@@ -226,8 +237,7 @@ def type_facts(profile: Profile, spec: DocType) -> list[tuple[str, str]]:
 def render_type(profile: Profile, name: str) -> str:
     spec = profile.get(name)
     if spec is None:
-        known = ", ".join(profile.enabled)
-        raise DocMarshalError(f"no enabled type named {name!r}; the profile has: {known}")
+        raise DocMarshalError(profile.not_live(name))
     lines = [f"# `{spec.name}`", ""]
     facts = type_facts(profile, spec)
     width = max(len(k) for k, _ in facts)

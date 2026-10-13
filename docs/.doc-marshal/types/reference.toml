@@ -2,10 +2,13 @@
 # is the type: edit it to change the type, delete it to remove the type. Each key is one
 # property; `doc-marshal info --dump-toml` shows every type's.
 
+# false switches the type off and keeps this file: `info` lists it as disabled, and
+# `check` and `new` refuse a note of it, naming this line. true switches it back on.
+enabled = true
+
 serves = "someone looking up a fact -- decided by this repo, or observed from outside it"
 voice = "flat, enumerative, cites its source"
 mutability = "mutable -- rewritten in place as the code or the world changes"
-enabled = true
 code_refs = true
 source = true
 numbered = false
