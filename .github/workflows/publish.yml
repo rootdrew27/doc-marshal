@@ -80,13 +80,16 @@ jobs:
       TAG: v${{ needs.build.outputs.version }}
     steps:
       - name: Tag the published commit
+        # Create first, and look the tag up only when creating fails: a missing ref is a 404 whose
+        # JSON body `gh api` still prints, so reading a lookup's output cannot tell absent from present.
         run: |
           set -eu
-          existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null || true)
-          if [ -z "$existing" ]; then
-            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" > /dev/null
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" > /dev/null; then
             echo "tagged $GITHUB_SHA $TAG"
-          elif [ "$existing" != "$GITHUB_SHA" ]; then
+            exit 0
+          fi
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)
+          if [ "$existing" != "$GITHUB_SHA" ]; then
             echo "$TAG already names $existing, not the published $GITHUB_SHA -- delete it and re-run this job" >&2
             exit 1
           fi
