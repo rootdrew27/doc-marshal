@@ -27,13 +27,12 @@ one; any declared field is legal on any type.
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | mutable at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
 | `plan` | someone carrying out one piece of work to completion | ordered, imperative, each step checkable | mutable -- rewritten as the work moves, deleted once done | none |
 | `convention` | someone about to write code or docs that must follow it | normative, one convention, states its scope | mutable -- rewritten in place as the convention changes | any of `code_refs`, `source` |
-| `record` | someone checking what happened or was observed at a point in time | dated, past tense, exact | append-only -- never edited once written | none |
 | `nomenclature` | someone choosing what to call a thing | flat, definitional, opinionated | mutable -- rewritten as the domain sharpens | none |
 
 The types requiring no anchor are anchored by their own content: a `decision` by its context
-section, a `record` by its conditions, a `nomenclature` note by the words the repo uses. A `plan`
-is deleted once its work is done, so it never outlives the change it would drift from. A `spec` is
-anchored from `done` onward, because before that the code it would name need not exist.
+section, a `nomenclature` note by the words the repo uses. A `plan` is deleted once its work is
+done, so it never outlives the change it would drift from. A `spec` is anchored from `done`
+onward, because before that the code it would name need not exist.
 
 There is no index type. The index is generated from every note's `type` and `summary`, so the
 summary line is all a reader sees before opening a note; a hand-written index of any kind is an
@@ -104,7 +103,7 @@ What must be true before step one: access, tools, state. One line each.
 - **status:** accepted | superseded -- required in the note; `new` writes accepted when --status is omitted; born accepted, never superseded
 - **folder:** decisions/ at the docs tree
 - **filename:** NNNN-kebab-slug.md, numbers unique within the folder
-- **editing:** append-only -- never edited once written
+- **editing:** append-only -- never edited after acceptance
 - **supersession:** `supersedes` / `superseded_by` name the other note; status `superseded` requires `superseded_by`
 - **sections:** ## Context, ## Decision, ## Alternatives considered, ## Consequences -- required, in this order, each with content; other sections allowed
 - **title:** one H1, first, starting `NNNN -- `
@@ -292,49 +291,6 @@ Every module under `src/handlers/`. Webhook acknowledgements are exempt.
 
 ## Rationale
 A gateway timeout must not hold a request open; see decision 0004.
-```
-
-## `record`
-
-- **requires:** append-only
-- **frontmatter:** `type`, `updated`, `summary`, `code_refs`, `source` -- no other key
-- **folder:** records/ at the docs tree
-- **editing:** append-only -- never edited once written
-- **sections:** ## Conditions, ## Observations, ## Conclusions -- required, in this order, each with content; other sections allowed
-- **title:** one H1, first
-
-What happened or was observed at a point in time: a run's results, a measurement, an incident, a
-benchmark. A `reference` holds facts true now; a record holds what was true then, and stays true
-of then.
-
-- A later run is a new record, never an edit to this one. A repaired link or an `updated` bump
-  changes nothing observed and is allowed.
-- Dated and exact. `## Conditions` pins when, where and on what -- the date, the build, the
-  device, the inputs -- so a reader can tell whether it still applies.
-- Observations before interpretation. Quote output exactly; distinguish measured from inferred.
-- A fact the record establishes that readers will look up belongs in a `reference`, which cites
-  the record as its `source`.
-- Name the raw output or logs it rests on with `source`, as assets.
-
-Structure:
-
-```markdown
----
-type: record
-updated: 2026-08-07
-summary: Load test of payment retries at 500 requests per second on the 2026-08-07 build.
----
-
-# Retry load test, 2026-08-07
-
-## Conditions
-Build `a1b2c3d`, staging, 500 requests per second for ten minutes, 5% gateway failures injected.
-
-## Observations
-p99 latency 410 ms. 3 of 1,500 retries parked; none were lost.
-
-## Conclusions
-The queue holds at this rate. Nothing was measured above it.
 ```
 
 ## `nomenclature`

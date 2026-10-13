@@ -35,7 +35,6 @@ doc-marshal new runbook docs/deploy --code-ref src/db.py --summary "Deploy the s
 doc-marshal new spec docs/billing --summary "How billing behaves end to end."
 doc-marshal new plan docs/plans/move-billing --source docs/billing.md --summary "Move billing to the job queue."
 doc-marshal new convention docs/db-access --code-ref src/db.py --summary "Only src/db.py opens a connection."
-doc-marshal new record docs/records/load-test --summary "Load test of the 2026-09-03 build."
 ! doc-marshal new plan docs/move-billing --summary "A plan lives in plans/."
 grep -qx 'status: proposed' docs/plans/move-billing.md
 grep -qx 'status: proposed' docs/billing.md
@@ -45,7 +44,7 @@ doc-marshal check docs/deploy.md | grep -q 'is empty'
 doc-marshal check docs/deploy.md | grep -q 'does not track'
 ! doc-marshal new decision born-dead --status superseded --summary "A note is never born superseded."
 for note in docs/deploy.md docs/billing.md docs/decisions/0001-use-postgres.md docs/plans/move-billing.md \
-  docs/db-access.md docs/records/load-test.md; do
+  docs/db-access.md; do
   python3 - "$note" <<'EOF'
 import re, sys
 path = sys.argv[1]

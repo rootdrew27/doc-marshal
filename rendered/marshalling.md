@@ -167,7 +167,6 @@ each. With the standard profile, route by what the reader needs:
 | how an application or feature behaves **as a whole**, at any stage from proposed to built | `spec` -- and a change to built behaviour updates the existing spec's body and `status` |
 | the ordered work that carries one change out, across sessions | `plan` |
 | a convention or invariant that code or docs must follow | `convention` |
-| what happened or was observed at a point in time: a run's results, a measurement, an incident | `record` |
 | a choice with live alternatives that is likely to be revisited | `decision` |
 | a term the project uses inconsistently, or a word that needs ruling out | `nomenclature` -- but see the vocabulary policy in Stage 4: not on this run |
 

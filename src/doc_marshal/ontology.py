@@ -133,7 +133,7 @@ class DocType:
     reserved_filename: str | None = None  # the one filename this type may take, exempt from the naming pattern
     root_required: bool = False  # one instance must exist at the top of the docs tree
     additive: bool = False  # a nested instance may not redefine a key an ancestor defines
-    append_only: bool = False  # never edited once written, so its wording cannot be corrected
+    append_only: bool = False  # never edited after acceptance, so its wording cannot be corrected
     structure: Structure | None = None  # the body shape other checks parse -- see `Structure`
     # The `##` sections a free-form note must carry: each present once, in this relative order, with
     # content; other sections may appear anywhere. The lighter property beside `structure`, which
@@ -463,28 +463,6 @@ def standard(settings: Settings = SETTINGS) -> Profile:
                 "## Rationale",
                 "",
                 "<!-- Why it holds, in a line or two. Link the decision that set it, where one did. -->",
-            ),
-        ),
-        DocType(
-            name="record",
-            serves="someone checking what happened or was observed at a point in time",
-            voice="dated, past tense, exact",
-            mutability="append-only -- never edited once written",
-            folder="records",
-            append_only=True,
-            required_sections=("Conditions", "Observations", "Conclusions"),
-            template=(
-                "## Conditions",
-                "",
-                "<!-- When, where and on what: the date, the build, the device, the inputs. -->",
-                "",
-                "## Observations",
-                "",
-                "<!-- What happened, as measured or seen. Past tense. Quote output exactly. -->",
-                "",
-                "## Conclusions",
-                "",
-                "<!-- What the observations show, and what they do not. -->",
             ),
         ),
         DocType(

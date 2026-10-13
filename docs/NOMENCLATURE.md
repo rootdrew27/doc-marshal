@@ -1,6 +1,6 @@
 ---
 type: nomenclature
-updated: 2026-10-02
+updated: 2026-10-13
 summary: The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
 ---
 
@@ -27,7 +27,7 @@ out, not merely discouraged.
 | docs tree | The one directory the engine governs and everything under it: the directory holding the config, found by the config and never by name. | docs root, docs folder, docs dir, documentation directory |
 | config | `.doc-marshal.toml`, which marks the docs tree by existing and will carry the profile's adjustments. | marker, manifest |
 | mutable | A note rewritten in place as its subject changes. | living, evergreen |
-| append-only | A note never edited once written, so its wording cannot be corrected; anchored by its own content. | immutable, frozen |
+| append-only | A note never edited after acceptance, so its wording cannot be corrected; anchored by its own content. | immutable, frozen |
 | supersession | A later note replacing an append-only one, recorded by a field and a status on the replaced note. | deprecation, retirement |
 | template | What `new` writes for a type after the frontmatter and H1. | skeleton, boilerplate, stub |
 | structure | The parsed body shape a data-bodied type declares: sections, columns, key column, scanned columns and caps. | schema |

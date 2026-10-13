@@ -73,7 +73,6 @@ mixed note. Route by what the reader needs.
 | `spec` | someone reading, building or validating a feature's behaviour as a whole | declarative, whole-feature, links to the references that justify it | mutable at every status -- in-progress whenever the doc leads the code | `code_refs` once `done` |
 | `plan` | someone carrying out one piece of work to completion | ordered, imperative, each step checkable | mutable -- rewritten as the work moves, deleted once done | none |
 | `convention` | someone about to write code or docs that must follow it | normative, one convention, states its scope | mutable -- rewritten in place as the convention changes | any of `code_refs`, `source` |
-| `record` | someone checking what happened or was observed at a point in time | dated, past tense, exact | append-only -- never edited once written | none |
 | `nomenclature` | someone choosing what to call a thing | flat, definitional, opinionated | mutable -- rewritten as the domain sharpens | none |
 
 The anchor minimum is *any of* the fields listed: a `reference` about a fact this repo decides

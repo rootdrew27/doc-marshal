@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-10-02
+updated: 2026-10-13
 summary: "What the policies do not see: the limits of the naming, frontmatter, links, numbering, alias and vocabulary checks"
 code_refs:
   - src/doc_marshal/policies.py
@@ -73,6 +73,6 @@ directions: a note that does appear may describe a part of the code the change n
 
 - `--format github` annotates the file, not a line: the validator reports on notes, not positions.
 - `append_only` is a property `info` renders and the alias scan reads, and nothing else. That a
-  note of an append-only type is never edited once written is the writer's to hold, not the tool's.
+  note of an append-only type is never edited after acceptance is the writer's to hold, not the tool's.
 - Only the docs tree is scanned against the vocabulary. Whether the code uses the same terms is a
   review obligation.
