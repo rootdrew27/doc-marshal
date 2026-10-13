@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-08
+updated: 2026-10-02
 summary: The tests a runtime library must pass before this package takes one, and the one route into the engine that taking one breaks
 code_refs:
   - pyproject.toml
@@ -25,9 +25,9 @@ passed them yet.
 ## Test 2 blocks the obvious candidates
 
 **PyYAML.** `parse_frontmatter` deliberately reads a subset -- scalars and dash-item lists -- and
-raises on anything richer, so a block the convention does not sanction fails loudly instead of
+raises on anything richer, so a block the subset does not sanction fails loudly instead of
 validating as empty. PyYAML accepts nested mappings, flow style, anchors, and the Norway problem
-where a bare `no` becomes `False`. The strictness is the convention, enforced at parse time.
+where a bare `no` becomes `False`. The strictness is the point, enforced at parse time.
 
 A subset parser polices the inside of its subset and cannot see the outer boundary. It accepted,
 for a while, a summary carrying an unquoted `: ` -- ordinary English, and a nested mapping to every
@@ -44,11 +44,12 @@ exactly what they refuse.
 Whether test 2 survives contact with a library worth having is left to that library's decision
 note rather than settled in the abstract.
 
-`tomli-w` and `pyyaml` are taken as development libraries -- the first for the round-trip test
-between the profile and its TOML form, the second for the differential check above. They sit in the
-`dev` group beside `pytest`, `ruff` and `mypy`, and neither is imported at runtime: the differential
-check imports the `check` verb first and asserts that no `yaml` arrived with it, and CI installs
-PyYAML alongside the package rather than as part of it.
+`pyyaml` is taken as a development library, for the differential check above; the round trip
+between the profile and its TOML form needs none, since the writer is the engine's own and the
+reader is the standard library's `tomllib`. It sits in the `dev` group beside `pytest`, `ruff` and
+`mypy`, and is never imported at runtime: the differential check imports the `check` verb first
+and asserts that no `yaml` arrived with it, and CI installs PyYAML alongside the package rather
+than as part of it.
 
 ## The hooks are standard-library only, permanently
 

@@ -4,8 +4,9 @@
 writes from it, and `info` renders it -- no check hardcodes a type name. The profile is constructed
 in Python so its docstrings, type checking and cross-references (`Structure(max_cell=summary_max)`)
 survive; `from_dict` is the alternate constructor the configuration loader in `config.py` builds
-on, and `to_toml` is the serializer behind `info --dump-toml`. The round-trip test between the two is the forcing
-function: if the schema cannot express the shipped profile, the schema is too weak.
+on, and `to_toml` is the serializer behind `info --dump-toml`. The smoke test's round trip -- the
+profile to TOML and back, compared equal -- is the forcing function: if the schema cannot express
+the shipped profile, the schema is too weak.
 
 What is *not* here: why each type exists and how to route between them. That is `doctrine/`.
 """
@@ -285,7 +286,7 @@ class Profile:
     @property
     def repo_path_fields(self) -> tuple[str, ...]:
         """The code anchors: anchor fields whose entries resolve as repo paths. `drifted` matches
-        these, and only these, against a diff."""
+        the wider `path_fields`."""
         return tuple(name for name, f in self.anchor_fields.items() if f.is_repo_path)
 
     @property
@@ -317,20 +318,8 @@ class Profile:
 
 
 def standard(settings: Settings = SETTINGS) -> Profile:
-    """The `standard` profile: five types, two anchor fields.
-
-    A type names the reader it serves, and nothing else: look a fact up, run a procedure, read a
-    feature's behaviour as a whole, reopen a settled choice, choose what to call a thing. Whether a
-    fact was decided here or observed from outside is a property of the fact, so `reference` accepts
-    either anchor and requires at least one. Whether the thing described exists yet is a lifecycle,
-    so `spec` carries `status` and is anchored only once it is `done`.
-
-    `requires` lists the anchor fields of which a note must carry at least one. These are minimums,
-    not permitted sets: any declared field is legal on any type and is validated whenever present.
-
-    Two types require no anchor. `decision` is append-only and anchored by its own content. A
-    `nomenclature` note is falsified by the words the repo uses, not by a path, and anchoring it to code
-    would flag a vocabulary on every unrelated change.
+    """The `standard` profile. Why each type exists, and why some carry no anchor, is
+    `doctrine/doc-types.md`; this is the data the policies read.
 
     Order is canonical: it is the order `info` lists the types in, from the most common to the least.
     """
@@ -428,6 +417,52 @@ def standard(settings: Settings = SETTINGS) -> Profile:
                 "",
                 "<!-- Live unknowns only, one per line. A resolved one is deleted or becomes a decision.",
                 "     Must be empty once status is done. -->",
+            ),
+        ),
+        DocType(
+            name="plan",
+            serves="someone carrying out one piece of work to completion",
+            voice="ordered, imperative, each step checkable",
+            mutability="mutable -- rewritten as the work moves, deleted once done",
+            statuses=LIFECYCLE,
+            default_status="proposed",
+            folder="plans",
+            required_sections=("Goal", "Steps", "Done when"),
+            template=(
+                "## Goal",
+                "",
+                "<!-- The outcome in a paragraph, and the spec it carries out, linked. -->",
+                "",
+                "## Steps",
+                "",
+                "<!-- In order. Stable identifiers so one step can be ticked off without renumbering the rest. -->",
+                "",
+                "- [ ] **S1** --",
+                "",
+                "## Done when",
+                "",
+                "<!-- The observable conditions that end the work. One per line. -->",
+            ),
+        ),
+        DocType(
+            name="convention",
+            serves="someone about to write code or docs that must follow it",
+            voice="normative, one convention, states its scope",
+            mutability="mutable -- rewritten in place as the convention changes",
+            requires=("code_refs", "source"),
+            required_sections=("Convention", "Applies to", "Rationale"),
+            template=(
+                "## Convention",
+                "",
+                "<!-- What must hold, as a statement. Must and never, not should. -->",
+                "",
+                "## Applies to",
+                "",
+                "<!-- Where it binds: the paths, the kinds of change, the exceptions. -->",
+                "",
+                "## Rationale",
+                "",
+                "<!-- Why it holds, in a line or two. Link the decision that set it, where one did. -->",
             ),
         ),
         DocType(

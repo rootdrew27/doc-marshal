@@ -19,8 +19,8 @@ not enforced -- that is `check`'s job, and the note it writes fails `check` unti
 sections are written. The last line printed is the gate. An earlier version validated here as
 well and still wrote notes `check` rejected, because two implementations of one policy drift.
 
-The template writes every section the type requires and nothing else; a heading the type does
-not require earns its place or is deleted.
+The template writes every section the type requires, and any optional one the type declares --
+a spec's `Open questions`; a heading the type does not declare earns its place or is deleted.
 """
 
 from __future__ import annotations

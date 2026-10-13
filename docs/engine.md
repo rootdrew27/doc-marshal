@@ -1,6 +1,6 @@
 ---
 type: spec
-updated: 2026-09-08
+updated: 2026-10-02
 summary: "What doc-marshal is: an engine that reads every policy off an effective profile, ships its doctrine in the package, and holds one version everywhere"
 status: done
 code_refs:
@@ -14,7 +14,7 @@ code_refs:
 
 doc-marshal is a documentation system for repositories whose primary reader is a coding agent. It
 has three parts: an engine -- a validator, an index builder and a drift detector over a tree of
-typed markdown notes; the `standard` [profile](standard-profile.md), a five-type ontology shipped
+typed markdown notes; the `standard` [profile](standard-profile.md), an ontology shipped
 as data; and [integrations](integrations.md) that run the engine at every write, every commit and
 every pull request. The engine is the product, and the shipped ontology is one profile among the
 ones a later release lets a repository declare. It starts at the directory holding
@@ -67,7 +67,7 @@ answer.
       found; every command fails legibly when no config exists.
 - [x] **V1c** -- a repository holding both a Sphinx `docs/` and a marked tree validates only the
       marked one.
-- [ ] **V2** -- the round-trip test passes: the `standard` profile serializes to TOML, loads back,
+- [x] **V2** -- the round-trip test passes: the `standard` profile serializes to TOML, loads back,
       and compares equal.
 - [x] **V3** -- the plugin's hooks validate a note through the engine in the project's virtualenv;
       with no engine installed, SessionStart says so once and PostToolUse stays silent.

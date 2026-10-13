@@ -211,7 +211,7 @@ def ci_steps(version: str) -> list[str]:
         "- uses: actions/checkout@v4\n  with:\n    fetch-depth: 0\n",
         "- uses: astral-sh/setup-uv@v6\n",
         f'- run: uvx {pin} check --all --format github --range "{base}..HEAD"\n',
-        f"- run: uvx {pin} index --check\n  continue-on-error: true\n",
+        f"- run: uvx {pin} index --check\n",
         f'- run: uvx {pin} drifted --range "{base}..HEAD" --format github\n',
     ]
 

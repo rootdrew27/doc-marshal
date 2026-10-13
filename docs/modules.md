@@ -1,6 +1,6 @@
 ---
 type: reference
-updated: 2026-09-30
+updated: 2026-10-02
 summary: "One line per module of the package, per plugin file and per script: what each one owns"
 code_refs:
   - src/doc_marshal
@@ -62,6 +62,5 @@ by `cli.py`, so no verb pays for another's imports.
 ## What is not here
 
 There is no `tests/` directory. CI runs `scripts/smoke.sh` on each supported Python, and checks
-that `rendered/` still matches the doctrine and the profile. A suite over synthetic trees is still
-the plan, and the round-trip test between the profile and its TOML form is the first case it should
-hold.
+that `rendered/` still matches the doctrine and the profile. The smoke test holds the round trip
+between the profile and its TOML form; a suite over synthetic trees is still the plan.
