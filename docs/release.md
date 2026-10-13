@@ -1,7 +1,7 @@
 ---
 type: runbook
-updated: 2026-10-02
-summary: "Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish"
+updated: 2026-10-13
+summary: "Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, and merge to publish"
 code_refs:
   - scripts/sync_version.py
   - scripts/render_doctrine.py
@@ -52,8 +52,7 @@ code_refs:
 
    Both exit 0: `sync_version.py --check` prints one confirming line, `render_doctrine.py --check`
    prints nothing. `sync_version.py --check` naming a copy is the
-   build refusing to proceed -- a tag must never publish a wheel that reports a different version
-   from its name.
+   build refusing to proceed -- a release must never publish a wheel whose copies disagree.
 
 4. **Run what CI runs**, cheapest first:
 
@@ -71,28 +70,12 @@ code_refs:
 5. **Open a pull request** and let it go green. `.github/workflows/test.yml` repeats the smoke run on
    Python 3.11 through 3.14, checks `rendered/`, and runs ruff, mypy and the version check.
 
-6. **Merge to `main`.** The `render` workflow regenerates `rendered/` on the push and commits it
-   back if it differs, so the copy stays derived rather than maintained.
+6. **Merge to `main`.** The merge is the release: `publish.yml` sees a `__version__` PyPI does not
+   have, checks the version copies, builds the wheel and runs it from a clean environment,
+   publishes by trusted publishing, then tags the merge commit `vX.Y.Z`. Do not push a tag by hand.
 
-7. **Tag the merge commit and push the tag.** The tag is the release:
-
-   ```bash
-   git checkout main && git pull
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
-
-8. **Watch `publish.yml`.** It refuses the build unless the tag matches `__version__` and
-   `sync_version.py --check` passes, builds the wheel, installs it into a clean environment and
-   runs `doc-marshal --version` and `info --marshalling` from there, then publishes to PyPI by
-   trusted publishing -- no token is stored anywhere. A failure at the first step means step 3 was
-   skipped. Nothing was published, so fix it on a branch, merge, and move the tag onto the new
-   commit:
-
-   ```bash
-   git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z
-   git tag vX.Y.Z && git push origin vX.Y.Z
-   ```
+7. **Watch `publish.yml`** in the repository's Actions tab. A failed run published nothing that a
+   re-run would duplicate: fix the cause on a branch and merge, or re-run the failed jobs.
 
 This repository holds no pin of its own to move: its pre-commit hooks and `docs.yml` run the
 engine in the checkout, so the tree that documents the engine is validated by the engine under
