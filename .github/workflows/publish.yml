@@ -1,15 +1,17 @@
-# Publish to PyPI on a version tag, by trusted publishing: no token stored anywhere. PyPI trusts
-# this workflow file in this repository (configure once under the project's "Publishing" page:
-# owner rootdrew27, repository doc-marshal, workflow publish.yml, environment pypi).
+# Publish to PyPI when a push to main carries a version PyPI does not have, then tag that commit.
+# Merging the release pull request is the release: nobody pushes a tag, so no tag can name a commit
+# whose `__version__` disagrees with it. Trusted publishing, so no token is stored anywhere; PyPI
+# trusts this workflow file in this repository (configured once under the project's "Publishing"
+# page: owner rootdrew27, repository doc-marshal, workflow publish.yml, environment pypi).
 #
-# The tag is the release. `vX.Y.Z` must match `__version__`, which pyproject.toml reads through
-# hatch, and every copy scripts/sync_version.py governs -- the check step refuses to build
-# otherwise, so a tag can never publish a wheel that reports a different version from its name.
+# Every step is safe to re-run: a version already on PyPI stops the run, the upload skips files
+# PyPI already holds, and the tag is made only once the upload has succeeded.
 name: publish
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: [src/doc_marshal/__init__.py]
 
 permissions:
   contents: read
@@ -17,23 +19,37 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      new: ${{ steps.version.outputs.new }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: The tag matches the package version
+      - name: The version, and whether PyPI has it
+        id: version
         run: |
           set -eu
-          tag="${GITHUB_REF_NAME#v}"
-          grep -qx "__version__ = \"$tag\"" src/doc_marshal/__init__.py \
-            || { echo "tag v$tag but __version__ says $(grep __version__ src/doc_marshal/__init__.py)" >&2; exit 1; }
-          uv run --group dev python scripts/sync_version.py --check
-      - run: uv build
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/doc_marshal/__init__.py)
+          status=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/doc-marshal/$version/json")
+          case "$status" in
+            200) new=false; echo "doc-marshal $version is already on PyPI -- nothing to publish" ;;
+            404) new=true ;;
+            *) echo "PyPI answered $status for doc-marshal $version" >&2; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+      - if: steps.version.outputs.new == 'true'
+        run: uv run --group dev python scripts/sync_version.py --check
+      - if: steps.version.outputs.new == 'true'
+        run: uv build
       - name: The wheel installs and runs from a clean environment
+        if: steps.version.outputs.new == 'true'
         run: |
           uv venv /tmp/venv && uv pip install --python /tmp/venv/bin/python dist/*.whl
           /tmp/venv/bin/doc-marshal --version
           /tmp/venv/bin/doc-marshal info --marshalling > /dev/null
-      - uses: actions/upload-artifact@v4
+      - if: steps.version.outputs.new == 'true'
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
@@ -41,6 +57,7 @@ jobs:
 
   publish:
     needs: build
+    if: needs.build.outputs.new == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -51,4 +68,25 @@ jobs:
           name: dist
           path: dist/
       - uses: astral-sh/setup-uv@v6
-      - run: uv publish --trusted-publishing always
+      - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/
+
+  tag:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ needs.build.outputs.version }}
+    steps:
+      - name: Tag the published commit
+        run: |
+          set -eu
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null || true)
+          if [ -z "$existing" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" > /dev/null
+            echo "tagged $GITHUB_SHA $TAG"
+          elif [ "$existing" != "$GITHUB_SHA" ]; then
+            echo "$TAG already names $existing, not the published $GITHUB_SHA -- delete it and re-run this job" >&2
+            exit 1
+          fi

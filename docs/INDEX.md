@@ -18,7 +18,7 @@
 - [known-boundaries](known-boundaries.md) -- `reference` -- What the policies do not see: the limits of the naming, frontmatter, links, numbering, alias and vocabulary checks
 - [modules](modules.md) -- `reference` -- One line per module of the package, per plugin file and per script: what each one owns
 - [NOMENCLATURE](NOMENCLATURE.md) -- `nomenclature` -- The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
-- [release](release.md) -- `runbook` -- Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, merge, and tag to publish
+- [release](release.md) -- `runbook` -- Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, and merge to publish
 - [setup](setup.md) -- `runbook` -- Install doc-marshal into a repository, mark its docs tree, wire the integrations, and move every pin to a new version
 - [standard-profile](standard-profile.md) -- `reference` -- The standard profile: where its types are rendered, the lifecycle they share, and why there is no Related section
 - [type-properties](type-properties.md) -- `reference` -- Every property a type declares, what the validator enforces from it, and what the scaffolder writes from it
