@@ -1,23 +1,18 @@
 # doc-marshal
 
-An engine that validates a typed markdown docs tree whose primary reader is a coding agent.
+Documentation **enforcement** for the AI age.
 
-Documentation drifts because nothing ties a note to the code that would falsify it. doc-marshal
-makes that tie mechanical: every mutable note names, in its frontmatter, the code or source it
-describes -- its **anchor** -- so `doc-marshal drifted` can list the notes a change touched, and
-`doc-marshal check` holds every note to the policies of its type.
+People and coding agents now write a repository's docs side by side, and both need them to hold a
+shape. doc-marshal enforces one. Every note in the docs tree has a type, and the type decides what
+the note must carry: its frontmatter, its sections, its folder and its filename. `doc-marshal check`
+enforces it as an agent writes, at every commit, and on every pull request.
 
-```yaml
----
-type: reference
-updated: 2026-08-07
-summary: How the sync worker chooses between its two ingest modes.
-code_refs:
-  - src/ingest/sync_worker.py
----
-```
+The frontmatter ties each note to the code it describes with its **anchor**. When that code
+changes, `doc-marshal drifted` lists the notes that may no longer be true.
 
-Python 3.11 or later, no runtime dependencies, inside a git repository. Supported: Claude Code on
+* Requires Python 3.11 or later, no runtime dependencies, and a git repository. 
+
+* Supported: Claude Code on
 macOS and Linux. The CLI, pre-commit and CI run anywhere Python does.
 
 ## Install
