@@ -2,8 +2,8 @@
 #
 # No `paths:` filter: half of what this checks is whether the anchors still resolve, and those
 # break in the change that renames or deletes the code -- which by definition touches no
-# documentation. `fetch-depth: 0` because `drifted` and `--range` answer from a git diff, and the
-# default shallow clone makes them answer *nothing* rather than fail.
+# documentation. `fetch-depth: 0` because `drifted` answers from a git diff, and the default
+# shallow clone makes it answer *nothing* rather than fail.
 #
 # Where a consuming repository pins a release through `uvx`, this one runs the
 # engine in the checkout, so the tree that documents the engine is validated by the engine under
@@ -25,6 +25,5 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --group dev
-      - run: uv run doc-marshal check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
-      - run: uv run doc-marshal index --check
+      - run: uv run doc-marshal check --all --format github
       - run: uv run doc-marshal drifted --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github

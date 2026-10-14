@@ -1,6 +1,5 @@
 ---
 type: spec
-updated: 2026-10-13
 summary: "The config folder: config.toml declares the anchor fields, one file per type in types/, and what a broken config does"
 status: in-progress
 code_refs:

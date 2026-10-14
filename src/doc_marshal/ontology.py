@@ -140,7 +140,7 @@ class DocType:
     folder: str | None = None  # the one folder under the docs tree this type lives in
     numbered: bool = False  # the filename carries a unique `NNNN-` prefix
     supersession: Supersession | None = None  # how this type records being replaced
-    template: tuple[str, ...] = ()  # what `new` writes; `{today}` is substituted
+    template: tuple[str, ...] = ()  # what `new` writes after the frontmatter and H1
     reserved_filename: str | None = None  # the one filename this type may take, exempt from the naming pattern
     root_required: bool = False  # one instance must exist at the top of the docs tree
     additive: bool = False  # a nested instance may not redefine a key an ancestor defines
@@ -330,11 +330,11 @@ class Profile:
         return tuple(name for name, f in self.anchor_fields.items() if f.is_repo_path or "docs-path" in f.resolves)
 
     def frontmatter_keys(self, spec: DocType) -> tuple[str, ...]:
-        """Every key a note of this type may carry: the three every note has, every declared
+        """Every key a note of this type may carry: the two every note has, every declared
         anchor field (legal on every type), `status` where the type has one, and the supersession
         pair where it declares one. The validator rejects any other key by this list, and `info`
         prints it."""
-        keys = ["type", "updated", "summary", *self.anchor_fields]
+        keys = ["type", "summary", *self.anchor_fields]
         if spec.statuses:
             keys.append("status")
         if spec.supersession is not None:

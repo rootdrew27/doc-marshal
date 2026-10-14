@@ -2,9 +2,9 @@
 
 Three blocks, in the order they should be read (see docs/briefing.md):
 
-1. The index preview -- folder names with note counts, and nothing else, ending with a pointer to
-   the full index. Uniform reduction at every size, top level included: the full index grows
-   linearly with the tree forever, and every session paid for it whether or not it opened a doc.
+1. The index preview -- folder names with note counts, and nothing else, ending with the command
+   that prints the full index. Uniform reduction at every size, top level included: the full index
+   grows linearly with the tree forever, and every session paid for it whether or not it opened a doc.
 2. The docs tree's nomenclature note, as its content rather than its file: the table as one line
    per term, then the remaining sections as written. Frontmatter and HTML comments are for the
    validator and the author, not the session. The terms and the aliases they rule out are the
@@ -27,45 +27,36 @@ from .config import add_docs_tree_option, load_profile
 from .discovery import find_docs_tree, find_repo_root
 from .errors import DocMarshalError
 from .frontmatter import read_note
-from .index import index_state, render_preview
+from .index import collect, render_preview
 from .info import render_briefing_types
 from .markdown import cell_items, cell_text, parse_table, sections, strip_comments
 from .ontology import DocType, Profile
 from .paths import exists_exact, iter_notes, rel_to
 
-REGENERATE = "doc-marshal index"
+LIST = "doc-marshal index"
 
 
 def index_block(docs_tree: Path, profile: Profile, label: str) -> str:
-    """The preview, with a warning ahead of it when the index no longer matches the notes.
+    """The preview, with the notes that could not be listed after it.
 
-    A session routing off a stale index is exactly when staleness matters, so it is computed here
-    rather than left for CI to mention later. Any failure to answer counts as not stale: a broken
-    hook must not manufacture a warning about the docs.
+    Any failure to answer is said in one line: a broken hook must not fail the session over a docs
+    problem, nor manufacture a finding about the docs.
     """
-    index_name = profile.settings.index_name
     try:
-        state = index_state(docs_tree, profile)
+        notes, problems = collect(docs_tree, profile)
     except Exception:  # a hook must not fail the session over a docs problem
-        return f"{label}/ is the documentation tree (doc-marshal). Its index could not be read."
-    if not state.notes and state.problems:
+        return f"{label}/ is the documentation tree (doc-marshal). Its notes could not be read."
+    if not notes and problems:
         return (
-            f"{label}/ is the documentation tree (doc-marshal), but no note could be indexed. "
+            f"{label}/ is the documentation tree (doc-marshal), but no note could be listed. "
             f"Run `doc-marshal check --all`."
         )
-    lines = [f"{label}/ is the documentation tree (doc-marshal). {render_preview(state.notes)}"]
-    lines.append(
-        f"Full list with each note's type and summary: {label}/{index_name} "
-        f"(generated -- `{REGENERATE}` regenerates it; never edit it)."
-    )
-    if state.stale:
-        lines.insert(
-            0,
-            f"WARNING: {label}/{index_name} no longer matches the notes it is generated from -- it may "
-            f"name docs that moved or omit docs that exist. Regenerate it with `{REGENERATE}`.",
-        )
-    if state.problems:
-        lines.append("Notes that could not be indexed: " + "; ".join(state.problems))
+    lines = [
+        f"{label}/ is the documentation tree (doc-marshal). {render_preview(notes)}",
+        f"Every note with its type and summary: `{LIST}`.",
+    ]
+    if problems:
+        lines.append("Notes that could not be listed: " + "; ".join(problems))
     return "\n".join(lines)
 
 

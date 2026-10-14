@@ -24,7 +24,7 @@ section, a `nomenclature` note by the words the repo uses. A `plan` is deleted o
 done, so it never outlives the change it would drift from. A `spec` is anchored from `done`
 onward, because before that the code it would name need not exist.
 
-There is no index type. The index is generated from every note's `type` and `summary`, so the
+There is no index type. `doc-marshal index` prints every note's `type` and `summary`, so the
 summary line is all a reader sees before opening a note; a hand-written index of any kind is an
 error.
 
@@ -90,8 +90,7 @@ One choice, its context and its consequences: the why of a choice, for someone a
   the reference that states it.
 - Append-only. An accepted decision is never edited; a change is a new decision that supersedes
   it, linked both ways. A dead end with no choice left standing is git's to record. Maintenance --
-  a heading the shape requires, a repaired link, an `updated` bump -- changes nothing decided and
-  is allowed. The validator holds the shape; append-only is yours to hold.
+  a heading the shape requires, a repaired link -- changes nothing decided and is allowed. The validator holds the shape; append-only is yours to hold.
 - The alternatives, and why each lost, are the part that stops the question being reopened.
 - `doc-marshal new decision <slug>` derives the number, the path and the title. Do not number one
   by hand.
@@ -101,7 +100,6 @@ Structure:
 ```markdown
 ---
 type: decision
-updated: 2026-08-07
 summary: Why a repeatedly-failing retry parks instead of exiting.
 status: accepted
 code_refs:
@@ -147,7 +145,6 @@ Structure:
 ```markdown
 ---
 type: spec
-updated: 2026-08-07
 summary: How a payment retry is scheduled, parked and escalated.
 status: in-progress
 code_refs:
@@ -194,7 +191,6 @@ Structure:
 ```markdown
 ---
 type: plan
-updated: 2026-08-07
 summary: Move payment retries from cron to the job queue.
 status: in-progress
 source:
@@ -237,7 +233,6 @@ Structure:
 ```markdown
 ---
 type: convention
-updated: 2026-08-07
 summary: Handlers never call the payment gateway directly; they enqueue a job.
 code_refs:
   - src/handlers/

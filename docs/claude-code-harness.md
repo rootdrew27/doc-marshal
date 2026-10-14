@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-02
 summary: "What Claude Code guarantees the plugin builds on: hook events and their output, the worktree path split, why the Bash permission entries cannot be completed, and the skill listing budget"
 code_refs:
   - plugin

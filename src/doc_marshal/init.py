@@ -10,9 +10,8 @@ This is the command that makes a repository legible to the tool, not a convenien
 - the config, `.doc-marshal/config.toml`, comments and no keys -- the standard profile unchanged,
   until a key or a file under `.doc-marshal/types/` adjusts it;
 - the root `nomenclature` note, because that type is `root_required` and `check --all` errors without it;
-- the generated index, so the tree validates from its first minute;
 - one small agent-memory pointer file, `AGENTS.md` (or `CLAUDE.md`), inside the docs tree. It
-  says what the tree, its commands and its two special files are for -- a pointer to
+  says what the tree, its commands and its vocabulary file are for -- a pointer to
   `doc-marshal info`, never a copy of the policies, so it cannot drift.
 
 With `--claude-code` it also puts the pointer in every session: one `@<docs tree>/CLAUDE.md`
@@ -47,7 +46,6 @@ import subprocess
 import sys
 import textwrap
 from collections.abc import Sequence
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -56,7 +54,6 @@ from .config import load_profile
 from .discovery import cwd_repo, find_docs_trees
 from .errors import DocMarshalError
 from .frontmatter import split_frontmatter
-from .index import index_state, plural, render
 from .integrate import CI_FILE, WORKFLOWS, Written, has_hook, writable, write_ci, write_precommit
 from .new import frontmatter_lines, render_note
 from .ontology import Profile, anchors_toml, standard, type_toml
@@ -146,8 +143,8 @@ def numbered(steps: Sequence[str], indent: str = "  ") -> list[str]:
 
 
 def warn(text: str) -> None:
-    """A warning on stderr, wrapped under its own label. Later lines are already a list -- the
-    notes that could not be indexed -- and keep their own line each."""
+    """A warning on stderr, wrapped under its own label. Later lines are already a list and keep
+    their own line each."""
     first, *rest = text.splitlines()
     print(
         "\n".join(textwrap.wrap(first, width=width(), initial_indent="warn:  ", subsequent_indent="       ")),
@@ -193,14 +190,13 @@ def frontmatterless(target: Path, settings: Settings) -> list[Path]:
 
 
 def pointer_text(docs_label: str, settings: Settings, profile: Profile) -> str:
-    """The pointer file: what the tree, its commands and its two special files are for.
+    """The pointer file: what the tree, its commands and its vocabulary file are for.
 
     Descriptive on purpose. With `--claude-code` this is imported into every session, so it says
     what exists and what each thing is for, and leaves how to use them to `doc-marshal info`,
     which is versioned with the engine. No heading: as an import it is a fragment of the root
     file, not a document.
     """
-    index = settings.index_name
     lines = [
         f"`{docs_label}/` is a doc-marshal docs tree: typed markdown notes whose primary reader is a coding",
         "agent. The policies ship in the tool, not in this file.",
@@ -213,14 +209,13 @@ def pointer_text(docs_label: str, settings: Settings, profile: Profile) -> str:
         "doc-marshal check <path>         # validates a note against the policies; --all sweeps the tree",
         "doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires",
         "doc-marshal drifted              # the notes anchored to code a change touched",
-        f"doc-marshal index                # regenerates {index}",
+        "doc-marshal index                # every note with its type and summary",
         "```",
-        "",
-        f"- `{index}` -- generated routing surface: one line per note with its type and summary.",
     ]
     for spec in profile.root_notes:
+        lines.append("")
         lines.append(
-            f"- `{spec.reserved_filename}` -- the shared vocabulary for docs and code, and the aliases it rules out."
+            f"`{spec.reserved_filename}` -- the shared vocabulary for docs and code, and the aliases it rules out."
         )
     return "\n".join(lines) + "\n"
 
@@ -285,13 +280,12 @@ def scaffold_nomenclature(target: Path, profile: Profile, repo_name: str) -> Pat
         path = spec.reserved_path(target)
         if path.exists():
             return None
-        today = date.today().isoformat()
         summary = (
             "The project's shared terminology -- one word per concept, the aliases ruled out, and "
             "the live ambiguities. Emitted into every session."
         )
-        meta = frontmatter_lines(spec.name, summary, today)
-        path.write_text(render_note(f"{repo_name} shared vocabulary", meta, spec, today), encoding="utf-8")
+        meta = frontmatter_lines(spec.name, summary)
+        path.write_text(render_note(f"{repo_name} shared vocabulary", meta, spec), encoding="utf-8")
         return path
     return None
 
@@ -449,15 +443,6 @@ def main(argv: list[str]) -> int:
     if args.claude_code and merge_import(repo_root / pointer_name, line):
         created.append(Written(pointer_name, f"imports {label}/{pointer_name} into every session (`{line}`)"))
 
-    state = index_state(target, profile)
-    if state.problems:
-        warn(f"{settings.index_name} not generated -- these notes cannot be indexed yet:\n" + "\n".join(state.problems))
-    elif state.notes and state.stale:
-        (target / settings.index_name).write_text(render(state.notes), encoding="utf-8")
-        created.append(
-            Written(f"{label}/{settings.index_name}", f"generated -- {len(state.notes)} {plural(len(state.notes))}")
-        )
-
     if args.claude_code and merge_permissions(repo_root / ".claude" / "settings.json", settings):
         created.append(
             Written(
@@ -525,13 +510,9 @@ def main(argv: list[str]) -> int:
     # resolves, which a pasted snippet does not.
     available: list[Written] = []
     if not args.pre_commit and not has_hook(repo_root):
-        available.append(
-            Written("doc-marshal init --pre-commit", "check the staged notes, and the index, at every commit")
-        )
+        available.append(Written("doc-marshal init --pre-commit", "check the staged notes at every commit"))
     if not args.ci and not (repo_root / WORKFLOWS / CI_FILE).is_file():
-        available.append(
-            Written("doc-marshal init --ci", "check --all, index --check and drifted on every pull request")
-        )
+        available.append(Written("doc-marshal init --ci", "check --all and drifted on every pull request"))
     if available:
         print("\nnot wired yet:")
         print("\n".join(columns(available)))

@@ -190,7 +190,6 @@ def precommit_block(version: str, indent: str = "  ") -> str:
         f"  rev: v{version}",
         "  hooks:",
         "    - id: doc-marshal-check",
-        "    - id: doc-marshal-index",
     ]
     return "".join(f"{indent}{line}\n" for line in lines)
 
@@ -210,8 +209,7 @@ def ci_steps(version: str) -> list[str]:
     return [
         "- uses: actions/checkout@v4\n  with:\n    fetch-depth: 0\n",
         "- uses: astral-sh/setup-uv@v6\n",
-        f'- run: uvx {pin} check --all --format github --range "{base}..HEAD"\n',
-        f"- run: uvx {pin} index --check\n",
+        f"- run: uvx {pin} check --all --format github\n",
         f'- run: uvx {pin} drifted --range "{base}..HEAD" --format github\n',
     ]
 
@@ -227,7 +225,7 @@ def render_steps(version: str, indent: str) -> str:
 def ci_text(version: str) -> str:
     """`.github/workflows/docs.yml`.
 
-    Pull requests only. Both `--range` steps read `github.event.pull_request.base.sha`, which is
+    Pull requests only. The `--range` step reads `github.event.pull_request.base.sha`, which is
     empty on a push, and `--range "..HEAD"` is an exit-2 error rather than a skipped check.
     """
     return f"""\
@@ -235,8 +233,8 @@ def ci_text(version: str) -> str:
 #
 # No `paths:` filter: half of what this checks is whether the anchors still resolve, and those
 # break in the change that renames or deletes the code -- which by definition touches no
-# documentation. `fetch-depth: 0` because `drifted` and `--range` answer from a git diff, and the
-# default shallow clone makes them answer *nothing* rather than fail.
+# documentation. `fetch-depth: 0` because `drifted` answers from a git diff, and the default
+# shallow clone makes it answer *nothing* rather than fail.
 #
 # The pin is the same version the pre-commit `rev:` and the project environment name. Change it
 # with `doc-marshal upgrade <version>`, which moves every jurisdiction at once.
@@ -277,7 +275,7 @@ def write_precommit(repo_root: Path, version: str | None) -> Outcome:
     config = repo_root / PRECOMMIT
     if not config.is_file():
         config.write_text(precommit_text(version), encoding="utf-8")
-        return Outcome(written=Written(PRECOMMIT, "check on the staged notes, and the index, at every commit"))
+        return Outcome(written=Written(PRECOMMIT, "check on the staged notes at every commit"))
     if has_hook(repo_root):
         return Outcome(note=f"{PRECOMMIT} already names doc-marshal -- left alone")
     return Outcome(
@@ -301,7 +299,7 @@ def write_ci(repo_root: Path, version: str | None) -> Outcome:
         return Outcome(note=f"{label} already exists -- left alone")
     workflow.parent.mkdir(parents=True, exist_ok=True)
     workflow.write_text(ci_text(version), encoding="utf-8")
-    return Outcome(written=Written(label, "check --all, index --check and drifted on every pull request"))
+    return Outcome(written=Written(label, "check --all and drifted on every pull request"))
 
 
 def set_pins(repo_root: Path, version: str) -> list[str]:

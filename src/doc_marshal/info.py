@@ -114,8 +114,8 @@ def render_compact(profile: Profile) -> str:
     lines.append("")
     lines.append(f"Anchors: {anchors or 'none declared'}.")
     lines.append(
-        f"Every note: frontmatter with type, updated (YYYY-MM-DD) and summary (one line, max "
-        f"{settings.summary_max} chars); {settings.index_name} is generated."
+        f"Every note: frontmatter with type and summary (one line, max {settings.summary_max} chars); "
+        "`doc-marshal index` lists every note with its summary."
     )
     return "\n".join(lines)
 
@@ -263,7 +263,6 @@ def render_policies(profile: Profile) -> str:
         "{{types_table}}": render_types_table(profile),
         "{{anchor_table}}": render_anchor_table(profile),
         "{{summary_max}}": str(settings.summary_max),
-        "{{index_name}}": settings.index_name,
         "{{assets_dirname}}": settings.assets_dirname,
         "{{config_name}}": settings.config_name,
         "{{memory_names}}": ", ".join(f"`{n}`" for n in sorted(settings.memory_names)),
@@ -307,7 +306,6 @@ def render_json(profile: Profile) -> str:
     data["version"] = __version__
     data["settings"] = {
         "config_name": profile.settings.config_name,
-        "index_name": profile.settings.index_name,
         "assets_dirname": profile.settings.assets_dirname,
         "filename_pattern": profile.settings.filename_pattern,
         "summary_max": profile.settings.summary_max,

@@ -54,26 +54,27 @@ EOF
 done
 git add -A
 doc-marshal check --all
-doc-marshal index && doc-marshal index --check
+doc-marshal index | grep -q 'use-postgres.md'
+test ! -e docs/INDEX.md
 git add -A && git commit -qm init
 echo "y = 2" >> src/db.py
 doc-marshal drifted | grep -q use-postgres
 git commit -qam second
 doc-marshal drifted --range HEAD~1..HEAD | grep -q use-postgres
-! doc-marshal check --all --range HEAD           # not A..B
-! doc-marshal check --all --range HEAD~1...HEAD  # three dots
+! doc-marshal drifted --range HEAD           # not A..B
+! doc-marshal drifted --range HEAD~1...HEAD  # three dots
 doc-marshal doctor
 
 # Shape: a done spec must name its code and hold no open question; a title is one H1 with the
 # number its filename carries; an unknown frontmatter key is an error; github format annotates.
-printf -- '---\ntype: spec\nupdated: 2026-09-03\nsummary: done without code\nstatus: done\n---\n# Done\n' > docs/done.md
+printf -- '---\ntype: spec\nsummary: done without code\nstatus: done\n---\n# Done\n' > docs/done.md
 ! doc-marshal check docs/done.md
 doc-marshal check docs/done.md --format github | grep -q '^::error file=docs/done.md::'
 rm docs/done.md
 sed 's/^# 0001 -- /# /' docs/decisions/0001-use-postgres.md > docs/decisions/0002-untitled.md
 doc-marshal check docs/decisions/0002-untitled.md | grep -q 'starts with its number'
 rm docs/decisions/0002-untitled.md
-printf -- '---\ntype: reference\nupdated: 2026-09-03\nsummary: t\nsource:\n  - https://x.example\ncode-refs:\n  - src/db.py\n---\n# T\n\ntext\n' > docs/typo.md
+printf -- '---\ntype: reference\nsummary: t\nsource:\n  - https://x.example\ncode-refs:\n  - src/db.py\n---\n# T\n\ntext\n' > docs/typo.md
 doc-marshal check docs/typo.md | grep -q "unknown frontmatter key 'code-refs'"
 rm docs/typo.md
 # A summary carrying `: ` is ordinary English and not a plain YAML scalar, so `new` writes it
@@ -142,17 +143,17 @@ differential docs
 # will always read as False -- the Norway problem, one of the two reasons a YAML library does not
 # replace this parser -- so it stays a divergence however strict the parser later becomes.
 planted=$(mktemp -d)
-printf -- '---\ntype: spec\nupdated: 2026-09-03\nsummary: t\nstatus: no\n---\n# T\n' > "$planted/note.md"
+printf -- '---\ntype: spec\nsummary: t\nstatus: no\n---\n# T\n' > "$planted/note.md"
 ! differential "$planted"
 differential "$planted" 2>&1 | grep -q "'status' reads as 'no' here and False in YAML"
 rm -r "$planted"
 rm docs/limits.md
-printf -- '---\ntype: reference\nupdated: 2026-09-03\nsummary: Limits: what the vendor imposes\n---\n# T\n\ntext\n' > docs/plain.md
+printf -- '---\ntype: reference\nsummary: Limits: what the vendor imposes\n---\n# T\n\ntext\n' > docs/plain.md
 doc-marshal check docs/plain.md | grep -q "must be quoted"
 rm docs/plain.md
 # The space after the colon is not decoration either: `type:spec` is a key and a value to a parser
 # that splits on the colon, and a plain scalar -- not a mapping -- to YAML.
-printf -- '---\ntype:spec\nupdated: 2026-09-03\nsummary: t\n---\n# T\n\ntext\n' > docs/tight.md
+printf -- '---\ntype:spec\nsummary: t\n---\n# T\n\ntext\n' > docs/tight.md
 doc-marshal check docs/tight.md | grep -q "expected a space after the colon"
 rm docs/tight.md
 mkdir -p docs/sub && printf 'x\n' > docs/sub/INDEX.md && printf 'x\n' > docs/Readme.md

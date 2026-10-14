@@ -17,8 +17,6 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
-from functools import cached_property
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -32,7 +30,6 @@ from .report import Report
 from .settings import NOTE_SUFFIX, NUMBER_PREFIX_RE, NUMBER_TITLE_SEPARATOR
 from .vocabulary import Vocabulary, alias_re
 
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # A link or an image: the destination is either `<...>` (CommonMark's spelling for a destination
 # holding spaces) or a run without spaces or a closing paren.
 LINK_RE = re.compile(r"\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))\)")
@@ -42,11 +39,6 @@ WIKILINK_RE = re.compile(r"\[\[[^\]]+\]\]")
 @dataclass
 class Scope:
     """What one run knows once, handed to every policy.
-
-    The git facts are read on first use and never twice: which notes the change touched, for the
-    freshness check on every note; what it touched outside the docs and the day it began, which
-    only a note that gets past the cheaper tests ever asks for. None from any of them means git
-    could not say -- "cannot tell" is not "nothing edited", and the checks stay quiet.
 
     `in_scope` is the set of targets a tree-wide policy may report on, or None for a sweep: a run
     that touched one reference note should not fail on a file it never opened.
@@ -58,7 +50,6 @@ class Scope:
     docs_tree: Path
     profile: Profile
     git: Git
-    rev_range: str | None = None
     vocabulary: Vocabulary = field(default_factory=Vocabulary)
     headings_of: dict[Path, set[str]] = field(default_factory=dict)  # linked notes, read once
     in_scope: set[Path] | None = None
@@ -66,18 +57,6 @@ class Scope:
     @property
     def repo_root(self) -> Path:
         return self.git.repo_root
-
-    @cached_property
-    def edited(self) -> set[Path] | None:
-        return self.git.edited_notes(self.rev_range, self.docs_tree)
-
-    @cached_property
-    def since(self) -> date | None:
-        return self.git.change_start(self.rev_range)
-
-    def touched(self, path: Path) -> bool:
-        """Whether the change edited this note, as far as git can tell."""
-        return self.edited is not None and path in self.edited
 
 
 Policy = Callable[[Note, Scope, Report], None]
@@ -115,13 +94,9 @@ def check_frontmatter(note: Note, scope: Scope, report: Report) -> None:
     if spec is None:
         report.error(path, profile.not_live(meta.get("type")))
 
-    updated = meta.get("updated")
-    if not isinstance(updated, str) or not DATE_RE.match(updated):
-        report.error(path, f"'updated' must be an ISO date (YYYY-MM-DD), got {updated!r}")
-
     summary = meta.get("summary")
     if not isinstance(summary, str) or not summary.strip():
-        report.error(path, "'summary' is required -- it is the only text the generated index shows")
+        report.error(path, "'summary' is required -- it is the only text `doc-marshal index` shows")
     elif len(summary) > settings.summary_max:
         report.error(path, f"'summary' must be one short line (max {settings.summary_max} chars)")
 
@@ -195,38 +170,6 @@ def check_location(note: Note, scope: Scope, report: Report) -> None:
     owner = profile.reserved_filenames.get(path.name)
     if owner is not None and owner != spec.name:
         report.error(path, f"{path.name} is the '{owner}' type's filename, but this declares '{spec.name}'")
-
-
-def check_freshness(note: Note, scope: Scope, report: Report) -> None:
-    """`updated` names a real past date, and an edited note has had it bumped.
-
-    The format check lives in `check_frontmatter`; this runs only once the field parses, and so
-    says nothing about a note whose frontmatter did not. A date in the future is an error --
-    nothing can have been edited then -- with a day of slack so a writer ahead of CI's UTC clock
-    is not failed for it.
-
-    An edited note's date must be no earlier than the day the change began: today for a
-    working-tree run, the earliest commit's day for a range. That makes the policy purely mechanical
-    -- a note dated the day it was edited stays valid however long its pull request takes -- and
-    so it is an error. Silent when git could not say what was edited or when.
-    """
-    path = note.path
-    updated = note.meta.get("updated") if note.meta is not None else None
-    if not isinstance(updated, str) or not DATE_RE.match(updated):
-        return
-    try:
-        stamp = date.fromisoformat(updated)
-    except ValueError:
-        report.error(path, f"'updated' is not a real date: {updated}")
-        return
-    today = date.today()
-    if stamp > today + timedelta(days=scope.profile.settings.future_slack_days):
-        report.error(path, f"'updated' is in the future: {updated}")
-        return
-    if not scope.touched(path) or scope.since is None or stamp >= scope.since:
-        return
-    window = f" (the change began on {scope.since})" if scope.since != today else ""
-    report.error(path, f"edited by this change but 'updated' still reads {updated} -- bump it to {today}{window}")
 
 
 def check_title(note: Note, scope: Scope, report: Report) -> None:
@@ -539,7 +482,6 @@ NOTE_POLICIES: tuple[Policy, ...] = (
     check_naming,
     check_frontmatter,
     check_location,
-    check_freshness,
     check_title,
     check_sections,
     check_structure,

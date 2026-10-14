@@ -1,6 +1,5 @@
 ---
 type: runbook
-updated: 2026-10-13
 summary: Install doc-marshal into a repository, mark its docs tree, wire the integrations, and move every pin to a new version
 code_refs:
   - src/doc_marshal/init.py
@@ -39,7 +38,7 @@ code_refs:
 
    It prints a `created:` table -- one row per file, with what that file does there:
    `docs/.doc-marshal/` (the config, with the `standard` types), `docs/NOMENCLATURE.md`, `docs/CLAUDE.md`, the `@docs/CLAUDE.md` import
-   in the root `CLAUDE.md`, `docs/INDEX.md`, `.claude/settings.json`, `.pre-commit-config.yaml` and
+   in the root `CLAUDE.md`, `.claude/settings.json`, `.pre-commit-config.yaml` and
    `.github/workflows/docs.yml` -- then numbered `next:` steps. An integration no flag asked for is
    named under `not wired yet:`, one line for the flag that writes it, rather than printed as a
    config block to paste at a version you would have to fill in yourself.

@@ -4,7 +4,7 @@ Checks the files named on the command line: a run fixes the docs it touched, not
 the docs tree. `--all` is the sweep CI runs.
 
     doc-marshal check docs/ledger/schema.md docs/decisions/0004-parking.md
-    doc-marshal check --all --range main..HEAD
+    doc-marshal check --all
 
 Exits 1 if any error is reported. Warnings never fail the run. The policies themselves live in
 `policies`, as one ordered pipeline; this module sorts the targets, builds the scope a run shares,
@@ -43,8 +43,8 @@ def unchecked_reason(path: Path, docs_tree: Path, settings: Settings) -> str | N
         return f"outside the docs tree ({docs_tree}) -- wrong --docs-tree?"
     if not is_checkable(path, docs_tree, settings):
         return (
-            f"not a note ({classify(path, docs_tree, settings)}) -- generated, agent-memory, "
-            "tooling and asset files are never validated"
+            f"not a note ({classify(path, docs_tree, settings)}) -- agent-memory, tooling and "
+            "asset files are never validated"
         )
     return None
 
@@ -55,15 +55,12 @@ def run(
     targets: list[Path],
     *,
     sweep: bool,
-    rev_range: str | None = None,
     skip_non_notes: bool = False,
 ) -> tuple[Report, int]:
     """Validate `targets` (or the whole tree with `sweep`). Returns the report and the count checked."""
     settings = profile.settings
     repo_root = find_repo_root(docs_tree)
     git = Git(repo_root)
-    if rev_range:
-        git.validate_range(rev_range)
     report = Report(root=repo_root)
 
     to_check: list[Path] = []
@@ -76,7 +73,7 @@ def run(
 
     # Everything git and the tree are asked is asked after the targets are sorted, so a hook
     # handed a markdown file that is not a note pays for nothing.
-    scope = Scope(docs_tree, profile, git, rev_range, in_scope=None if sweep else set(targets))
+    scope = Scope(docs_tree, profile, git, in_scope=None if sweep else set(targets))
     if to_check:
         scope.vocabulary = build_vocabulary(docs_tree, profile, report, to_check, sweep)
     for path in to_check:
@@ -101,11 +98,6 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("paths", nargs="*", type=Path, help="notes to check")
     parser.add_argument("--all", action="store_true", help="sweep every note under the docs tree (what CI runs)")
-    parser.add_argument(
-        "--range",
-        help="git range whose notes count as edited, e.g. main..HEAD (default: the working tree; "
-        "CI has no working-tree changes and must pass this to check freshness at all)",
-    )
     parser.add_argument(
         "--skip-non-notes",
         action="store_true",
@@ -138,7 +130,6 @@ def main(argv: list[str]) -> int:
         profile,
         targets,
         sweep=args.all,
-        rev_range=args.range,
         skip_non_notes=args.skip_non_notes,
     )
 

@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-02
 summary: The tests a runtime library must pass before this package takes one, and the one route into the engine that taking one breaks
 code_refs:
   - pyproject.toml

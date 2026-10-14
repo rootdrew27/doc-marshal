@@ -40,7 +40,7 @@ Not a Python project: `uv tool install doc-marshal==0.6.0`. For pip, Poetry and 
 doc-marshal new reference docs/ingest.md --summary "..." --code-ref src/ingest/sync_worker.py
 doc-marshal check --all     # validate every note against the policies
 doc-marshal drifted         # the notes anchored to code this branch touched
-doc-marshal index           # regenerate INDEX.md
+doc-marshal index           # every note with its type and summary
 doc-marshal info            # the types; `info <type>`, `--policies`, `--marshalling` for more
 doc-marshal doctor          # report the version every jurisdiction names
 doc-marshal upgrade X.Y.Z   # install a version and move every pin to it
@@ -80,7 +80,6 @@ Pre-commit, in `.pre-commit-config.yaml`:
   rev: v0.6.0
   hooks:
     - id: doc-marshal-check
-    - id: doc-marshal-index
 ```
 
 CI, on every pull request. Keep `fetch-depth: 0`, because `drifted` reads a git diff:
@@ -91,8 +90,7 @@ CI, on every pull request. Keep `fetch-depth: 0`, because `drifted` reads a git 
   with:
     fetch-depth: 0
 - uses: astral-sh/setup-uv@v6
-- run: uvx doc-marshal==0.6.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
-- run: uvx doc-marshal==0.6.* index --check
+- run: uvx doc-marshal==0.6.* check --all --format github
 - run: uvx doc-marshal==0.6.* drifted --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
 ```
 
@@ -101,8 +99,8 @@ the docs tree. See [docs/integrations.md](https://github.com/rootdrew27/doc-mars
 
 ## Documentation
 
-This repository is documented by its own docs tree, starting from
-[docs/INDEX.md](https://github.com/rootdrew27/doc-marshal/blob/main/docs/INDEX.md).
+This repository is documented by its own docs tree,
+[docs/](https://github.com/rootdrew27/doc-marshal/tree/main/docs).
 
 ## License
 

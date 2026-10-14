@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-02
 summary: "Anchor fields: how entries resolve, which ones a change is matched against, and what every path entry must satisfy"
 code_refs:
   - src/doc_marshal/ontology.py

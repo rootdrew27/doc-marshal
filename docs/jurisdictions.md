@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-09-08
 summary: The four places that name an engine version, why absence is legal and disagreement is not, and what doctor and upgrade do about it
 code_refs:
   - src/doc_marshal/integrate.py
@@ -67,8 +66,7 @@ what `doctor` checks and what `init` and `upgrade` write can never be two differ
 `doctor` prints the running version and where it came from, the interpreter, the docs tree, whether
 the root `CLAUDE.md` imports the docs-tree one, the engine in the project's virtualenv -- the one
 the plugin's hooks run -- the engine on PATH, and every repository pin with whether it matches. No
-integration runs it: the pull-request workflow runs `check`, `index --check` and `drifted` and
-nothing else, so a disagreement surfaces when someone asks. It exits 1 having reported any of:
+integration runs it: the pull-request workflow runs `check` and `drifted` and nothing else, so a disagreement surfaces when someone asks. It exits 1 having reported any of:
 
 - no docs tree resolves here, so nothing is being validated;
 - no engine in the project's virtualenv or on PATH, so the plugin's hooks run nothing;

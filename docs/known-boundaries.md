@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-13
 summary: "What the policies do not see: the limits of the naming, frontmatter, links, numbering, alias and vocabulary checks"
 code_refs:
   - src/doc_marshal/policies.py
@@ -20,7 +19,7 @@ states what *is* checked; this note is its complement.
 - The kebab-case pattern is ASCII only, so an accented filename fails.
 - A name may begin with a digit.
 - A dotfile fails the naming policy unless it is one of the non-notes `doc-marshal info --policies`
-  lists, which are never validated or indexed.
+  lists, which are never validated or listed by `index`.
 - An agent-memory file is never a note anywhere under the tree, so a nested `CLAUDE.md`, or both
   `CLAUDE.md` and `AGENTS.md` at the top of the tree, pass without comment.
 
@@ -34,7 +33,7 @@ states what *is* checked; this note is its complement.
 - A flow list, `key: [a, b]`, is reported as an unquoted value opening with `[`, not as a flow
   list.
 - A quoted value is unescaped for `\"` and `\\` only, and a single-quoted `''` is not unescaped
-  at all, so any other escape a hand-written value carries reaches the generated index verbatim.
+  at all, so any other escape a hand-written value carries reaches `doc-marshal index` verbatim.
 - `https://` with nothing after it passes as a URL.
 
 ## Links

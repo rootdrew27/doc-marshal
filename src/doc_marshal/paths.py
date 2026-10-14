@@ -17,14 +17,14 @@ from .settings import MARKDOWN_SUFFIXES, NOTE_SUFFIX, SETTINGS, Settings
 # What `classify` returns.
 NOTE = "note"  # a note the convention governs
 ASSET = "asset"  # under the docs tree's assets/, exempt from everything
-NOT_A_NOTE = "not-a-note"  # generated output, agent-memory, tooling, the config, non-markdown
+NOT_A_NOTE = "not-a-note"  # agent-memory, tooling, the config, non-markdown
 FORBIDDEN = "forbidden"  # a file the convention does not allow to exist here
 
 
 def classify(path: Path, docs_tree: Path, settings: Settings = SETTINGS) -> str:
     """Sort a path under the docs tree into exactly one kind.
 
-    One function so the validator and the index builder cannot draw the line differently. Order
+    One function so the validator and the index cannot draw the line differently. Order
     matters: `assets/` wins over everything (it is unvalidated at any depth), tooling directories
     win over the forbidden-name check (a README under `.github/` is tooling, not a stray index).
     The config is not markdown, so it is never a note without a special case.
@@ -32,16 +32,13 @@ def classify(path: Path, docs_tree: Path, settings: Settings = SETTINGS) -> str:
     Names are judged case-insensitively, because the filesystems this runs on disagree about
     case and a `Readme.md` is the same stray index as a `README.md`. A markdown file under any
     other spelling of the suffix is forbidden rather than ignored: silently skipping `.MD` left a
-    note nobody validated. The generated index is a non-note only at the top of the docs tree, spelled
-    exactly; anywhere else, or in any other case, it is a second index and forbidden.
+    note nobody validated.
     """
     if in_assets(path, docs_tree, settings):
         return ASSET
     if path.suffix.lower() not in MARKDOWN_SUFFIXES:
         return NOT_A_NOTE
     if settings.excluded_dirs.intersection(rel_to(path, docs_tree).parts):
-        return NOT_A_NOTE
-    if path.name == settings.index_name and path.parent == docs_tree:
         return NOT_A_NOTE
     if path.name in settings.memory_names:
         return NOT_A_NOTE
