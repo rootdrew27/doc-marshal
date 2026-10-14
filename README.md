@@ -24,14 +24,14 @@ macOS and Linux. The CLI, pre-commit and CI run anywhere Python does.
 From the repository root:
 
 ```bash
-uv add --dev doc-marshal==0.6.0                          # into the project's .venv, where the plugin's hooks look
+uv add --dev doc-marshal==0.6.1                          # into the project's .venv, where the plugin's hooks look
 uv run doc-marshal init --claude-code --pre-commit --ci  # marks docs/ as the docs tree and wires the integrations
 uv run doc-marshal check --all                           # the tree validates from its first minute
 uv run doc-marshal doctor                                # every route to the engine names the same version
 ```
 
 Drop `--claude-code` to write a vendor-neutral `AGENTS.md` instead of `CLAUDE.md` and the plugin.
-Not a Python project: `uv tool install doc-marshal==0.6.0`. For pip, Poetry and upgrading, see
+Not a Python project: `uv tool install doc-marshal==0.6.1`. For pip, Poetry and upgrading, see
 [docs/setup.md](https://github.com/rootdrew27/doc-marshal/blob/main/docs/setup.md).
 
 ## Commands
@@ -40,7 +40,7 @@ Not a Python project: `uv tool install doc-marshal==0.6.0`. For pip, Poetry and 
 doc-marshal new reference docs/ingest.md --summary "..." --code-ref src/ingest/sync_worker.py
 doc-marshal check --all     # validate every note against the policies
 doc-marshal drifted         # the notes anchored to code this branch touched
-doc-marshal index           # regenerate INDEX.md
+doc-marshal index           # every note with its type and summary
 doc-marshal info            # the types; `info <type>`, `--policies`, `--marshalling` for more
 doc-marshal doctor          # report the version every jurisdiction names
 doc-marshal upgrade X.Y.Z   # install a version and move every pin to it
@@ -77,10 +77,9 @@ Pre-commit, in `.pre-commit-config.yaml`:
 <!-- generated: pre-commit -->
 ```yaml
 - repo: https://github.com/rootdrew27/doc-marshal
-  rev: v0.6.0
+  rev: v0.6.1
   hooks:
     - id: doc-marshal-check
-    - id: doc-marshal-index
 ```
 
 CI, on every pull request. Keep `fetch-depth: 0`, because `drifted` reads a git diff:
@@ -91,8 +90,7 @@ CI, on every pull request. Keep `fetch-depth: 0`, because `drifted` reads a git 
   with:
     fetch-depth: 0
 - uses: astral-sh/setup-uv@v6
-- run: uvx doc-marshal==0.6.* check --all --format github --range "${{ github.event.pull_request.base.sha }}..HEAD"
-- run: uvx doc-marshal==0.6.* index --check
+- run: uvx doc-marshal==0.6.* check --all --format github
 - run: uvx doc-marshal==0.6.* drifted --range "${{ github.event.pull_request.base.sha }}..HEAD" --format github
 ```
 
@@ -101,8 +99,8 @@ the docs tree. See [docs/integrations.md](https://github.com/rootdrew27/doc-mars
 
 ## Documentation
 
-This repository is documented by its own docs tree, starting from
-[docs/INDEX.md](https://github.com/rootdrew27/doc-marshal/blob/main/docs/INDEX.md).
+This repository is documented by its own docs tree,
+[docs/](https://github.com/rootdrew27/doc-marshal/tree/main/docs).
 
 ## License
 

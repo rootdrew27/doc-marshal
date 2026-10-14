@@ -27,10 +27,3 @@ repos:
         language: system
         types: [markdown]
         require_serial: true
-      - id: doc-marshal-index
-        name: doc-marshal index
-        entry: uv run doc-marshal index
-        language: system
-        types: [markdown]
-        pass_filenames: false
-        require_serial: true

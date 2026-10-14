@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-13
 summary: "The standard profile: where its types are rendered, the lifecycle they share, and why there is no Related section"
 code_refs:
   - src/doc_marshal/ontology.py

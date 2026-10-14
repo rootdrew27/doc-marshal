@@ -1,7 +1,7 @@
 """`doc-marshal new`: create a note with the frontmatter and template its type requires.
 
-Frontmatter is mechanical -- the required fields follow from the type, `updated` is today, and a
-numbered note's number is the highest existing one plus one. Every one of those is a policy someone
+Frontmatter is mechanical -- the required fields follow from the type, and a numbered note's
+number is the highest existing one plus one. Every one of those is a policy someone
 otherwise applies by hand and occasionally gets wrong, so the profile states them and this
 command applies them.
 
@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
 from pathlib import Path
 
 from .config import add_docs_tree_option, resolve
@@ -59,25 +58,22 @@ def next_number(folder: Path) -> str:
     return f"{highest + 1:04d}"
 
 
-def render_note(title: str, meta: list[str], spec: DocType, today: str | None = None) -> str:
+def render_note(title: str, meta: list[str], spec: DocType) -> str:
     """A complete note: frontmatter lines, H1 and the type's template."""
-    today = today or date.today().isoformat()
-    template = [line.replace("{today}", today) for line in spec.template]
-    lines = ["---", *meta, "---", "", f"# {title}", "", *template]
+    lines = ["---", *meta, "---", "", f"# {title}", "", *spec.template]
     return "\n".join([*lines, ""])
 
 
 def frontmatter_lines(
     doc_type: str,
     summary: str,
-    today: str,
     status: str | None = None,
     anchors: dict[str, list[str]] | None = None,
 ) -> list[str]:
     # Everything that came from the command line is written through `quote_scalar`: a summary
     # carrying `: ` is ordinary English and unremarkable to this package's parser, and invalid YAML
     # to every other reader of the tree.
-    meta = [f"type: {doc_type}", f"updated: {today}", f"summary: {quote_scalar(summary)}"]
+    meta = [f"type: {doc_type}", f"summary: {quote_scalar(summary)}"]
     if status:
         meta.append(f"status: {status}")
     for field_name, values in (anchors or {}).items():
@@ -182,7 +178,6 @@ def main(argv: list[str]) -> int:
     if args.type not in types:
         raise DocMarshalError(profile.not_live(args.type))
     spec = types[args.type]
-    today = date.today().isoformat()
 
     if len(args.summary) > settings.summary_max:
         raise DocMarshalError(
@@ -203,9 +198,9 @@ def main(argv: list[str]) -> int:
     anchors = {name: getattr(args, f"anchor_{name}") for name in profile.anchor_fields}
     validate(target, spec, docs_tree, repo_root, profile)
 
-    meta = frontmatter_lines(args.type, args.summary, today, status, anchors)
+    meta = frontmatter_lines(args.type, args.summary, status, anchors)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_note(title, meta, spec, today), encoding="utf-8")
+    target.write_text(render_note(title, meta, spec), encoding="utf-8")
 
     written = rel_to(target, repo_root)
     print(f"wrote {written}")

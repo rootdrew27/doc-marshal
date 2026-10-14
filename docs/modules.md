@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-13
 summary: "One line per module of the package, per plugin file and per script: what each one owns"
 code_refs:
   - src/doc_marshal

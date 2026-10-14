@@ -1,6 +1,5 @@
 ---
 type: nomenclature
-updated: 2026-10-13
 summary: The project's shared terminology -- one word per concept, the aliases ruled out, and the live ambiguities. Emitted into every session.
 ---
 
@@ -14,7 +13,7 @@ out, not merely discouraged.
 
 | Term | Definition | Avoid |
 | --- | --- | --- |
-| engine | The `doc-marshal` package and CLI: the validator, index builder and drift detector that reads every policy off an effective profile rather than hardcoding it. | linter, checker |
+| engine | The `doc-marshal` package and CLI: the validator, index printer and drift detector that reads every policy off an effective profile rather than hardcoding it. | linter, checker |
 | note | One typed markdown file under the docs tree, with frontmatter the effective profile validates and a body its type shapes. | page, article, document |
 | type | What a note is, named for the reader it serves and nothing else; declared as data whose properties the validator enforces and the scaffolder applies. | kind, category |
 | property | One declared line of a type: `serves`, `requires`, `folder`, `template` and the rest, each enforced by the validator and applied by the scaffolder. | attribute, declaration |
@@ -33,7 +32,7 @@ out, not merely discouraged.
 | structure | The parsed body shape a data-bodied type declares: sections, columns, key column, scanned columns and caps. | schema |
 | policy | One check the engine enforces, read off the effective profile; a type's properties are data the policies read, not policies. | rule, lint |
 | report | The errors and warnings a run collected. Errors exit 1; warnings never fail a run. | diagnostics, findings |
-| index | `INDEX.md`: the generated routing surface, one line per note with its type and summary, never written by hand. | table of contents, TOC, sitemap, catalog |
+| index | What `doc-marshal index` prints: one line per note with its type and summary, generated on demand and never written to the docs tree. | table of contents, TOC, sitemap, catalog |
 | asset | A file under `assets/`, exempt from validation and named as a note's `source`. | attachment, media |
 | reserved filename | The one filename a type binds both ways: that type must use it, and no other type may. | fixed name, claimed name |
 | integration | A place `check` runs: the plugin's PostToolUse hook, the pre-commit framework, and CI. | enforcement point, gate |
@@ -49,7 +48,7 @@ out, not merely discouraged.
 - A type declares anchor minimums; `drifted` reads every path-valued anchor against a change.
 - A policy runs over a note and writes into the report; an integration is where the policies run.
 - Every jurisdiction that names a version names the same one; a pin is a jurisdiction's value; `doctor` reads them and `upgrade` moves them together.
-- The briefing is performed by the plugin's SessionStart hook and reads the index, the root vocabulary and the effective profile.
+- The briefing is performed by the plugin's SessionStart hook and reads the notes, the root vocabulary and the effective profile.
 
 ## Ambiguities
 

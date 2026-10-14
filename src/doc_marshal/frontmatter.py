@@ -140,7 +140,7 @@ def read_note(path: Path) -> tuple[Meta | None, str, str, str | None]:
     text = path.read_text(encoding="utf-8")
     block, body = split_frontmatter(text)
     if block is None:
-        return None, body, text, "no frontmatter -- every note declares 'type', 'updated', and 'summary'"
+        return None, body, text, "no frontmatter -- every note declares 'type' and 'summary'"
     try:
         return parse_frontmatter(block), body, text, None
     except ValueError as exc:

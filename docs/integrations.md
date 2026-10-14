@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-13
 summary: Where check runs, how the Claude Code plugin wires it, what init writes for other agents, and the pre-commit and CI entries
 code_refs:
   - plugin
@@ -79,15 +78,9 @@ nothing on Windows or in another harness is tested.
 
 ## Pre-commit
 
-`.pre-commit-hooks.yaml` declares two entries for the pre-commit framework. `doc-marshal-check`
+`.pre-commit-hooks.yaml` declares one entry for the pre-commit framework. `doc-marshal-check`
 runs `check --skip-non-notes` on the staged markdown, so it may be handed every markdown file a
-change touched. `doc-marshal-index` regenerates `INDEX.md` and passes no filenames.
-
-The framework will not stage what a hook rewrote: a hook that modifies a file fails, and you
-re-add. That is how `black`, `ruff-format` and `prettier` behave, so a user meets a failure they
-have seen a hundred times rather than a bespoke one, and nothing silently adds files to their
-commit. The invariant that matters -- that no pushed branch carries a stale index -- is held by CI
-regardless.
+change touched.
 
 `init --pre-commit` never parses YAML. Absent, it writes `.pre-commit-config.yaml`; present, it
 detects a doc-marshal entry by substring and prints the block to paste. The file belongs to the
@@ -100,15 +93,14 @@ strictness test that blocks a markdown parser -- see `docs/dependency-policy.md`
 has no `.github/` it writes nothing and prints the steps instead, for whatever CI does run there. Two properties of that file are the reason the engine owns
 it rather than a README snippet:
 
-- **`fetch-depth: 0`.** `drifted` and `--range` answer from a git diff, and the default shallow
-  clone makes them answer *nothing* rather than fail: a silent wrong answer from the tool whose
+- **`fetch-depth: 0`.** `drifted` answers from a git diff, and the default shallow clone makes it
+  answer *nothing* rather than fail: a silent wrong answer from the tool whose
   whole subject is silent staleness.
 - **No `paths:` filter.** Half of what the job checks is whether anchors still resolve, and those
   break in the change that renames or deletes the code -- which by definition touches no
   documentation.
 
-The workflow runs on pull requests only, because both ranged steps read
-`github.event.pull_request.base.sha`, which is empty on a push. A stale index fails the build like
-any error: the fix is one command and the check has no false positives. Each step calls
+The workflow runs on pull requests only, because the `drifted` step reads
+`github.event.pull_request.base.sha`, which is empty on a push. Each step calls
 `uvx doc-marshal==<minor>.*` directly; there is no composite Action, which would be sugar over a
 three-line step.

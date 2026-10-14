@@ -34,7 +34,6 @@ Stage 4.
 | Surface | May you touch it |
 | --- | --- |
 | notes under the docs tree | yes -- create, edit, rename, delete |
-| `INDEX.md` | never by hand -- generated output. Stage 5 regenerates it with `doc-marshal index` |
 | `assets/**` | no -- assets, exempt from validation, names not yours |
 | `NOMENCLATURE.md`, at any level | read it, write by it -- edit it only when the scope is the nomenclature |
 | agent-memory files (`CLAUDE.md`, `AGENTS.md`) | yes, surgically -- Stage 4 says how narrowly |
@@ -102,7 +101,7 @@ the invocation, the session, or the diff -- stop and ask what changed.** This ho
 ### A subject
 
 1. Find what the tree already says: grep the docs tree for the subject's names, and read
-   `INDEX.md` for the notes whose summary is near it. The scope is the notes that own the subject,
+   `doc-marshal index` for the notes whose summary is near it. The scope is the notes that own the subject,
    or the one note that should.
 2. Read the code or config the subject rests on. The evidence policy in Stage 4 applies from the
    first line: a note written from a subject alone, without its code, is drift on day one.
@@ -239,7 +238,7 @@ doc-marshal new <type> <docs tree>/<folder>/<slug>.md --summary "<one line>" --c
 doc-marshal new decision <slug> --summary "<one line>"
 ```
 
-It applies the mechanical part of the policies -- today's date, the fields the type requires, a
+It applies the mechanical part of the policies -- the fields the type requires, a
 numbered note's number, location and title prefix, a nomenclature note's filename, and every
 section the type requires. It does not validate: the scaffold fails `doc-marshal check` until its
 required sections are written, and the `next:` line it prints is the gate. The required sections
@@ -283,7 +282,7 @@ making the falsified claim, and none other.
 - A **genuinely new subsystem** gets a new paragraph or section, as short as the file's others.
 - **Never hand-write an index**, here or anywhere: no tree, folder listing or "contents of this
   directory" section. A committed listing's only job is to agree with the filesystem, and it stops
-  doing that silently. The one index is generated -- the index policy in `doc-marshal info --policies`.
+  doing that silently. The one index is printed by `doc-marshal index`.
 
 ### In-code docs
 
@@ -296,7 +295,7 @@ making the falsified claim, and none other.
 
 ## Stage 5 -- Verify
 
-All three steps run before you report done.
+Both steps run before you report done.
 
 1. **Validator** -- `doc-marshal check <the files you touched>`, or `check --all` when the scope
    was the tree.
@@ -312,24 +311,13 @@ All three steps run before you report done.
 
    **Pass the files you touched and nothing else, and fix what it reports on those files.** Anything
    it reports about a doc outside your scope is not yours: name it in the report and leave it. Do
-   not edit a doc you did not touch to make this step pass. If you scope the run with `--range`, it
-   is `A..B` -- two commits, two dots -- or the command refuses it.
+   not edit a doc you did not touch to make this step pass.
 
 2. **Fresh-reader test** -- for new notes and substantially rewritten ones; skip it when the run
    only made small edits to existing text. Launch a read-only subagent with no session context.
    Give it the paths you wrote and 4-6 questions a real reader would bring, and ask it to answer
    from the docs alone and report what was ambiguous, what knowledge the docs assumed, and any
    internal contradiction. Fix what it surfaces; re-run only if you made substantive changes.
-
-3. **Index** -- `doc-marshal index`, whenever the run created, renamed or deleted a note, or changed
-   a `type` or `summary`. Skip it when the run only edited text inside existing notes.
-
-   `INDEX.md` is the tree's only routing surface, so a run that changes the note set and leaves the
-   index behind hands the next reader a map that no longer matches the tree.
-
-   Regeneration is whole-tree, so it can fail on a note you never opened -- the builder names the
-   offender and writes nothing. That note is not yours to fix unless the scope was the tree: name
-   it in the report and leave the index stale. The pre-commit hook and CI both check it again.
 
 ## Stage 6 -- Report
 
@@ -341,7 +329,6 @@ a separate repo or submodule, say so, because the change then spans two commits.
   repaired.
 - Anything you deliberately did **not** document, and why -- including anything the validator
   reported outside your scope.
-- Whether you regenerated `INDEX.md`, or which note outside your scope blocked the rebuild.
 - What the reader test surfaced and how you resolved it, or that the run did not warrant one.
 
 Then recommend a read-through: the user owns these docs.

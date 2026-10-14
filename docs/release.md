@@ -1,6 +1,5 @@
 ---
 type: runbook
-updated: 2026-10-13
 summary: "Cut a doc-marshal release: bump the version, regenerate the derived copies, run the checks, and merge to publish"
 code_refs:
   - scripts/sync_version.py

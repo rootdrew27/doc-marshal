@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-13
 summary: The three blocks a fresh session is handed about the docs tree, and what the plugin's SessionStart hook does with them
 code_refs:
   - src/doc_marshal/briefing.py
@@ -17,19 +16,17 @@ to a harness's session-start event is the plugin's job.
 
 | Block | What it holds |
 | --- | --- |
-| index preview | the docs tree's path, the note count, and one entry per folder with its own count -- then a pointer to `INDEX.md` for the full list and the reminder that it is generated |
+| index preview | the docs tree's path, the note count, and one entry per folder with its own count -- then `doc-marshal index`, the command that prints the full list |
 | the shared vocabulary | the root `NOMENCLATURE.md` as content: one line per term, then its remaining sections as written |
 | the compact info block | one line per live type -- what it serves and what it must carry -- under a sentence pointing at `doc-marshal info <type>`, `info --marshalling` and `new` |
 
-The index preview is a uniform reduction at every size, the top level included. `INDEX.md` grows
+The index preview is a uniform reduction at every size, the top level included. The full index grows
 linearly with the tree forever, and a summary of every note is a cost every session pays whether or
 not it opens a note; a session that needs to route to one spends a single tool call instead.
 
-Two conditions are folded into the first block. A stale index -- the notes no longer matching what
-`index` would generate -- puts a warning ahead of the preview, because a session routing off a
-stale index is exactly when staleness matters. Notes that could not be indexed are listed after it.
-Any failure to answer counts as not stale: a broken hook must not manufacture a warning about the
-docs.
+Notes that could not be listed -- a missing `type` or `summary` -- are named after the preview.
+When the notes cannot be read at all, the block says so in one line: a broken hook must not fail
+the session or manufacture a finding about the docs.
 
 ## The vocabulary as content
 

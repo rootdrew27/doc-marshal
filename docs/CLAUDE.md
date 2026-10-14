@@ -9,8 +9,7 @@ doc-marshal info --marshalling   # how these docs are written: for a change, a s
 doc-marshal check <path>         # validates a note against the policies; --all sweeps the tree
 doc-marshal new <type> <path>    # scaffolds a note with the frontmatter and sections its type requires
 doc-marshal drifted              # the notes anchored to code a change touched
-doc-marshal index                # regenerates INDEX.md
+doc-marshal index                # every note with its type and summary
 ```
 
-- `INDEX.md` -- generated routing surface: one line per note with its type and summary.
-- `NOMENCLATURE.md` -- the shared vocabulary for docs and code, and the aliases it rules out.
+`NOMENCLATURE.md` -- the shared vocabulary for docs and code, and the aliases it rules out.

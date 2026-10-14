@@ -1,6 +1,6 @@
 """The constants of Tier 3, behind one object.
 
-The filename pattern, the summary cap, the index and assets names, the forbidden names and the
+The filename pattern, the summary cap, the assets name, the forbidden names and the
 excluded directories are not configurable until `[policies]` is read (see docs/configuration.md).
 They are routed through this one object anyway, so that exposing them then is a schema
 addition rather than a refactor through six modules: every consumer already takes a `Settings`.
@@ -35,9 +35,6 @@ class Settings:
     env_var: str = "DOC_MARSHAL_DOCS_TREE"
     """Overrides config discovery; `--docs-tree` overrides both."""
 
-    index_name: str = "INDEX.md"
-    """The one generated index. Upper-case so it does not read as a note and sorts to the top."""
-
     assets_dirname: str = "assets"
     """The one optional asset directory, at the top of the docs tree. Exempt from everything, at any depth."""
 
@@ -51,10 +48,7 @@ class Settings:
     """Notes and the folders holding them: kebab-case."""
 
     summary_max: int = 200
-    """`summary` is one line -- the only text the generated index shows."""
-
-    future_slack_days: int = 1
-    """An `updated` date this far ahead of today is tolerated -- a writer ahead of CI's UTC clock."""
+    """`summary` is one line -- the only text `doc-marshal index` shows."""
 
     @property
     def config_name(self) -> str:
@@ -70,10 +64,10 @@ class Settings:
         """Not allowed anywhere under the docs tree, in any spelling of case, each with the reason
         reported to its author. Keyed by the lower-cased name."""
         return {
-            "readme.md": f"the generated {self.index_name} is the docs tree's only front door",
-            # Any index but the generated one at the root. Caught by name rather than left to be
-            # validated as a note, because "missing frontmatter" would not say what to do about it.
-            self.index_name.lower(): f"the generated index is {self.index_name}, spelled so, at the top of the docs tree only",
+            # A hand-written index. Caught by name rather than left to be validated as a note,
+            # because "missing frontmatter" would not say what to do about it.
+            "readme.md": "the index is generated -- `doc-marshal index` prints it",
+            "index.md": "the index is generated -- `doc-marshal index` prints it",
         }
 
     def forbidden_reason(self, path: Path) -> str | None:

@@ -1,15 +1,14 @@
 """What git knows about the repository, behind one object a run asks and a test can answer for.
 
 `Git` is the port: its public methods are every question the package puts to git -- which files
-are tracked, what a change touched, when it began, whether a `--range` is one git would read as
+are tracked, what a change touched, whether a `--range` is one git would read as
 the caller means. Each command builds one for the repository it runs in and hands it on (through
 `Scope` to the policies, as an argument elsewhere), so a run asks once and a fake can stand in.
 There is deliberately no `Protocol` yet: with one implementation the class itself is the
 interface, and a fake subclasses it. Add the protocol the day a second implementation exists.
 
 A query returns None when git could not answer. None and the empty answer are different
-facts -- "cannot tell" against "nothing changed" -- and callers keep them apart (see
-`edited_notes`). `toplevel` is the bootstrap: the one question asked of a directory before any
+facts -- "cannot tell" against "nothing changed" -- and callers keep them apart. `toplevel` is the bootstrap: the one question asked of a directory before any
 repository is known, to find the root a `Git` is then built on.
 
 Standard library only, deliberately: this runs from a bare interpreter, in CI, on a workstation,
@@ -17,14 +16,12 @@ and from a bare checkout with no dependency resolution step.
 
 The repo-path anchor fields exist so that "which docs does this diff touch?" has an answer.
 Answering it needs the diff, so the git plumbing lives here rather than in the one command that
-happens to need it first -- `check` uses the same object to tell an edited note from an untouched
-one.
+happens to need it first.
 """
 
 from __future__ import annotations
 
 import subprocess
-from datetime import date
 from functools import cached_property
 from pathlib import Path, PurePosixPath
 
@@ -35,11 +32,6 @@ TRUNK_CANDIDATES = ("main", "master", "trunk", "develop")
 # Per repository: the tracked files, and every directory that holds one. Both are sets so a
 # directory anchor is answered by one lookup rather than a scan of the listing per entry.
 Tracked = tuple[frozenset[str], frozenset[str]]
-
-
-def _pathspec(pathspec: Path | None) -> tuple[str, ...]:
-    """The trailing `-- <path>` that bounds a git query, or nothing when the query is unbounded."""
-    return ("--", str(pathspec)) if pathspec is not None else ()
 
 
 def toplevel(start: Path) -> Path | None:
@@ -87,8 +79,7 @@ class Git:
         """A git command's output as non-empty lines, or None when the command could not run.
 
         The empty list and None are different answers -- "git says nothing changed" against "git
-        could not tell us" -- and callers that collapse them lose the distinction `edited_notes`
-        rests on.
+        could not tell us" -- and callers that collapse them lose the distinction.
         """
         output = self._run(*args)
         if output is None:
@@ -229,61 +220,3 @@ class Git:
         if effective:
             paths |= set(self._lines("diff", "--name-only", effective) or ())
         return paths
-
-    def _content_changes(self, rev_range: str | None, pathspec: Path | None) -> set[str] | None:
-        """Paths whose content differs across the change, a pure `git mv` excluded.
-
-        `--find-renames=100%` reports an exact rename as one `R100` line and nothing else; a
-        rename with an edit is a delete and an add, and the add counts. Without a range the
-        comparison is the working tree against HEAD, staged or not.
-        """
-        lines = self._lines("diff", "--name-status", "--find-renames=100%", rev_range or "HEAD", *_pathspec(pathspec))
-        if lines is None:
-            return None
-        changed: set[str] = set()
-        for line in lines:
-            status, *names = line.split("\t")
-            if not status.startswith("R"):
-                changed.update(names)
-        return changed
-
-    def edited_notes(self, rev_range: str | None = None, pathspec: Path | None = None) -> set[Path] | None:
-        """Absolute paths of notes the change touched, or None when git cannot say.
-
-        Without a range this is the working tree, which is what a workstation run means by
-        "edited". CI cannot use that answer: a fresh checkout's tree is always clean, so the
-        working-tree reading there is an empty set that looks like "nothing edited" and quietly
-        disables every check built on it. Given a range, that range is the change instead.
-
-        A `git mv` with no content change is not an edit: nothing in the note became stale. A
-        plain `mv` is a delete plus an untracked file, and the untracked file counts as new.
-
-        None and the empty set mean different things -- "cannot tell" versus "nothing edited" --
-        so checks that only apply to an edited file stay silent rather than guess.
-        """
-        paths = self._content_changes(rev_range, pathspec)
-        if paths is None:
-            return None
-        if rev_range is None:
-            untracked = self._entries("ls-files", "-z", "--others", "--exclude-standard", *_pathspec(pathspec))
-            paths.update(untracked or ())
-        return {(self.repo_root / p).resolve() for p in paths}
-
-    def change_start(self, rev_range: str | None = None) -> date | None:
-        """The day the change began: today for the working tree, else the author date of the
-        range's earliest commit. None when git cannot say.
-
-        This is the bar an edited note's `updated` is held to. Comparing against today instead
-        would fail every note dated the day it was edited once its pull request is a day old --
-        and author dates rather than committer dates, so a rebase before merge does not move the
-        bar either.
-        """
-        if not rev_range:
-            return date.today()
-        lines = self._lines("log", "--format=%as", "--reverse", rev_range)
-        if not lines:
-            return None
-        try:
-            return date.fromisoformat(lines[0].strip())
-        except ValueError:
-            return None

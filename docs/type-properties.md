@@ -1,6 +1,5 @@
 ---
 type: reference
-updated: 2026-10-13
 summary: Every property a type declares, what the validator enforces from it, and what the scaffolder writes from it
 code_refs:
   - src/doc_marshal/ontology.py
@@ -45,7 +44,7 @@ the same objects.
 `Profile.frontmatter_keys` builds the permitted set from the profile, so it is the same list the
 validator rejects an unknown key by and `info` prints:
 
-- `type`, `updated` and `summary`, on every note of every type;
+- `type` and `summary`, on every note of every type;
 - every anchor field the profile declares -- legal on every type, whether or not that type requires
   it, and validated whenever present;
 - `status`, only where the type has statuses;
