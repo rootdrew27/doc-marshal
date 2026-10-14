@@ -24,14 +24,14 @@ macOS and Linux. The CLI, pre-commit and CI run anywhere Python does.
 From the repository root:
 
 ```bash
-uv add --dev doc-marshal==0.6.0                          # into the project's .venv, where the plugin's hooks look
+uv add --dev doc-marshal==0.6.1                          # into the project's .venv, where the plugin's hooks look
 uv run doc-marshal init --claude-code --pre-commit --ci  # marks docs/ as the docs tree and wires the integrations
 uv run doc-marshal check --all                           # the tree validates from its first minute
 uv run doc-marshal doctor                                # every route to the engine names the same version
 ```
 
 Drop `--claude-code` to write a vendor-neutral `AGENTS.md` instead of `CLAUDE.md` and the plugin.
-Not a Python project: `uv tool install doc-marshal==0.6.0`. For pip, Poetry and upgrading, see
+Not a Python project: `uv tool install doc-marshal==0.6.1`. For pip, Poetry and upgrading, see
 [docs/setup.md](https://github.com/rootdrew27/doc-marshal/blob/main/docs/setup.md).
 
 ## Commands
@@ -77,7 +77,7 @@ Pre-commit, in `.pre-commit-config.yaml`:
 <!-- generated: pre-commit -->
 ```yaml
 - repo: https://github.com/rootdrew27/doc-marshal
-  rev: v0.6.0
+  rev: v0.6.1
   hooks:
     - id: doc-marshal-check
 ```
